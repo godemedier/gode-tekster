@@ -418,6 +418,35 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 #count .count-long { opacity: 0; transform: translateY(4px); transition: opacity 180ms ease, transform 180ms ease; }
 #count.always .count-short, #count:hover .count-short { opacity: 1; }
 #count:hover .count-long { opacity: 1; transform: none; }
+/* Længdemål (goal.ts, 7/10): fremdriften står altid, med en tynd stribe under. Over loftet bliver
+   den rød, tæt på loftet gul, et nået mindstemål grønt. */
+#count.has-goal .count-short { opacity: 1; }
+#count .count-short[data-state="over"] { color: var(--fejl); }
+#count .count-short[data-state="naer"] { color: var(--advarsel); }
+.count-bar { display: block; width: 150px; height: 2px; border-radius: 1px; background: var(--streg); overflow: hidden; }
+.count-bar i { display: block; height: 100%; background: var(--dæmpet); transition: width 240ms ease; }
+.count-bar[data-state="ok"] i { background: var(--ok); }
+.count-bar[data-state="naer"] i { background: var(--advarsel); }
+.count-bar[data-state="over"] i { background: var(--fejl); }
+.count-goal { font: inherit; color: var(--link); background: none; border: none; padding: 0; cursor: pointer; }
+.count-goal:hover { text-decoration: underline; }
+.count-goal:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
+.goal-pop { position: fixed; right: calc(var(--hoejre, 0px) + 20px); bottom: 64px; z-index: 30; width: 280px; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 16px; font-family: var(--ui); font-size: 13px; color: var(--blæk);
+  background: var(--kort); border: 1px solid var(--kant); border-radius: 12px; box-shadow: var(--skygge); }
+.goal-pop strong { font-size: 13px; }
+.goal-row { display: flex; align-items: center; gap: 8px; }
+.goal-row input, .goal-row select { font: inherit; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 8px; padding: 5px 8px; min-width: 0; }
+.goal-row input[type="number"] { width: 96px; font-variant-numeric: tabular-nums; }
+.goal-row select { flex: 1; }
+.goal-date span { color: var(--svag); width: 40px; }
+.goal-date input { flex: 1; }
+.goal-row input:focus, .goal-row select:focus { outline: none; border-color: var(--link); box-shadow: 0 0 0 1px var(--link); }
+.goal-actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+.goal-actions button { font: inherit; font-size: 12.5px; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 8px; height: 30px; padding: 0 12px; cursor: pointer; }
+.goal-actions .goal-primary { border-color: var(--link); color: var(--link); font-weight: 600; }
+.goal-actions .goal-remove { margin-left: auto; border-color: transparent; color: var(--svag); }
+.goal-actions button:focus-visible, .goal-pop .st-choices button:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
 
 /* Fanen Input, id »claude« (del F): handlinger, research-felt, kort med vurdering og kilder. */
 .cl-actions { display: flex; gap: 6px; flex-wrap: wrap; }

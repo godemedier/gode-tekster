@@ -10,6 +10,7 @@
 
 import { todayIso } from "./dates.ts";
 import { resolvePending } from "./critic.ts";
+import { GOAL_LINE } from "./goal.ts";
 
 export type Parked = { id: string; date: string; text: string; from: number; to: number };
 
@@ -88,7 +89,7 @@ export function parkChanges(
  * uden noter, og med rettelser, der ikke er taget stilling til, som den oprindelige tekst (critic.ts).
  */
 export function withoutParked(doc: string): string {
-  return resolvePending(doc.replace(BLOCK, "").replace(CLAUDE, "")).replace(/\n{3,}$/, "\n");
+  return resolvePending(doc.replace(BLOCK, "").replace(CLAUDE, "").replace(GOAL_LINE, "")).replace(/\n{3,}$/, "\n");
 }
 
 /** Samme mønster som CLAUDE_BLOCK i claudeBlocks.ts (gentaget her for ikke at importere i ring). */
