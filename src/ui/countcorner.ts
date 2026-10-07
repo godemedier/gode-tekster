@@ -18,13 +18,13 @@ const nf1 = new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 });
 const KIND: Record<GoalKind, string> = { hoejst: tr("højst", "at most"), mindst: tr("mindst", "at least"), cirka: tr("cirka", "about") };
 const UNIT: Record<GoalUnit, string> = { anslag: tr("anslag", "characters"), ord: tr("ord", "words"), sider: tr("normalsider", "standard pages") };
 
-/** »3 dage til fristen«, »Fristen er i dag«, »2 dage over fristen«. */
+/** »3 dage til deadline«, »Deadline i dag«, »2 dage over deadline« (7/10: »deadline«, ikke »frist«). */
 function deadlineText(deadline: string): string {
   const d = daysLeft(deadline);
-  if (d === 0) return tr("Fristen er i dag", "Due today");
-  if (d === 1) return tr("1 dag til fristen", "1 day left");
-  if (d > 1) return tr(`${d} dage til fristen`, `${d} days left`);
-  return d === -1 ? tr("1 dag over fristen", "1 day overdue") : tr(`${-d} dage over fristen`, `${-d} days overdue`);
+  if (d === 0) return tr("Deadline i dag", "Due today");
+  if (d === 1) return tr("1 dag til deadline", "1 day left");
+  if (d > 1) return tr(`${d} dage til deadline`, `${d} days left`);
+  return d === -1 ? tr("1 dag over deadline", "1 day overdue") : tr(`${-d} dage over deadline`, `${-d} days overdue`);
 }
 
 export class CountCorner {
@@ -176,7 +176,7 @@ export class CountCorner {
     const dateRow = document.createElement("label");
     dateRow.className = "goal-row goal-date";
     const dateText = document.createElement("span");
-    dateText.textContent = tr("Frist", "Deadline");
+    dateText.textContent = "Deadline";
     const date = document.createElement("input");
     date.type = "date";
     date.value = g.deadline ?? "";

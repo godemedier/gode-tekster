@@ -439,7 +439,7 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .goal-row input, .goal-row select { font: inherit; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 8px; padding: 5px 8px; min-width: 0; }
 .goal-row input[type="number"] { width: 96px; font-variant-numeric: tabular-nums; }
 .goal-row select { flex: 1; }
-.goal-date span { color: var(--svag); width: 40px; }
+.goal-date span { color: var(--svag); width: 60px; }
 .goal-date input { flex: 1; }
 .goal-row input:focus, .goal-row select:focus { outline: none; border-color: var(--link); box-shadow: 0 0 0 1px var(--link); }
 .goal-actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
