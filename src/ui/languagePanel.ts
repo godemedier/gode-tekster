@@ -228,13 +228,12 @@ export class LanguagePanel {
       label.className = "lp-name";
       label.style.color = `var(--wc-${k})`;
       label.textContent = name;
-      const desc = document.createElement("span");
-      desc.className = "lp-desc";
-      desc.textContent = what;
+      // Forklaringen står ved musen, ikke som lysegrå tekst på linjen (7/10).
+      row.title = what;
       const n = document.createElement("span");
       n.className = "lp-count";
       n.textContent = total ? `${Math.round((counts[k] / total) * 100)} %` : "";
-      row.append(dot, label, desc, n);
+      row.append(dot, label, n);
       return row;
     });
     const bar = document.createElement("div");
@@ -248,7 +247,9 @@ export class LanguagePanel {
     }
     const out: HTMLElement[] = [bar, ...legend];
     if (counts.v && counts.n) {
-      out.push(hint(`${formatRatio(counts.n / counts.v)} navneord pr. udsagnsord. Jo flere navneord i forhold til udsagnsord, jo tungere læses teksten. Udsagnsordene driver den frem.`));
+      const ratio = hint(`${formatRatio(counts.n / counts.v)} navneord pr. udsagnsord`);
+      ratio.title = "Jo flere navneord i forhold til udsagnsord, jo tungere læses teksten. Udsagnsordene driver den frem.";
+      out.push(ratio);
     }
     return out;
   }
@@ -265,13 +266,11 @@ export class LanguagePanel {
       const sample = document.createElement("span");
       sample.className = `lp-sample gt-style gt-style-${cat}`;
       sample.textContent = name;
-      const desc = document.createElement("span");
-      desc.className = "lp-desc";
-      desc.textContent = what;
+      row.title = what;
       const n = document.createElement("span");
       n.className = "lp-count";
       n.textContent = String(mine.length);
-      row.append(sample, desc, n);
+      row.append(sample, n);
       if (mine.length) {
         const next = document.createElement("button");
         next.type = "button";

@@ -609,8 +609,8 @@ body.rp-wide.right-pinned { --hoejre: var(--rp-bred); }
 .lp-legend { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
 .lp-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; transform: translateY(-1px); }
 .lp-name { font-weight: 600; }
-.lp-desc { flex: 1; min-width: 0; color: var(--svag); font-size: 12px; }
-.lp-count { font-variant-numeric: tabular-nums; color: var(--svag); }
+/* Uden forklaringer på linjen (7/10): tallet står helt ude til højre, forklaringen ved musen. */
+.lp-count { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--svag); }
 .lp-sample { font-weight: 600; white-space: nowrap; }
 .lp-next { padding: 0; font-size: 12px; }
 .lp-hint { margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: var(--svag); }
