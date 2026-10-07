@@ -15,7 +15,7 @@ import { tr, isEnglish } from "../i18n.ts";
 export { danishDate };
 
 export type Template = "manuskript" | "laeseudgave";
-export type PrintOptions = { template: Template; includeDimmed: boolean };
+export type PrintOptions = { template: Template; includeDimmed: boolean; /** Kun Word: noter og forslag med (7/10). */ wordMarkup?: boolean };
 
 /** Margener i cm, som skabelonens `@page` (og PDF-kaldet i Rust). */
 export const MARGINS: Record<Template, { top: number; right: number; bottom: number; left: number }> = {

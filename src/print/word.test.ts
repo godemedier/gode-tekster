@@ -67,3 +67,26 @@ test("Læseudgave: Georgia 11, orddeling og indryk på hvert afsnit efter afsnit
   const doc = await zip.file("word/document.xml")!.async("string");
   assert.equal((doc.match(/w:firstLine="220"/g) ?? []).length, 1, "kun det andet afsnit");
 });
+
+test("Word med noter og forslag: kommentarer og sporede ændringer (7/10)", async () => {
+  const md = "Prisen var 5 kroner.<!-- tjek prisen -->\n\nDet var {~~dyrt~>billigt~~} og {++helt++} fint.\n\n<!-- en note for sig -->\n";
+  const zip = await zipOf(md, { markup: true });
+  const doc = await zip.file("word/document.xml")!.async("string");
+  const comments = await zip.file("word/comments.xml")!.async("string");
+  assert.match(comments, /tjek prisen/);
+  assert.match(comments, /en note for sig/);
+  assert.equal((doc.match(/<w:commentReference /g) ?? []).length, 2);
+  assert.match(doc, /<w:del [^>]*>[\s\S]*?<w:delText[^>]*>dyrt<\/w:delText>/);
+  assert.match(doc, /<w:ins [^>]*>[\s\S]*?<w:t[^>]*>billigt<\/w:t>/);
+  assert.match(doc, /<w:ins [^>]*>[\s\S]*?<w:t[^>]*>helt<\/w:t>/);
+  assert.doesNotMatch(doc, /[\uE000-\uE006]/, "mærkerne må ikke stå i dokumentet");
+});
+
+test("Word uden noter og forslag: den rene udgave med den oprindelige tekst", async () => {
+  const md = "Prisen var 5 kroner.<!-- tjek prisen -->\n\nDet var {~~dyrt~>billigt~~} og {++helt++} fint.\n";
+  const zip = await zipOf(md, { markup: false });
+  const doc = await zip.file("word/document.xml")!.async("string");
+  assert.equal(zip.file("word/comments.xml"), null);
+  assert.doesNotMatch(doc, /<w:ins |<w:del |tjek prisen|billigt|helt/);
+  assert.match(doc, /dyrt/);
+});

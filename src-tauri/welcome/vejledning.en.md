@@ -83,6 +83,8 @@ The app keeps saving earlier versions of your text as you go. You'll find them i
 
 Ctrl+R shows the text the way it will look. From there you can print, save as PDF or save as Word. Ctrl+P prints right away. Ctrl+Shift+C copies the selection as formatted text, so you can paste it into an email or into Word.
 
+If the text has notes or changes you haven't decided on, they go into Word as comments and tracked changes. Untick »Notes and changes in Word« to send a clean copy.
+
 ## Several texts at once
 
 Each text has its own window. Ctrl+N opens a new one, and Ctrl+click on a text in the library opens it in a new window. If you try to open a text that's already open, its window comes to the front.

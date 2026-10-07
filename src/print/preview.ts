@@ -6,6 +6,7 @@ import type { EditorView } from "@codemirror/view";
 
 import { authorshipField } from "../editor/authorship.ts";
 import { imageUrl } from "../editor/images.ts";
+import { findNotes, findRevisions } from "../editor/critic.ts";
 import { bulletChar, settings } from "../settings.ts";
 import { errorText, notify, showBanner } from "../ui/banner.ts";
 import type { Meta, PrintOptions, Template } from "./render.ts";
@@ -19,9 +20,9 @@ const KEY = "gt-print";
 function storedOptions(): PrintOptions {
   try {
     const o = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<PrintOptions>;
-    return { template: o.template === "laeseudgave" ? "laeseudgave" : "manuskript", includeDimmed: o.includeDimmed === true };
+    return { template: o.template === "laeseudgave" ? "laeseudgave" : "manuskript", includeDimmed: o.includeDimmed === true, wordMarkup: o.wordMarkup !== false };
   } catch {
-    return { template: "manuskript", includeDimmed: false };
+    return { template: "manuskript", includeDimmed: false, wordMarkup: true };
   }
 }
 
@@ -141,11 +142,23 @@ export class PrintPreview {
     box.checked = this.opts.includeDimmed;
     box.addEventListener("change", () => this.setOptions({ includeDimmed: box.checked }));
     dim.append(box, document.createTextNode(tr("Dæmpet tekst med", "Include dimmed text")));
+    // Noter og forslag med ud i Word som kommentarer og sporede ændringer (7/10). Vises kun, når
+    // teksten har nogen, så linjen ikke fyldes for ingenting.
+    const doc = this.view.state.doc.toString();
+    const marked = document.createElement("label");
+    marked.hidden = findNotes(doc).length === 0 && findRevisions(doc).length === 0;
+    const markBox = document.createElement("input");
+    markBox.type = "checkbox";
+    markBox.checked = this.opts.wordMarkup !== false;
+    markBox.addEventListener("change", () => this.setOptions({ wordMarkup: markBox.checked }));
+    marked.title = tr("Noter bliver til kommentarer og forslag til sporede ændringer i Word", "Notes become comments and suggestions become tracked changes in Word");
+    marked.append(markBox, document.createTextNode(tr("Noter og rettelser i Word", "Notes and changes in Word")));
     const gap = document.createElement("span");
     gap.className = "pv-gap";
     this.bar.replaceChildren(
       seg,
       dim,
+      marked,
       gap,
       button(tr("Udskriv", "Print"), () => void this.print()),
       Object.assign(button(tr("Gem som PDF", "Save as PDF"), () => void this.pdf()), { className: "pv-primary" }),
@@ -192,6 +205,7 @@ export class PrintPreview {
       const s = settings();
       const bytes = await wordDocument(this.view.state.doc.toString(), await this.meta(), {
         includeDimmed: this.opts.includeDimmed,
+        markup: this.opts.wordMarkup !== false,
         template: this.opts.template,
         book: s.paragraphs === "indryk",
         bullet: bulletChar(s),

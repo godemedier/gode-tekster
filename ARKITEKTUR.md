@@ -708,3 +708,18 @@ fra syntaksfarverne). Filen er den samme i alle fire. En indstillingsfil fra fø
 **Samme dag:** gennemstregning, fed og kursiv på en markering med mellemrum i kanten satte tegnene
 uden om mellemrummet (`~~tekst ~~`), og så er det ikke markdown. `toggleWrap` lader nu mellemrum i
 kanten stå uden for tegnene.
+
+### ADR-0034 — Længdemål og noter med ud i Word (7/10-2026)
+Fra sammenligningen med iA Writer, Ulysses, Scrivener, Word og Docs 7/10 (de to største mangler).
+**Længdemål:** højst, mindst eller cirka et antal anslag, ord eller normalsider, med en frist
+(`editor/goal.ts`). Målet står som én skjult linje i filen, `<!-- gt:maal type=hoejst antal=7400
+enhed=anslag frist=2026-10-10 -->`, så det følger teksten (ADR-0003). Det skjules og beskyttes som
+de andre skjulte blokke (`hidden.ts`, brugerhændelse `input.goal`) og fjernes af `withoutParked`,
+så det hverken tæller eller kommer med i print, Word eller prompten. Hjørnet viser fremdriften
+altid, med en tynd stribe og dage til fristen.
+**Noter og rettelser i Word:** noter (`<!-- … -->`, `{>> … <<}`) bliver kommentarer, og forslag,
+der ikke er taget stilling til (`{++…++}`, `{~~gammel~>ny~~}`), bliver sporede ændringer
+(`print/word.ts` `encodeMarkup`). De kodes som tegn fra Unicodes private område (U+E000-E006),
+før markdown-it læser teksten, og findes igen i løbene. Fluebenet »Noter og rettelser i Word« i
+forhåndsvisningen er slået til, og det vises kun, når teksten har noter eller forslag. PDF og
+print er rene som før. Afprøvet i Word 16: 2 kommentarer og 3 rettelser læses rigtigt.

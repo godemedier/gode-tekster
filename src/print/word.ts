@@ -6,12 +6,17 @@
 import {
   AlignmentType,
   BorderStyle,
+  CommentRangeEnd,
+  CommentRangeStart,
+  CommentReference,
+  DeletedTextRun,
   Document,
   ExternalHyperlink,
   Footer,
   FootnoteReferenceRun,
   Header,
   HeadingLevel,
+  InsertedTextRun,
   LevelFormat,
   LineRuleType,
   Packer,
@@ -123,6 +128,8 @@ function lookFor(template: Template, programFont: string, book: boolean): Look {
 
 export type WordOptions = {
   includeDimmed: boolean;
+  /** Noter som kommentarer og forslag som sporede ændringer (7/10). Ellers en ren udgave. */
+  markup?: boolean;
   template?: Template;
   /** Afsnit som i bøger (Indstillinger, Afsnit). */
   book?: boolean;
@@ -131,14 +138,52 @@ export type WordOptions = {
   font?: string;
 };
 
+/**
+ * Noter og forslag med ud i Word (7/10): en note bliver en kommentar, et forslag, der ikke er taget
+ * stilling til, en sporet ændring. De kodes som tegn fra Unicodes private område, før markdown-it
+ * læser teksten, så de overlever parsningen og kan findes igen i løbene (`runs`):
+ *   \uE000 n \uE001: note nr. n · \uE002 … \uE003: indsat · \uE004 gammel \uE005 ny \uE006: erstattet
+ */
+const NOTE_ANY = /(?:<!--(?!\s*gt:)([\s\S]*?)-->|\{>>([\s\S]*?)<<\})/;
+const NOTE_ALONE = new RegExp(String.raw`[ \t]*\n[ \t]*(?:\n[ \t]*)?` + NOTE_ANY.source + String.raw`[ \t]*(?=\n|$)`, "g");
+const NOTE_INLINE = new RegExp(String.raw`[ \t]?` + NOTE_ANY.source, "g");
+
+export function encodeMarkup(md: string): { md: string; notes: string[] } {
+  const notes: string[] = [];
+  const note = (a?: string, b?: string) => {
+    notes.push((a ?? b ?? "").trim());
+    return `\uE000${notes.length - 1}\uE001`;
+  };
+  // En note på sin egen linje hæftes på slutningen af teksten før, ellers står den som et tomt afsnit.
+  let out = md.replace(NOTE_ALONE, (_, a, b) => note(a, b));
+  out = out.replace(NOTE_INLINE, (_, a, b) => note(a, b));
+  out = out.replace(/\{~~([\s\S]*?)~>([\s\S]*?)~~\}/g, (_, o: string, n: string) => `\uE004${o}\uE005${n}\uE006`);
+  out = out.replace(/\{\+\+([\s\S]*?)\+\+\}/g, (_, n: string) => `\uE002${n}\uE003`);
+  return { md: out, notes };
+}
+
+const REV_SWITCH: Record<string, "ins" | "del" | null> = { "\uE002": "ins", "\uE003": null, "\uE004": "del", "\uE005": "ins", "\uE006": null };
+
+type Markup = {
+  rev: "ins" | "del" | null;
+  /** Næste id og forfatter til en sporet ændring. */
+  change: () => { id: number; author: string; date: string };
+  /** Kommentarens id for note nr. n (samme note giver samme id). */
+  comment: (n: number) => number;
+  used: Map<number, number>;
+};
+/** Sat, mens et dokument bygges med noter og forslag. Bygningen er synkron, til Packer kaldes. */
+let markup: Markup | null = null;
+
 type Marks = { bold?: boolean; italics?: boolean; underline?: boolean; strike?: boolean; code?: boolean };
 
 /** Inline-tokens → løb. Fodnotehenvisninger bliver Words egne fodnoter. */
 function runs(children: Token[], notes: Map<number, number>, linesKept = false): ParagraphChild[] {
   const out: ParagraphChild[] = [];
   const marks: Marks = {};
-  let link: { href: string; runs: TextRun[] } | null = null;
-  const text = (t: string) => {
+  let link: { href: string; runs: ParagraphChild[] } | null = null;
+  const plain = (t: string) => {
+    if (!t) return;
     const opts: IRunOptions = {
       text: t,
       bold: marks.bold,
@@ -147,9 +192,27 @@ function runs(children: Token[], notes: Map<number, number>, linesKept = false):
       strike: marks.strike,
       font: marks.code ? "Consolas" : undefined,
     };
-    const run = new TextRun(opts);
+    // Et forslag, der ikke er taget stilling til, bliver en sporet ændring i Word (7/10).
+    const rev = markup?.rev;
+    const run = rev && markup ? new (rev === "ins" ? InsertedTextRun : DeletedTextRun)({ ...opts, ...markup.change() }) : new TextRun(opts);
     if (link) link.runs.push(run);
     else out.push(run);
+  };
+  // Mærkerne fra encodeMarkup: en note bliver en kommentar, de andre tænder og slukker en ændring.
+  const text = (t: string) => {
+    if (!markup || !/[\uE000-\uE006]/.test(t)) return plain(t);
+    let last = 0;
+    for (const m of t.matchAll(/\uE000(\d+)\uE001|[\uE002-\uE006]/g)) {
+      plain(t.slice(last, m.index));
+      last = (m.index ?? 0) + m[0].length;
+      if (m[1] !== undefined) {
+        const id = markup.comment(Number(m[1]));
+        out.push(new CommentRangeStart(id), new CommentRangeEnd(id), new TextRun({ children: [new CommentReference(id)] }));
+      } else {
+        markup.rev = REV_SWITCH[m[0]] ?? null;
+      }
+    }
+    plain(t.slice(last));
   };
   for (const t of children) {
     switch (t.type) {
@@ -376,6 +439,11 @@ function pageParts(template: Template, meta: Meta, look: Look, textWidth: number
   };
 }
 
+/** »Kim Skribent« → »KS«, til Words kommentarer. */
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).map((w) => w[0].toUpperCase()).join("").slice(0, 3) || "GT";
+}
+
 /** Titelblokken som i print (render.ts `articleHtml`). */
 function titleBlock(template: Template, meta: Meta): Paragraph[] {
   const line = (pt: number, color: string, text: string, after: number, extra: IRunOptions = {}) =>
@@ -396,7 +464,16 @@ export async function wordDocument(markdown: string, meta: Meta, opts: WordOptio
   const look = lookFor(template, opts.font ?? "", book);
   const m = MARGINS[template];
   const textWidth = A4_WIDTH - Math.round((m.left + m.right) * CM);
-  const tokens = markdownIt().parse(bodyFor(markdown, opts.includeDimmed, meta), {});
+  // Noter og forslag med: kodes før parsningen, kommentarerne samles, mens løbene bygges.
+  const encoded = opts.markup ? encodeMarkup(markdown) : null;
+  const author = meta.author || "Gode Tekster";
+  const stamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  let changeId = 0;
+  const used = new Map<number, number>();
+  markup = encoded
+    ? { rev: null, used, change: () => ({ id: ++changeId, author, date: stamp }), comment: (n) => used.get(n) ?? (used.set(n, used.size + 1), used.size) }
+    : null;
+  const tokens = markdownIt().parse(bodyFor(encoded?.md ?? markdown, opts.includeDimmed, meta), {});
   // markdown-it nummererer noterne 0, 1, 2 i brugsrækkefølge. Word vil have 1, 2, 3.
   const notes = new Map<number, number>();
   for (const t of tokens) {
@@ -414,9 +491,14 @@ export async function wordDocument(markdown: string, meta: Meta, opts: WordOptio
     run: { font, size: half(pt), bold: true, italics, color },
     paragraph: { spacing: { before: tw(before), after: tw(after), ...atLeast(tw(pt * 1.3)) }, keepNext: true },
   });
+  const noteParts = footnotes(tokens, notes, look);
+  const body = [...titleBlock(template, meta), ...blocks(tokens, { notes, listStack: [], listRefs: [], quote: 0, listInstance: 0, look, book, prevPlain: false })];
+  const comments = [...used].map(([n, id]) => ({ id, author, initials: initials(author), date: new Date(stamp), children: [new Paragraph({ children: [new TextRun(encoded?.notes[n] ?? "")] })] }));
+  markup = null;
   const doc = new Document({
     creator: meta.author,
     title: meta.title,
+    ...(comments.length ? { comments: { children: comments } } : {}),
     ...(look.hyphenate ? { hyphenation: { autoHyphenation: true } } : {}),
     styles: {
       default: {
@@ -490,7 +572,7 @@ export async function wordDocument(markdown: string, meta: Meta, opts: WordOptio
         ),
       ],
     },
-    footnotes: footnotes(tokens, notes, look),
+    footnotes: noteParts,
     sections: [
       {
         properties: {
@@ -507,7 +589,7 @@ export async function wordDocument(markdown: string, meta: Meta, opts: WordOptio
         },
         headers: { default: parts.header, first: new Header({ children: [] }) },
         footers: { default: parts.footer, first: new Footer({ children: [] }) },
-        children: [...titleBlock(template, meta), ...blocks(tokens, { notes, listStack: [], listRefs: [], quote: 0, listInstance: 0, look, book, prevPlain: false })],
+        children: body,
       },
     ],
   });

@@ -84,6 +84,8 @@ Programmet gemmer løbende tidligere udgaver af teksten. Du finder dem i fanen V
 
 Ctrl+R viser teksten, som den kommer til at se ud. Derfra kan du udskrive, gemme som PDF eller gemme som Word. Ctrl+P udskriver direkte. Ctrl+Shift+C kopierer det markerede som formateret tekst, så det kan sættes ind i en mail eller i Word.
 
+Har teksten noter eller rettelser, du ikke har taget stilling til, kommer de med i Word som kommentarer og sporede ændringer. Fjern fluebenet »Noter og rettelser i Word«, hvis du vil sende en ren udgave.
+
 ## Flere tekster på én gang
 
 Hver tekst har sit eget vindue. Ctrl+N åbner et nyt, og Ctrl+klik på en tekst i biblioteket åbner den i et nyt vindue. Prøver du at åbne en tekst, der allerede er åben, hentes dens vindue frem.
