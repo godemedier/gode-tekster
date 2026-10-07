@@ -696,3 +696,15 @@ fane (knappen Indstillinger i fanen Input åbner AI-hjælp). Højre spalte har F
 Sprog og Input. Afløser placeringen i ADR-0028.
 **Hvorfor:** at lave og slå kommandoer til og fra er opsætning, ikke noget man gør, mens man
 skriver. I spalten fyldte fanen ved siden af Input, hvor kommandoernes svar står.
+
+### ADR-0033 — Fire visninger af markdown (7/10-2026)
+**Beslutning:** Kontakten »Skjul markdown-tegn« (6/10) er afløst af fire valg under Markdown i
+Indstillinger › Tekst (`markMode` i `settings.rs`, `setMarkMode` i `livePreview.ts`): »Skjul
+helt« (tegnene kommer aldrig frem), »Vis tegn ved markør« (standard, som før), »Vis tegn og
+formatering« (tegnene står der altid, teksten er stadig formateret, tabeller vises som markdown)
+og »Vis kun ren markdown« (live preview og tabelvisning slået fra, ingen grader, fed eller kursiv
+fra syntaksfarverne). Filen er den samme i alle fire. En indstillingsfil fra før med
+`hideMarks: true` læses som »Skjul helt«.
+**Samme dag:** gennemstregning, fed og kursiv på en markering med mellemrum i kanten satte tegnene
+uden om mellemrummet (`~~tekst ~~`), og så er det ikke markdown. `toggleWrap` lader nu mellemrum i
+kanten stå uden for tegnene.

@@ -22,6 +22,8 @@ Word-filer kan du trække ind i vinduet. Så tilbyder programmet at lave en ny t
 
 Formateringen står i teksten som tegn (men tegnene gemmer sig, når markøren ikke står på linjen). Det er det, der hedder markdown.
 
+Under Markdown i Indstillinger kan du skjule tegnene helt, se dem altid eller kun se den rene markdown uden formatering.
+
 - Fed: Ctrl+B.
 - Kursiv: Ctrl+I.
 - Understreget: Ctrl+U.

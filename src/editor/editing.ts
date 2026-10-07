@@ -48,8 +48,17 @@ export function toggleWrap(text: string, selStart: number, selEnd: number, open:
   if (s - open.length >= 0 && text.slice(s - open.length, s) === open && text.slice(e, e + close.length) === close) {
     return { start: s - open.length, end: e + close.length, replacement: inner, selStart: s - open.length, selEnd: s - open.length + inner.length };
   }
-  const rep = open + inner + close;
-  return { start: s, end: e, replacement: rep, selStart: s + open.length, selEnd: s + open.length + inner.length };
+  // Mellemrum i kanten af markeringen bliver uden for tegnene. `~~tekst ~~` er ikke gennemstregning
+  // i markdown, og en markering med dobbeltklik eller Shift+Ctrl+→ tager tit mellemrummet med (7/10).
+  const lead = inner.length - inner.trimStart().length;
+  const trail = inner.length - inner.trimEnd().length;
+  if (lead + trail < inner.length) {
+    s += lead;
+    e -= trail;
+  }
+  const word = text.slice(s, e);
+  const rep = open + word + close;
+  return { start: s, end: e, replacement: rep, selStart: s + open.length, selEnd: s + open.length + word.length };
 }
 
 function lineSpan(text: string, selStart: number, selEnd: number): { ls: number; le: number } {

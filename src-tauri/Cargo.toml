@@ -1,6 +1,6 @@
 [package]
 name = "gode-tekster"
-version = "0.2.7"
+version = "0.2.8"
 description = "Gode Tekster: et skriveprogram fra Gode Medier"
 authors = ["Gode Medier"]
 license = "GPL-3.0-only"

@@ -22,6 +22,8 @@ You can drag Word files into the window. The app then offers to make a new text 
 
 The formatting is in the text as characters (but the characters hide when the cursor isn't on the line). That's what's called markdown.
 
+Under Markdown in Settings you can hide the characters completely, always show them, or see only the plain markdown without formatting.
+
 - Bold: Ctrl+B.
 - Italics: Ctrl+I.
 - Underline: Ctrl+U.

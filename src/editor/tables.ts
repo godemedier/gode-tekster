@@ -16,6 +16,7 @@ import { type EditorState, type Range, StateField, type Transaction } from "@cod
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from "@codemirror/view";
 
 import { tr } from "../i18n.ts";
+import { currentMarkMode, markModeChanged } from "./livePreview.ts";
 
 type Align = "left" | "center" | "right";
 /** En celle: teksten og hvor den står i dokumentet. */
@@ -415,6 +416,9 @@ function findTables(state: EditorState): Found[] {
 }
 
 function decorate(state: EditorState, tables: Found[]): DecorationSet {
+  // »Vis tegn og formatering« og »Kun ren markdown« viser tabellen som den markdown, den er (7/10).
+  const mode = currentMarkMode();
+  if (mode === "alle" || mode === "raa") return Decoration.none;
   const out: Range<Decoration>[] = [];
   for (const t of tables) {
     const lines: { text: string; from: number }[] = [];
@@ -435,7 +439,8 @@ export const tablePreview = StateField.define<TableState>({
   },
   update(value, tr: Transaction) {
     const tree = syntaxTree(tr.state);
-    if (!tr.docChanged && tree === value.tree) return value;
+    const modeChanged = tr.effects.some((e) => e.is(markModeChanged));
+    if (!tr.docChanged && tree === value.tree && !modeChanged) return value;
     const tables = findTables(tr.state);
     return { tree, tables, deco: decorate(tr.state, tables) };
   },

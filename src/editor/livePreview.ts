@@ -101,25 +101,34 @@ class CheckboxWidget extends WidgetType {
 }
 
 /**
- * Skjul tegnene, også hvor markøren står (Indstillinger, 6/10: »fed skrift vises bare som
- * fed, ligesom i Word«). Så kommer markdown aldrig frem på skærmen, men står stadig i filen.
+ * Visning af markdown (Indstillinger, 7/10). »skjul«: tegnene kommer aldrig frem, fed er bare fed
+ * som i Word (6/10). »markoer«: tegnene vises, hvor markøren står (standard). »alle«: tegnene står
+ * der altid, men teksten er stadig formateret. »raa«: kun ren markdown, ingen live preview og
+ * ingen tabeller som tabeller. Filen er den samme i alle fire.
  */
-let hideAlways = false;
-export function setHideMarks(view: EditorView, on: boolean): void {
-  if (on === hideAlways) return;
-  hideAlways = on;
-  view.dispatch({ effects: relist.of(null) });
+export type MarkMode = "skjul" | "markoer" | "alle" | "raa";
+let mode: MarkMode = "markoer";
+export const currentMarkMode = (): MarkMode => mode;
+/** Sendes, når visningen skifter, så tabeller og live preview tegnes om. */
+export const markModeChanged = StateEffect.define<null>();
+export function setMarkMode(view: EditorView, next: MarkMode): void {
+  view.dom.classList.toggle("gt-raw", next === "raa");
+  if (next === mode) return;
+  mode = next;
+  view.dispatch({ effects: [relist.of(null), markModeChanged.of(null)] });
 }
 
 /** Rører en markering/markøren intervallet? Kanten tæller med, så tegnene kommer frem ved kanten. */
 function touched(state: EditorState, from: number, to: number): boolean {
-  if (hideAlways) return false;
+  if (mode === "skjul") return false;
+  if (mode === "alle") return true;
   return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
 }
 
 /** Står markøren på en af linjerne i intervallet? */
 function onLines(state: EditorState, from: number, to: number): boolean {
-  if (hideAlways) return false;
+  if (mode === "skjul") return false;
+  if (mode === "alle") return true;
   const a = state.doc.lineAt(from).number;
   const b = state.doc.lineAt(to).number;
   return state.selection.ranges.some((r) => {
@@ -143,6 +152,7 @@ function hideWithSpace(state: EditorState, from: number, to: number, out: Range<
 }
 
 function build(view: EditorView): DecorationSet {
+  if (mode === "raa") return Decoration.none;
   const { state } = view;
   const out: Range<Decoration>[] = [];
   const numbers = footnoteMemo.get(state.doc);

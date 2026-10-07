@@ -200,7 +200,21 @@ export class SettingsPanel {
         row(tr("Anførselstegn", "Quotation marks"), quotes),
         row(tr("Punkttegn", "Bullet"), bullets),
         switchRow(tr("Mørk", "Dark"), "", s.dark, (v) => set({ dark: v })),
-        switchRow(tr("Skjul markdown-tegn", "Hide markdown marks"), "", s.hideMarks ?? false, (v) => set({ hideMarks: v })),
+      ),
+      // Markdown-tegnene (7/10): fire visninger af den samme fil. Standard er tegn ved markøren.
+      group(
+        tr("Markdown", "Markdown"),
+        radioList(
+          [
+            { value: "skjul", label: tr("Skjul helt", "Hide completely") },
+            { value: "markoer", label: tr("Vis tegn ved markør", "Show marks at the cursor") },
+            { value: "alle", label: tr("Vis tegn og formatering", "Show marks and formatting") },
+            { value: "raa", label: tr("Vis kun ren markdown", "Plain markdown only") },
+          ],
+          s.markMode ?? (s.hideMarks ? "skjul" : "markoer"),
+          (v) => set({ markMode: v as Settings["markMode"] }),
+          tr("Markdown", "Markdown"),
+        ),
       ),
       group(
         tr("Mens du skriver", "While you write"),
@@ -495,6 +509,29 @@ function switchRow(label: string, key: string, checked: boolean, change: (v: boo
 type Choice = { value: string; label: string; title?: string; font?: string };
 
 /** En lille knapgruppe, hvor ét valg er markeret. */
+/** Valg, der er for lange til en knapgruppe: én linje pr. valg med en radioknap, som i AI-hjælp. */
+function radioList(options: { value: string; label: string }[], current: string, change: (v: string) => void, label: string): HTMLElement {
+  const list = document.createElement("div");
+  list.className = "st-radios";
+  list.setAttribute("role", "radiogroup");
+  list.setAttribute("aria-label", label);
+  const name = `st-radio-${label.toLowerCase().replace(/\W+/g, "-")}`;
+  for (const o of options) {
+    const row = document.createElement("label");
+    row.className = "st-radio";
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = name;
+    input.checked = o.value === current;
+    input.addEventListener("change", () => change(o.value));
+    const text = document.createElement("span");
+    text.textContent = o.label;
+    row.append(input, text);
+    list.append(row);
+  }
+  return list;
+}
+
 function choices(options: Choice[], current: string, change: (v: string) => void, label: string, extra = ""): HTMLElement {
   const g = document.createElement("div");
   g.className = extra ? `st-choices ${extra}` : "st-choices";

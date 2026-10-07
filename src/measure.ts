@@ -1006,12 +1006,14 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
     await pause(2500);
     await say("færdig-splash-ren");
   } else if (name === "splash") {
-    // Skærmbilleder til godemedier.dk (5/10) på demoteksten Storebaelt.md. Venstre spalte
-    // viser dispositionen, ikke brugerens biblioteker. Indstillinger ændres kun i hukommelsen.
+    // Skærmbilleder til godemedier.dk (5/10, på »Mit nye inputapparat« fra 7/10). Venstre spalte
+    // viser dispositionen, ikke brugerens biblioteker. Indstillinger ændres kun i hukommelsen: alle
+    // ordklasser farves, og skriften er den samme som på »splash-ren«, uanset brugerens valg.
     const click = (label: string) => [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === label)?.click();
     const { setWordClasses } = await import("./editor/wordclasses.ts");
     const { setStyleCheck } = await import("./editor/styleCheck.ts");
-    Object.assign(settings(), { wordClasses: false, styleCheck: false });
+    Object.assign(settings(), { wordClasses: false, styleCheck: false, hiddenWordClasses: [] });
+    document.documentElement.style.setProperty("--skrift", '"IBM Plex Serif"');
     await setWordClasses(view, false);
     setStyleCheck(view, false);
     click("Disposition");

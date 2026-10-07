@@ -39,8 +39,10 @@ export type Settings = {
   typewriter: boolean;
   /** Sluk wifi, mens Ro på (F11) er slået til. */
   roWifi: boolean;
-  /** Skjul markdown-tegnene, også hvor markøren står, som i Word (6/10). */
+  /** Afløst af markMode (7/10). Kun fra ældre indstillingsfiler. */
   hideMarks: boolean;
+  /** Visning af markdown: aldrig tegn, tegn ved markøren, altid tegn, eller kun ren markdown (7/10). */
+  markMode: "skjul" | "markoer" | "alle" | "raa";
   /** Mappen med egne kommandoer (commands.rs). Sættes kun af Rust. */
   commandsDir: string | null;
   /** Kommandoer, der er slået fra i fanen Kommandoer (navne). */

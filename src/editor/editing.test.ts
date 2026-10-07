@@ -52,3 +52,12 @@ test("fodnote: næste nummer, definition før parkeret tekst", () => {
   assert.ok(out.includes("[^1]: Kilde.\n\n[^2]: \n\n<!-- gt:parkeret"));
   assert.equal(out.slice(cursor - 6, cursor), "[^2]: ");
 });
+
+test("gennemstregning af en markering med mellemrum til sidst: mellemrummet står udenfor (7/10)", () => {
+  const t = "Skriv noveller. Send til forlag. Mere";
+  const plan = toggleWrap(t, 0, 33, "~~");
+  assert.equal(apply(t, plan), "~~Skriv noveller. Send til forlag.~~ Mere");
+  assert.equal(apply(" fed ", toggleWrap(" fed ", 0, 5, "**")), " **fed** ");
+  // Kun mellemrum: tegnene sættes stadig om, som før.
+  assert.equal(apply("a   b", toggleWrap("a   b", 1, 4, "*")), "a*   *b");
+});

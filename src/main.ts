@@ -19,7 +19,7 @@ import { Versions } from "./ui/versions.ts";
 import { setAuthorshipVisible } from "./editor/authorshipView.ts";
 import { loadSettings, onSettings, reloadSettings, settings, updateSettings, type Settings, bulletChar } from "./settings.ts";
 import { setParagraphs } from "./editor/paragraphs.ts";
-import { setBullet, setHideMarks } from "./editor/livePreview.ts";
+import { setBullet, setMarkMode } from "./editor/livePreview.ts";
 import { FeedbackDialog } from "./ui/feedbackDialog.ts";
 import { LanguagePanel } from "./ui/languagePanel.ts";
 import { SettingsPanel, fontStack } from "./ui/settingspanel.ts";
@@ -342,7 +342,7 @@ function applySettings(s: Settings): void {
   setStyleCheck(view, s.styleCheck && !isEnglish());
   setParagraphs(view, s.paragraphs === "indryk");
   setBullet(view, bulletChar(s));
-  setHideMarks(view, s.hideMarks ?? false);
+  setMarkMode(view, s.markMode ?? (s.hideMarks ? "skjul" : "markoer"));
   setHiddenWordClasses(view, s.hiddenWordClasses ?? []);
 }
 applySettings(settings());

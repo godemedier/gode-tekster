@@ -43,8 +43,11 @@ pub struct Settings {
     pub typewriter: bool,
     /// Sluk wifi, mens Ro på er slået til (ro.rs, 5/10).
     pub ro_wifi: bool,
-    /// Skjul markdown-tegnene, også hvor markøren står, som i Word (livePreview.ts, 6/10).
+    /// Afløst af `mark_mode` (7/10). Læses kun fra ældre filer: `true` bliver til "skjul".
     pub hide_marks: bool,
+    /// Visning af markdown (livePreview.ts, 7/10): "skjul" (aldrig tegn), "markoer" (tegn hvor
+    /// markøren står), "alle" (tegn og formatering) eller "raa" (kun ren markdown).
+    pub mark_mode: String,
     pub word_classes: bool,
     /// Dansk stiltjek uden AI (F7), med Gode Ords regler.
     pub style_check: bool,
@@ -85,6 +88,7 @@ impl Default for Settings {
             typewriter: false,
             ro_wifi: false,
             hide_marks: false,
+            mark_mode: "markoer".to_owned(),
             word_classes: false,
             style_check: false,
             sort_by: "date".to_owned(),
@@ -109,10 +113,25 @@ pub fn exists(app: &AppHandle) -> bool {
 }
 
 pub fn load(app: &AppHandle) -> Settings {
-    file(app)
-        .and_then(|f| std::fs::read(f).ok())
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
+    parse(file(app).and_then(|f| std::fs::read(f).ok()).as_deref())
+}
+
+/// Indstillingerne fra filens bytes. En fil fra før 7/10 har kun `hideMarks`: `true` bliver til
+/// visningen "skjul". En ukendt visning bliver standarden.
+fn parse(raw: Option<&[u8]>) -> Settings {
+    let mut s: Settings = raw
+        .and_then(|b| serde_json::from_slice(b).ok())
+        .unwrap_or_default();
+    let has_mode = raw
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(b).ok())
+        .is_some_and(|v| v.get("markMode").is_some());
+    if !has_mode && s.hide_marks {
+        s.mark_mode = "skjul".to_owned();
+    }
+    if !matches!(s.mark_mode.as_str(), "skjul" | "markoer" | "alle" | "raa") {
+        s.mark_mode = "markoer".to_owned();
+    }
+    s
 }
 
 #[tauri::command]
@@ -231,5 +250,22 @@ pub fn author_name(app: &AppHandle) -> String {
     match load(app).author_name {
         Some(n) => n.trim().to_owned(),
         None => crate::about::office_user_name(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visningen_af_markdown_oversaettes_fra_den_gamle_kontakt() {
+        assert_eq!(parse(None).mark_mode, "markoer");
+        assert_eq!(parse(Some(br#"{"hideMarks":true}"#)).mark_mode, "skjul");
+        assert_eq!(parse(Some(br#"{"hideMarks":false}"#)).mark_mode, "markoer");
+        assert_eq!(
+            parse(Some(br#"{"hideMarks":true,"markMode":"alle"}"#)).mark_mode,
+            "alle"
+        );
+        assert_eq!(parse(Some(br#"{"markMode":"noget"}"#)).mark_mode, "markoer");
     }
 }
