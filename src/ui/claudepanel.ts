@@ -18,6 +18,7 @@ import { clippingText, footnoteText, fragmentUrl, type Source } from "../editor/
 import { findClaudeBlocks, saveChanges, type ClaudeKind } from "../editor/claudeBlocks.ts";
 import { errorText, hideBanner, notify, showBanner } from "./banner.ts";
 import { isEnglish, tr } from "../i18n.ts";
+import { shortDate } from "../editor/dates.ts";
 import type { AiCommandAnswer, Command, CommandResult } from "../commands/types.ts";
 import { clearCommandResults, commandResultBlocks, hasCommandResults, onCommandResults, placeExcerpts, showCommandResult } from "./commandResults.ts";
 
@@ -503,124 +504,154 @@ export class ClaudePanel {
     );
   }
 
-  /** Det gemte i filen: seneste faktatjek og al research, nyeste først. */
+  /**
+   * Det gemte i filen: seneste faktatjek og al research, nyeste først. Som en rolig liste uden
+   * kasser (variant A, 7/10: »svære at afkode, rodede«): en lille etiket med dato, spørgsmålet på
+   * højst to linjer, og hvert fund med kildens navn forrest.
+   */
   private saved(): HTMLElement[] {
     const blocks = findClaudeBlocks(this.view.state.doc.toString()).reverse();
     const out: HTMLElement[] = [];
     for (const b of blocks) {
-      const head = document.createElement("div");
-      head.className = "cl-saved-head";
-      const title = document.createElement("strong");
+      const remove = () => this.removeBlock(b.id);
       if (b.kind === "faktatjek") {
         const d = b.data as { what?: string; claims?: Claim[] };
-        title.textContent = tr(`Faktatjek af ${d.what ?? "teksten"}, ${b.date}`, `Fact-check of ${d.what ? shownWhat(d.what) : "the text"}, ${b.date}`);
-        head.append(title, tools([[tr("Fjern", "Remove"), () => this.removeBlock(b.id)]]));
+        const what = d.what ? (isEnglish() ? shownWhat(d.what) : d.what) : tr("teksten", "the text");
         const claims = d.claims ?? [];
-        out.push(head, ...(claims.length ? [note(overview(claims), "cl-overview")] : []), ...this.claimCards(claims));
+        out.push(resultHead(tr(`Faktatjek af ${what}`, `Fact-check of ${what}`), b.date, null, remove));
+        if (claims.length) out.push(tally(claims));
+        out.push(this.claimList(claims));
       } else {
         const d = b.data as { question?: string; findings?: Finding[] };
-        title.textContent = `Research: ${d.question ?? ""}, ${b.date}`;
-        head.append(title, tools([[tr("Fjern", "Remove"), () => this.removeBlock(b.id)]]));
-        out.push(head, ...this.findingCards(d.findings ?? []));
+        out.push(resultHead("Research", b.date, d.question ?? "", remove), this.findingList(d.findings ?? []));
       }
     }
     return out;
   }
 
-  private claimCards(claims: Claim[]): HTMLElement[] {
-    if (claims.length === 0) return [note(tr(`${this.aiName} fandt ingen påstande, der kunne tjekkes.`, `${this.aiName} found no claims to check.`))];
+  private claimList(claims: Claim[]): HTMLElement {
+    const list = document.createElement("div");
+    list.className = "cl-list";
+    if (claims.length === 0) {
+      list.append(note(tr(`${this.aiName} fandt ingen påstande, der kunne tjekkes.`, `${this.aiName} found no claims to check.`)));
+      return list;
+    }
     // De påstande, der kræver noget af én, står først (4/10).
     const sorted = [...claims].sort((a, b) => RANK[status(a)] - RANK[status(b)]);
-    return sorted.map((cl) => {
-      const c = card();
+    for (const cl of sorted) {
+      const st = status(cl);
+      const row = document.createElement("div");
+      row.className = "cl-claim";
+      const body = document.createElement("div");
+      const text = document.createElement("button");
+      text.type = "button";
+      text.className = "cl-claim-text";
+      text.textContent = excerpt(cl.quote);
+      text.title = tr("Vis i teksten", "Show in the text");
+      text.addEventListener("click", () => this.jumpTo(cl.quote));
+      const word = document.createElement("span");
+      word.className = `cl-w cl-w-${slug(st)}`;
       // En vurdering uden en kilde, programmet selv har fundet citatet på, er kun modellens ord
-      // (personatjek 2/10): den må ikke stå med samme vægt som en efterprøvet.
-      const verified = cl.sources.some((s) => s.check === "fundet");
-      const unverified = !verified && cl.verdict !== "kan ikke afgøres";
-      // Korrekt og efterprøvet: én linje, der foldes ud ved klik. Kun det, der kræver noget, fylder.
-      if (status(cl) === "korrekt" && !this.unfolded.has(cl.quote)) {
-        c.classList.add("cl-card-folded");
-        const row = document.createElement("button");
-        row.type = "button";
-        row.className = "cl-fold";
-        row.title = tr("Vis kilden", "Show the source");
-        const tag = document.createElement("span");
-        tag.className = "cl-verdict cl-v-korrekt";
-        tag.textContent = VERDICT.korrekt;
-        const text = document.createElement("span");
-        text.className = "cl-fold-text";
-        text.textContent = excerpt(cl.quote);
-        row.append(tag, text);
-        row.addEventListener("click", () => {
+      // (personatjek 2/10): den står som »Ikke efterprøvet«, ikke med modellens vurdering.
+      word.textContent = st === "ikke efterprøvet" ? tr("Ikke efterprøvet", "Not verified") : (VERDICT[st] ?? st);
+      const meta = document.createElement("p");
+      meta.className = "cl-why";
+      meta.append(word);
+      body.append(text, meta);
+      // Korrekt og efterprøvet: én linje. Kilden kommer frem ved klik. Kun det, der kræver noget, fylder.
+      if (st === "korrekt" && !this.unfolded.has(cl.quote)) {
+        const more = document.createElement("button");
+        more.type = "button";
+        more.className = "cl-more";
+        more.textContent = tr("vis kilden", "show the source");
+        more.addEventListener("click", () => {
           this.unfolded.add(cl.quote);
           this.rerender();
         });
-        c.append(row);
-        return c;
+        meta.append(" · ", more);
+      } else {
+        meta.append(` · ${cl.explanation}`);
+        if (st === "ikke efterprøvet") {
+          body.append(
+            note(
+              tr(
+                `Vurderingen fra ${this.aiName} var »${VERDICT[cl.verdict] ?? cl.verdict}«, men ingen kilde blev fundet på siden.`,
+                `The verdict from ${this.aiName} was "${VERDICT[cl.verdict] ?? cl.verdict}", but no source was found on the page.`,
+              ),
+              "cl-why",
+            ),
+          );
+        }
+        body.append(...cl.sources.map((s) => this.sourceLine(s, cl.quote)));
       }
-      const chip = document.createElement("span");
-      chip.className = unverified ? "cl-verdict cl-v-ikke-efterprøvet" : `cl-verdict cl-v-${cl.verdict.replace(/\s+/g, "-")}`;
-      chip.textContent = unverified ? tr("Ikke efterprøvet", "Not verified") : (VERDICT[cl.verdict] ?? cl.verdict);
-      const q = document.createElement("button");
-      q.type = "button";
-      q.className = "cl-quote";
-      q.textContent = excerpt(cl.quote);
-      q.addEventListener("click", () => this.jumpTo(cl.quote));
-      c.append(chip, q, note(cl.explanation));
-      if (unverified) {
-        const why = document.createElement("p");
-        why.className = "cl-unverified";
-        why.textContent = tr(
-          `Vurderingen fra ${this.aiName} var »${VERDICT[cl.verdict] ?? cl.verdict}«, men ingen kilde blev fundet på siden.`,
-          `The verdict from ${this.aiName} was "${VERDICT[cl.verdict] ?? cl.verdict}", but no source was found on the page.`,
-        );
-        c.append(why);
-      }
-      c.append(...cl.sources.map((s) => this.sourceBlock(s, cl.quote)));
-      return c;
-    });
+      row.append(dot(`cl-s-${slug(st)}`, word.textContent), body);
+      list.append(row);
+    }
+    return list;
   }
 
-  private findingCards(findings: Finding[]): HTMLElement[] {
-    if (findings.length === 0) return [note(tr(`${this.aiName} fandt ingen kilder.`, `${this.aiName} found no sources.`))];
-    return findings.map((f) => {
-      const c = card();
-      c.append(note(f.summary), this.sourceBlock(f.source, null, f.summary));
-      return c;
-    });
+  private findingList(findings: Finding[]): HTMLElement {
+    const list = document.createElement("div");
+    list.className = "cl-list";
+    if (findings.length === 0) {
+      list.append(note(tr(`${this.aiName} fandt ingen kilder.`, `${this.aiName} found no sources.`)));
+      return list;
+    }
+    for (const f of findings) {
+      const item = document.createElement("article");
+      item.className = "cl-item";
+      const sum = document.createElement("p");
+      sum.className = "cl-sum";
+      sum.textContent = f.summary;
+      item.append(sum, this.sourceLine(f.source, null, f.summary));
+      list.append(item);
+    }
+    return list;
   }
 
   // --- kilder ------------------------------------------------------------------------------------
 
-  /** En kilde med titel, citat (kun hvis det står på siden) og handlinger. */
-  private sourceBlock(s: Source, claimQuote: string | null, summary = ""): HTMLElement {
+  /**
+   * En kilde: citatet (kun hvis det står på siden), og en linje med en prik for citatet, kildens
+   * navn forrest, titlen og datoen. Fodnote, fraklip og åbn er små knapper til højre, der kommer
+   * frem, når man peger på fundet eller går til det med Tab.
+   */
+  private sourceLine(s: Source, claimQuote: string | null, summary = ""): HTMLElement {
     const box = document.createElement("div");
-    box.className = "cl-source";
-    const title = document.createElement("button");
-    title.type = "button";
-    title.className = "cl-source-title";
-    title.textContent = [s.title || s.url, s.publisher, s.date].filter(Boolean).join(" · ");
-    title.title = s.url;
-    title.addEventListener("click", () => void this.open(s));
-    box.append(title);
+    box.className = "cl-srcbox";
     if (s.check === "fundet") {
       const q = document.createElement("blockquote");
       q.className = "cl-cite";
       q.textContent = tr(`»${s.quote.trim()}«`, `“${s.quote.trim()}”`);
       box.append(q);
     }
-    const status = document.createElement("span");
-    status.className = `cl-check cl-check-${s.check}`;
-    // Værtsnavnet står med: »står på siden« betyder kun noget, når man ved, hvis side det er.
-    status.textContent = s.check === "fundet" ? tr(`Citatet står på ${host(s.url)}`, `The quote is on ${host(s.url)}`) : (CHECK[s.check] ?? s.check);
-    box.append(
-      status,
-      tools([
-        [tr("Indsæt som fodnote", "Insert as footnote"), () => this.insertNote(s, claimQuote)],
-        [tr("Læg i fraklip", "Add to Clippings"), () => this.clip(s, summary)],
-        [tr("Åbn", "Open"), () => void this.open(s)],
+    const line = document.createElement("div");
+    line.className = "cl-src";
+    const text = document.createElement("span");
+    text.className = "cl-src-text";
+    const name = document.createElement("span");
+    name.className = "cl-src-name";
+    name.textContent = s.publisher || host(s.url);
+    const title = document.createElement("button");
+    title.type = "button";
+    title.className = "cl-src-title";
+    title.textContent = s.title || s.url;
+    title.title = s.url;
+    title.addEventListener("click", () => void this.open(s));
+    text.append(name, " · ", title);
+    if (s.date) text.append(` · ${s.date}`);
+    // Værtsnavnet står i forklaringen: »står på siden« betyder kun noget, når man ved, hvis side det er.
+    const checked = s.check === "fundet" ? tr(`Citatet står på ${host(s.url)}`, `The quote is on ${host(s.url)}`) : (CHECK[s.check] ?? s.check);
+    line.append(
+      dot(`cl-c-${s.check}`, checked),
+      text,
+      icons([
+        ["¹", tr("Indsæt som fodnote", "Insert as footnote"), () => this.insertNote(s, claimQuote)],
+        ["⤓", tr("Læg i fraklip", "Add to Clippings"), () => this.clip(s, summary)],
+        ["↗", tr("Åbn siden", "Open the page"), () => void this.open(s)],
       ]),
     );
+    box.append(line);
     return box;
   }
 
@@ -732,12 +763,6 @@ export class ClaudePanel {
 
 }
 
-function card(): HTMLElement {
-  const c = document.createElement("div");
-  c.className = "rp-card cl-card";
-  return c;
-}
-
 function note(text: string, cls = "cl-note"): HTMLElement {
   const p = document.createElement("p");
   p.className = cls;
@@ -757,6 +782,83 @@ function tools(items: [string, () => void][]): HTMLElement {
   }
   return t;
 }
+
+/** Overskriften på et gemt resultat: etiket med dato, eventuelt spørgsmålet, og »Fjern«. */
+function resultHead(label: string, date: string, question: string | null, remove: () => void): HTMLElement {
+  const head = document.createElement("div");
+  head.className = "cl-head";
+  const left = document.createElement("div");
+  const eyebrow = document.createElement("span");
+  eyebrow.className = "cl-eyebrow";
+  const d = new Date(`${date}T12:00:00`);
+  eyebrow.textContent = [label, Number.isNaN(d.getTime()) ? date : shortDate(d)].filter(Boolean).join(" · ");
+  left.append(eyebrow);
+  if (question) {
+    const q = document.createElement("p");
+    q.className = "cl-q";
+    q.textContent = question;
+    q.title = question;
+    left.append(q);
+  }
+  const x = document.createElement("button");
+  x.type = "button";
+  x.className = "cl-x";
+  x.textContent = tr("Fjern", "Remove");
+  x.addEventListener("click", remove);
+  head.append(left, x);
+  return head;
+}
+
+/** Fordelingen som en tynd stribe, og tallene i ord under den (»3 påstande: 2 korrekte …«). */
+function tally(claims: Claim[]): HTMLElement {
+  const box = document.createElement("div");
+  box.className = "cl-summary";
+  const bar = document.createElement("div");
+  bar.className = "cl-bar";
+  bar.setAttribute("aria-hidden", "true");
+  const count = new Map<ClaimStatus, number>();
+  for (const cl of claims) count.set(status(cl), (count.get(status(cl)) ?? 0) + 1);
+  for (const k of Object.keys(RANK) as ClaimStatus[]) {
+    const n = count.get(k);
+    if (!n) continue;
+    const seg = document.createElement("i");
+    seg.className = `cl-s-${slug(k)}`;
+    seg.style.flexGrow = String(n);
+    bar.append(seg);
+  }
+  box.append(bar, note(overview(claims), "cl-tally"));
+  return box;
+}
+
+/** Prikken foran en påstand eller en kilde. Forklaringen står ved musen og for skærmlæsere. */
+function dot(cls: string, label: string): HTMLElement {
+  const d = document.createElement("span");
+  d.className = `cl-dot ${cls}`;
+  d.setAttribute("role", "img");
+  d.setAttribute("aria-label", label);
+  d.title = label;
+  return d;
+}
+
+/** Små knapper med et tegn og en forklaring ved musen. */
+function icons(items: [string, string, () => void][]): HTMLElement {
+  const t = document.createElement("span");
+  t.className = "cl-icons";
+  for (const [sign, label, run] of items) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "cl-icon";
+    b.textContent = sign;
+    b.title = label;
+    b.setAttribute("aria-label", label);
+    b.addEventListener("click", run);
+    t.append(b);
+  }
+  return t;
+}
+
+/** »kan ikke afgøres« → »kan-ikke-afgøres« til CSS-klasser. */
+const slug = (s: string) => s.replace(/\s+/g, "-");
 
 function host(url: string): string {
   try {

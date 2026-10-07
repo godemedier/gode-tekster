@@ -38,6 +38,7 @@
   --link-tekst: #ffffff;
   --fejl: #b4232a;
   --ok: #1f6e2c;
+  --advarsel: #9a6400;
   --kode-flade: #ececec;
   --kode-tekst: #4f4f4f;
   --ai-tekst: #5b4bb0;
@@ -78,6 +79,7 @@ body.dark {
   --link-tekst: #141414;
   --fejl: #f0a3a0;
   --ok: #8fd49b;
+  --advarsel: #e6c27a;
   --kode-flade: #2a2a2a;
   --kode-tekst: #b5b5b5;
   --ai-tekst: #b7abf0;
@@ -450,8 +452,53 @@ body.dark .cl-v-upræcis { background: #3d3118; color: #e6c27a; }
 .cl-source { border-top: 1px solid var(--streg); padding-top: 6px; display: flex; flex-direction: column; gap: 4px; }
 .cl-source-title { font: inherit; font-weight: 600; text-align: left; color: var(--link); background: none; border: none; padding: 0; cursor: pointer; }
 .cl-source-title:hover { text-decoration: underline; }
-.cl-cite { margin: 0; padding-left: 10px; border-left: 2px solid var(--blæk); font-style: italic; line-height: 1.45; }
+.cl-cite { margin: 0; padding-left: 9px; border-left: 1.5px solid var(--kant); font-family: var(--skrift); font-style: italic; font-size: 12px; line-height: 1.5; color: var(--svag); }
 .cl-check { font-size: 12px; color: var(--svag); }
+/* Research og faktatjek som en rolig liste uden kasser (variant A, 7/10). Kildens navn står forrest,
+   en prik viser, om citatet er fundet, og knapperne kommer frem ved musen og ved Tab. */
+.cl-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding-top: 12px; border-top: 1px solid var(--streg); }
+.cl-eyebrow { display: block; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--svag); }
+.cl-q { margin: 3px 0 0; font-size: 13.5px; font-weight: 600; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cl-x { flex: none; font: inherit; font-size: 12px; color: var(--svag); background: none; border: none; padding: 2px 0; cursor: pointer; }
+.cl-x:hover { color: var(--blæk); }
+.cl-list { display: flex; flex-direction: column; }
+.cl-item, .cl-claim { padding: 11px 0; border-top: 1px solid var(--streg); }
+.cl-list > :first-child { border-top: none; padding-top: 4px; }
+.cl-item { display: flex; flex-direction: column; gap: 6px; }
+.cl-sum { margin: 0; line-height: 1.5; color: var(--blæk); }
+.cl-srcbox { display: flex; flex-direction: column; gap: 6px; }
+.cl-src { display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 11.5px; line-height: 1.45; color: var(--svag); }
+.cl-src-name { color: var(--blæk); font-weight: 600; }
+.cl-src-title { font: inherit; color: inherit; text-align: left; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--kant); text-underline-offset: 2px; }
+.cl-src-title:hover { color: var(--blæk); text-decoration-color: var(--blæk); }
+.cl-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; transform: translateY(-1px); }
+.cl-c-fundet { background: var(--ok); }
+.cl-c-ikke_fundet { box-shadow: inset 0 0 0 1.5px var(--fejl); }
+.cl-c-kunne_ikke_hentes { box-shadow: inset 0 0 0 1.5px var(--dæmpet); }
+.cl-icons { display: flex; gap: 2px; opacity: 0; transition: opacity 120ms; }
+.cl-item:hover .cl-icons, .cl-item:focus-within .cl-icons, .cl-claim:hover .cl-icons, .cl-claim:focus-within .cl-icons { opacity: 1; }
+.cl-icon { font: inherit; font-size: 12px; line-height: 1; color: var(--svag); background: none; border: none; border-radius: 6px; height: 22px; min-width: 22px; padding: 0 5px; cursor: pointer; }
+.cl-icon:hover { background: var(--hover); color: var(--blæk); }
+.cl-icon:focus-visible, .cl-x:focus-visible, .cl-src-title:focus-visible, .cl-claim-text:focus-visible, .cl-more:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
+.cl-summary { display: flex; flex-direction: column; gap: 6px; }
+.cl-bar { display: flex; gap: 2px; height: 4px; border-radius: 2px; overflow: hidden; }
+.cl-bar i { display: block; }
+.cl-tally { margin: 0; font-size: 11.5px; color: var(--svag); }
+.cl-claim { display: grid; grid-template-columns: 7px minmax(0, 1fr); gap: 4px 10px; align-items: baseline; }
+.cl-claim > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.cl-claim-text { font-family: var(--skrift); font-size: 12.5px; line-height: 1.5; text-align: left; color: var(--blæk); background: none; border: none; padding: 0; cursor: pointer; }
+.cl-claim-text:hover { text-decoration: underline; text-decoration-color: var(--pynt); }
+.cl-why { margin: 0; font-size: 12px; line-height: 1.5; color: var(--svag); }
+.cl-w { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+.cl-more { font: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--kant); text-underline-offset: 2px; }
+.cl-more:hover { color: var(--blæk); }
+/* Status: samme farve på prikken, striben og ordet. */
+.cl-s-korrekt { background: var(--ok); } .cl-w-korrekt { color: var(--ok); }
+.cl-s-forkert { background: var(--fejl); } .cl-w-forkert { color: var(--fejl); }
+.cl-s-upræcis { background: var(--advarsel); } .cl-w-upræcis { color: var(--advarsel); }
+.cl-s-kan-ikke-afgøres, .cl-s-ikke-efterprøvet { background: var(--dæmpet); }
+.cl-w-kan-ikke-afgøres, .cl-w-ikke-efterprøvet { color: var(--svag); }
+@media (prefers-reduced-motion: reduce) { .cl-icons { transition: none; } }
 .cl-check-fundet { color: var(--ok); }
 .cl-check-ikke_fundet { color: var(--fejl); }
 

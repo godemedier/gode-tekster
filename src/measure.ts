@@ -984,6 +984,13 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
     await say(`slet fra bunden: fraklip før ${before}, efter ${(doc().match(/gt:parkeret/g) ?? []).length}`);
     await pause(2000);
     await say("færdig-fraklip-traek");
+  } else if (name === "input-fanen") {
+    // Research og faktatjek, som de står gemt i filen (variant A, 7/10). Skærmbilledet tages udefra.
+    window.dispatchEvent(new CustomEvent("gt-test-tab", { detail: "claude" }));
+    await pause(1500);
+    await say(`input-fanen: ${document.querySelectorAll(".cl-item").length} fund, ${document.querySelectorAll(".cl-claim").length} påstande`);
+    await pause(4000);
+    await say("færdig-input-fanen");
   } else if (name === "splash-ren") {
     // Toppen af godemedier.dk (5/10): den enkleste visning, kun teksten. Køres uden
     // GT_TEST_PANELS, så panelerne er skjult.
@@ -1053,7 +1060,7 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
       } else if (running) break;
     }
     await pause(1200);
-    await say(`splash: faktatjek (${document.querySelectorAll(".cl-card").length} kort)`);
+    await say(`splash: faktatjek (${document.querySelectorAll(".cl-claim").length} påstande)`);
     await pause(2500);
     await say("færdig-splash");
   } else if (name === "stavekontrol") {
@@ -1110,12 +1117,12 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
       }
       if (sawRunning && !running) {
         await pause(800);
-        const claims = document.querySelectorAll(".cl-card").length;
+        const claims = document.querySelectorAll(".cl-claim").length;
         await say(`faktatjek: færdig, ${claims} kort i fanen`);
         await pause(1500);
         // Rul ned i fanen til næste billede.
-        const body = document.querySelector(".cl-card")?.closest("[class*='rp-body'], .rp-content, .rp-scroll") as HTMLElement | null;
-        (body ?? document.querySelector(".cl-card")?.parentElement)?.scrollBy(0, 500);
+        const body = document.querySelector(".cl-claim")?.closest("[class*='rp-body'], .rp-content, .rp-scroll") as HTMLElement | null;
+        (body ?? document.querySelector(".cl-claim")?.parentElement)?.scrollBy(0, 500);
         await pause(800);
         await say("faktatjek: rullet ned");
         await pause(1500);

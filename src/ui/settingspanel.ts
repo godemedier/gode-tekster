@@ -12,18 +12,21 @@ import { errorText, showBanner } from "./banner.ts";
 import { rememberFocus } from "./focus.ts";
 import { ICON, iconButton } from "./icons.ts";
 
-// 3/10: IBM Plex Mono, Atkinson og Courier Prime ud; Avenir Next, Arial og Georgia ind. Arial og
-// Georgia følger med Windows. Avenir Next er en købeskrift (Linotype), som ikke må ligge i programmet:
-// findes den på maskinen, bruges den, ellers Segoe UI, Windows' egen skrift af samme slags.
-export const FONTS = ["IBM Plex Mono", "IBM Plex Sans", "IBM Plex Serif", "Avenir Next", "Arial", "Georgia"];
+// 3/10: IBM Plex Mono, Atkinson og Courier Prime ud; Avenir Next, Arial og Georgia ind. 7/10: Arial og
+// Georgia ud igen (»for bloated«). Avenir Next er en købeskrift (Linotype), som ikke må ligge i
+// programmet: findes den på maskinen, bruges den, ellers Segoe UI, Windows' egen skrift af samme slags.
+export const FONTS = ["IBM Plex Mono", "IBM Plex Sans", "IBM Plex Serif", "Avenir Next"];
 
-/** Gemte valg fra før 3/10, da iA-skrifterne blev byttet ud med IBM Plex. */
-const RENAMED: Record<string, string> = { "iA Writer Duo": "IBM Plex Mono", "iA Writer Quattro": "IBM Plex Sans" };
+/** Gemte valg af skrifter, der ikke længere er på listen: iA-skrifterne (før 3/10), Arial og Georgia (7/10). */
+const RENAMED: Record<string, string> = {
+  "iA Writer Duo": "IBM Plex Mono",
+  "iA Writer Quattro": "IBM Plex Sans",
+  Arial: "IBM Plex Sans",
+  Georgia: "IBM Plex Serif",
+};
 
 const STACKS: Record<string, string> = {
   "Avenir Next": '"Avenir Next", "Avenir Next LT Pro", "Avenir", "Segoe UI Variable Text", "Segoe UI", sans-serif',
-  Arial: "Arial, sans-serif",
-  Georgia: "Georgia, serif",
 };
 
 /** CSS-skriften for et navn på listen. En skrift, der er fjernet fra listen, bliver til Duo. */
