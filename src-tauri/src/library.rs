@@ -198,9 +198,20 @@ pub fn preview_of(text: &str) -> String {
     // Forfatterblokken (ADR-0009) og alt efter den hører ikke til uddraget.
     let text = text.split("\n---\nAnnotations:").next().unwrap_or(text);
     let mut out = String::new();
+    // Skjulte blokke (fraklip, gemt research og faktatjek) kan fylde mange linjer. Hele blokken
+    // springes over, ikke kun første linje (7/10: JSON fra et faktatjek stod i uddraget).
+    let mut in_comment = false;
     for line in text.lines() {
         let t = line.trim();
-        if t.is_empty() || t == "---" || t.starts_with("Annotations:") || t.starts_with("<!--") {
+        if in_comment {
+            in_comment = !t.contains("-->");
+            continue;
+        }
+        if t.starts_with("<!--") {
+            in_comment = !t.contains("-->");
+            continue;
+        }
+        if t.is_empty() || t == "---" || t.starts_with("Annotations:") {
             continue;
         }
         let t = t.trim_start_matches(['#', '>', '-', '*', '+', ' ']);
@@ -887,6 +898,13 @@ mod tests {
     fn uddrag_uden_markdown_og_forfatterblok() {
         let text = "# Overskrift\n\n**Fed** start af teksten.\n\n---\nAnnotations: 0,5 SHA-256 abc  \n...\n";
         assert_eq!(preview_of(text), "Overskrift Fed start af teksten.");
+    }
+
+    #[test]
+    fn uddrag_springer_hele_skjulte_blokke_over() {
+        let text = "# Løn\n\nNoter.\n\n<!-- gt:claude id=c1 type=faktatjek dato=2026-10-07\n{\"what\": \"x\"}\n-->\nEfter.\n";
+        assert_eq!(preview_of(text), "Løn Noter. Efter.");
+        assert_eq!(preview_of("<!-- kort -->\nTekst"), "Tekst");
     }
 
     #[test]
