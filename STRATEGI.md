@@ -6,8 +6,8 @@
 
 ## Formål
 
-Et skriveprogram til Windows for skribenter og journalister, der skriver i markdown og i dag
-bruger iA Writer eller noget lignende. Det giver plads til, at skribenten selv skriver, og tager
+Et skriveprogram til Windows for alle, der skriver længere tekster selv: artikler, rapporter,
+ansøgninger, opgaver, oplæg og bøger. I markdown, og for mange som afløser for iA Writer eller Word. Det giver plads til, at skribenten selv skriver, og tager
 det manuelle arbejde, når skribenten beder om det: skære, tjekke fakta og finde kilder.
 
 Idéerne er prøvet af i Gode Ord, der blev bygget som en tjeneste til redaktioner. Gode Tekster
@@ -16,8 +16,9 @@ tjeneste.
 
 ## Målgruppe
 
-Skribenter og journalister, der skriver deres tekster selv og vil have hjælp på bestilling, ikke
-en maskine, der skriver for dem. Programmet er bygget efter en skribents faste vaner frem for at
+Folk, der skriver deres tekster selv og vil have hjælp på bestilling, ikke en maskine, der skriver
+for dem: journalister og forfattere, men lige så meget studerende, konsulenter, forskere,
+fundraisere og alle, der skriver meget på arbejdet (7/10: »tænk bredere end journalister«). Programmet er bygget efter en skribents faste vaner frem for at
 gøre alt konfigurerbart. Kravene, de vaner fører til:
 
 - Skriver i markdown og i mange mapper på samme tid: artikler, strategi, fælles dokumenter og
@@ -27,8 +28,10 @@ gøre alt konfigurerbart. Kravene, de vaner fører til:
 - Parkerer klippet tekst i en separat fil ved siden af artiklen (`FRAKLIP.md`).
 - Navngiver egne filer med store bogstaver (`ARTIKEL`, `VINKEL`, `RÅNOTER`, `TALEPUNKTER`).
 - Har mål for længden, en egen ordbog, en printskabelon og genbrugelige tekststykker.
-- Skriver til aviser og blade, der måler i anslag (kronik: ca. 7.400), og til fonde og forlag,
-  der vil have Times 12 med 1,5 linjeafstand.
+- Skriver til nogen, der sætter en grænse for længden i anslag, ord eller sider: redaktioner,
+  fonde, forlag, uddannelser og kunder.
+- Det, der kun gælder én slags skribent, er et valg, ikke en standard: status, felter og skabeloner
+  kan navngives af brugeren.
 
 ## Designprincipper
 
