@@ -188,7 +188,15 @@ export class PrintPreview {
     if (!target) return;
     try {
       const { wordDocument } = await import("./word.ts");
-      const bytes = await wordDocument(this.view.state.doc.toString(), await this.meta(), this.opts.includeDimmed, settings().paragraphs === "indryk", bulletChar(settings()));
+      // Word følger skabelonen og stilen fra Indstillinger, som PDF'en (ADR-0031).
+      const s = settings();
+      const bytes = await wordDocument(this.view.state.doc.toString(), await this.meta(), {
+        includeDimmed: this.opts.includeDimmed,
+        template: this.opts.template,
+        book: s.paragraphs === "indryk",
+        bullet: bulletChar(s),
+        font: s.font,
+      });
       const saved = await invoke<string>("write_export", { bytes: Array.from(bytes) });
       const file = saved.slice(saved.lastIndexOf("\\") + 1);
       notify(tr(`Word-filen er gemt: ${file}`, `Word file saved: ${file}`));

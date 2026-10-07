@@ -45,7 +45,7 @@ test("tabeller og lister fra Word", async () => {
 
 test("vores egen Word-eksport kommer tilbage med overskrift, fodnoter og citat", async () => {
   const md = "# Prøve\n\nEn sætning med en note.[^1]\n\n> »Et citat.«\n\n- punkt\n\n[^1]: Kilden, 2026.\n";
-  const bytes = await wordDocument(md, metaFor(md, "x.md", "Kim Skribent"), false);
+  const bytes = await wordDocument(md, metaFor(md, "x.md", "Kim Skribent"), { includeDimmed: false });
   const { markdown } = await docxToMarkdown(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
   assert.match(markdown, /^# Prøve$/m);
   assert.match(markdown, /En sætning med en note\.\[\^\d+\]/);

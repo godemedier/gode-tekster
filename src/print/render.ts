@@ -19,7 +19,7 @@ export type PrintOptions = { template: Template; includeDimmed: boolean };
 
 /** Margener i cm, som skabelonens `@page` (og PDF-kaldet i Rust). */
 export const MARGINS: Record<Template, { top: number; right: number; bottom: number; left: number }> = {
-  manuskript: { top: 3, right: 3.5, bottom: 3, left: 3.5 },
+  manuskript: { top: 3.5, right: 4.5, bottom: 3, left: 4.5 },
   laeseudgave: { top: 2.5, right: 4, bottom: 3, left: 4 },
 };
 

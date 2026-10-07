@@ -33,7 +33,7 @@ test("ende til ende: en Word-fil med en sporet ændring og en kommentar", async 
   const { docxToMarkdown } = await import("./docx.ts");
   const { inspect, versions, placeComments } = await import("./tracked.ts");
   const md = "Prisen var 5 milliarder kroner.\n";
-  const made = await wordDocument(md, metaFor(md, "x.md", "Kim Skribent"), false);
+  const made = await wordDocument(md, metaFor(md, "x.md", "Kim Skribent"), { includeDimmed: false });
   const zip = await JSZip.loadAsync(made);
   let doc = await zip.file("word/document.xml")!.async("string");
   // Redaktøren retter 5 til 6 og skriver en kommentar efter »kroner.«.

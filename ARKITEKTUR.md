@@ -668,3 +668,21 @@ men kun som navne og kun fra proceslinjen.
 **Ikke valgt:** at vise arkene ved hver start i stedet for den sidste tekst. Princip 8 i
 STRATEGI (programmet åbner der, hvor skribenten slap) gælder stadig.
 **Revurdér hvis:** der skal flere end otte ark til, eller arkene skal kunne fastgøres.
+
+### ADR-0031 — Word følger skabelonen og stilen fra programmet (7/10-2026)
+**Beslutning:** Word-eksporten (`print/word.ts`) bruger den skabelon, der er valgt i
+forhåndsvisningen, og de samme mål som `print.css`. Manuskript: skriften fra Indstillinger, 10,5
+pt, linjeafstand mindst 1,75, 9 pt luft efter afsnit (eller indryk på 1,5 em med afsnit som i
+bøger), titelblok med navn og anslag i gråt, manchet i gråt, citat i kursiv med mørk streg til
+venstre, tætte listepunkter, tabeller med tynde grå streger, sidehoved med navn, titel og dato og
+»2 / 5« nederst. Læseudgave: Georgia 11, indryk på afsnit efter afsnit og orddeling, men ikke i
+titel og mellemrubrikker. Margenerne i Manuskript er nu 4,5 cm i siderne og 3,5 cm foroven, i
+både Word og PDF (`MARGINS`). Afløser »Times New Roman 12, 1,5 linjer« fra ADR-0018.
+**Skrifterne:** programmets skrifter følger med programmet, ikke med modtagerens Office. Word får
+den nærmeste skrift, der findes i Office på både Windows og Mac: IBM Plex Mono → Consolas, IBM
+Plex Sans og Avenir Next → Calibri, IBM Plex Serif og Newsreader → Georgia. Arial og Georgia er
+sig selv.
+**Ikke valgt:** at lægge skrifterne ind i .docx-filen. Det kræver TTF-udgaver ved siden af
+woff2-filerne (to til tre MB mere i programmet), og Google Docs og ældre Word på Mac ser bort fra
+dem alligevel.
+**Revurdér hvis:** nogen klager over, at Word-filen ikke ligner skærmen, fordi skriften er skiftet.
