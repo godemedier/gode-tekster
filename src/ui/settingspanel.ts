@@ -182,6 +182,18 @@ export class SettingsPanel {
       "st-glyphs",
     );
 
+    // Kommatjekket i stiltjekket (7/10): Dansk Sprognævns to systemer, eller slet ikke.
+    const comma = choices(
+      [
+        { value: "start", label: tr("Startkomma", "Start comma"), title: tr("Komma foran ledsætninger: »Han sagde, at …«", "Comma before subordinate clauses") },
+        { value: "uden", label: tr("Uden startkomma", "No start comma"), title: tr("Intet komma foran ledsætninger: »Han sagde at …«", "No comma before subordinate clauses") },
+        { value: "fra", label: tr("Fra", "Off"), title: tr("Stiltjekket ser ikke på komma", "The style check ignores commas") },
+      ],
+      s.commaStyle ?? "start",
+      (v) => set({ commaStyle: v as Settings["commaStyle"] }),
+      tr("Komma", "Commas"),
+    );
+
     // Sprog (5/10): et skift gemmer og tegner vinduerne forfra (main.ts).
     const language = choices(
       [
@@ -202,6 +214,7 @@ export class SettingsPanel {
         row(tr("Afsnit", "Paragraphs"), paragraphs),
         row(tr("Anførselstegn", "Quotation marks"), quotes),
         row(tr("Punkttegn", "Bullet"), bullets),
+        row(tr("Komma i stiltjekket", "Commas in the style check"), comma),
         switchRow(tr("Mørk", "Dark"), "", s.dark, (v) => set({ dark: v })),
       ),
       // Markdown-tegnene (7/10): fire visninger af den samme fil. Standard er tegn ved markøren.

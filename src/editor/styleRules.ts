@@ -3,7 +3,7 @@
 
 import { analyzeClarity, type ClarityKind } from "../sprog/clarity.ts";
 import { analyzeAiTells } from "../sprog/aitells.ts";
-import { grammarFlags } from "./grammar.ts";
+import { grammarFlags, type Agreement } from "./grammar.ts";
 
 export type Flag = { from: number; to: number; kind: string; message: string; replacement?: string };
 type Category = "stryg" | "enklere" | "saetning" | "hus" | "grammatik";
@@ -41,8 +41,10 @@ export function mask(doc: string): string {
     .replace(/(\*\*|__|~~|\{--|--\}|\{\+\+|\+\+\}|\{~~|~>|<\/?u>)/g, blank);
 }
 
-/** `verbs` er udsagnsordene fra ordklasselisten. Uden dem springes grammatikken over (grammar.ts). */
-export function analyze(doc: string, verbs?: ReadonlySet<string>): { flags: Flag[]; lix: number; lixLabel: string } {
+/** Ordlisterne til grammatikken (grammar.ts). Uden dem springes grammatikken over. */
+export type GrammarWords = { verbs: ReadonlySet<string>; nouns: ReadonlySet<string>; adjectives: ReadonlySet<string>; adverbs: ReadonlySet<string>; agree: Agreement };
+
+export function analyze(doc: string, words?: GrammarWords, comma?: string): { flags: Flag[]; lix: number; lixLabel: string } {
   const text = mask(doc);
   const clarity = analyzeClarity(text);
   const flags: Flag[] = [];
@@ -54,7 +56,7 @@ export function analyze(doc: string, verbs?: ReadonlySet<string>): { flags: Flag
     if (f.inQuote) continue;
     flags.push({ from: f.offset, to: f.offset + f.length, kind: `hus:${f.kind}`, message: f.message, replacement: f.replacement });
   }
-  if (verbs) flags.push(...grammarFlags(text, verbs));
+  if (words) flags.push(...grammarFlags(text, words.verbs, words.agree, words.adjectives, words.nouns, comma, words.adverbs));
   return { flags, lix: clarity.lix, lixLabel: clarity.lixLabel };
 }
 

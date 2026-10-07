@@ -51,6 +51,9 @@ pub struct Settings {
     pub word_classes: bool,
     /// Dansk stiltjek uden AI (F7), med Gode Ords regler.
     pub style_check: bool,
+    /// Kommatjek i stiltjekket (grammar.ts, 7/10): "start" (med startkomma), "uden" (uden
+    /// startkomma) eller "fra". Standard er med startkomma.
+    pub comma_style: String,
     /// `date` eller `name`.
     pub sort_by: String,
     pub newest_first: bool,
@@ -91,6 +94,7 @@ impl Default for Settings {
             mark_mode: "markoer".to_owned(),
             word_classes: false,
             style_check: false,
+            comma_style: "start".to_owned(),
             sort_by: "date".to_owned(),
             newest_first: true,
             folders_first: true,

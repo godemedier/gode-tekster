@@ -101,7 +101,7 @@ const runner = ViewPlugin.fromClass(
         this.view.dispatch({ effects: setFlags.of(e.data.flags) });
         window.dispatchEvent(new Event("gt-style"));
       };
-      worker.postMessage({ id, doc: withoutOthers(this.view.state) });
+      worker.postMessage({ id, doc: withoutOthers(this.view.state), comma });
     }
     destroy() {
       window.clearTimeout(this.timer);
@@ -112,6 +112,14 @@ const runner = ViewPlugin.fromClass(
 /** F7 og indstillingen »Stiltjek«: slå til eller fra og tegn med det samme. */
 export function setStyleCheck(view: EditorView, on: boolean): void {
   enabled = on;
+  view.plugin(runner)?.schedule(0);
+}
+
+/** Kommatjekket (Indstillinger › Tekst, 7/10): "start", "uden" eller "fra". Et skift tjekker igen. */
+let comma = "start";
+export function setCommaStyle(view: EditorView, style: string): void {
+  if (style === comma) return;
+  comma = style;
   view.plugin(runner)?.schedule(0);
 }
 

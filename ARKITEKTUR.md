@@ -739,3 +739,22 @@ ord i prøveteksterne: ét fund, og det var en rigtig fejl.
 brugerens pc), kommaregler (startkomma er valgfrit efter Dansk Sprognævn) og kongruens (listen
 har ikke navneordenes køn).
 **Revurdér hvis:** ordklasselisten får køn og bøjning, så kongruens (»et stor hus«) kan tjekkes.
+
+### ADR-0036 — Kongruens og komma i grammatikken (7/10-2026)
+**Beslutning:** grammatikken (ADR-0035) får kongruens og komma, stadig som regler uden net.
+**Kongruens:** køn og former fra træbanken UD Danish-DDT (`scripts/kongruens.mjs` →
+`assets/kongruens.json`: 4.094 navneord med sikkert køn, 132 tillægsord med t- og e-form, plus
+regelmæssige endelser -ig/-lig/-bar/-som). Fire mønstre: »en hus« → »et hus« (kun når navneordet
+står alene foran tegnsætning eller et småord), »et stor hus« → »stort«, »en stort bil« → »stor« og
+»det stor hus« → »store« (efter den/det/de kun, hvor de står som artikel).
+**Komma:** Indstillinger › Tekst › »Komma i stiltjekket«: Startkomma (standard, som Troels selv
+skriver), Uden startkomma eller Fra. Begge systemer: komma efter en ledsætning først i sætningen.
+Med startkomma: komma foran »at« efter siger/mener/tror …, når et grundled følger, og foran
+hvis/når/fordi/selvom (ikke efter biord og faste udtryk som »især når«, »hvad hvis«, »det er
+fordi«). Uden startkomma: kommaet foran »at« er unødvendigt.
+**Prøvet:** samme korpus som ADR-0035 (1.774 artikler, 1,65 mio. ord). Kongruens: fra 1.091 fund
+til 19, næsten alle rigtige, efter at træbankens homografer (»dansk«, »helt«, »ny«) og fejlagtige køn
+(boykot, spand, tidsfordriv) er sorteret fra. Komma med startkomma: fra 923 til 173, flest rigtige
+efter systemet. Hvert falsk mønster står nu som test.
+**Revurdér hvis:** fanget for lidt. Næste skridt er en rigtig sætningsanalyse (UDPipe eller lignende
+model for dansk), der koster 15-25 MB.

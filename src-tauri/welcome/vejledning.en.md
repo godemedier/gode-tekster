@@ -58,7 +58,7 @@ If you get a text back with changes from someone else, they're shown as suggesti
 - Ctrl+D is focus. Everything except the paragraph you're writing in fades.
 - Ctrl+T is typewriter scrolling. The line you're writing on stays in the middle of the screen, like on a typewriter.
 - F11 is Quiet mode: full screen with only the text, and the mouse pointer hides while you write. Esc brings everything back. The Wi-Fi button in the bottom left corner turns Wi-Fi off until you leave.
-- The style check (F7) and parts of speech in color (Shift+F7) are built on Danish word lists, so they only work when Gode Tekster runs in Danish. The style check also finds common Danish grammar mistakes with present-tense -r and doubled words.
+- The style check (F7) and parts of speech in color (Shift+F7) are built on Danish word lists, so they only work when Gode Tekster runs in Danish. The style check also finds common Danish grammar mistakes: present-tense -r, agreement, commas and doubled words. In Settings › Text you choose whether commas are checked with or without the start comma, or not at all.
 - Ctrl+plus and Ctrl+minus make the text bigger and smaller.
 
 In Settings (Ctrl+,) you choose the font, line width, quotation marks and dark background. Under Paragraphs you choose whether paragraphs are separated by space, like on the web, or by indenting the first line, like in a book. The choice also applies to printing, PDF and Word.

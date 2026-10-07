@@ -48,6 +48,8 @@ export type Settings = {
   /** Kommandoer, der er slået fra i fanen Kommandoer (navne). */
   disabledCommands: string[];
   wordClasses: boolean;
+  /** Kommatjek i stiltjekket: med startkomma, uden startkomma eller fra (7/10). */
+  commaStyle: "start" | "uden" | "fra";
   styleCheck: boolean;
   sortBy: "date" | "name";
   newestFirst: boolean;

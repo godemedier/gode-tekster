@@ -58,7 +58,7 @@ Får du en tekst tilbage med rettelser fra en anden, vises de som forslag, du ka
 - Ctrl+D er fokus. Alt andet end det afsnit, du skriver i, bliver svagere.
 - Ctrl+T er fast rulning. Linjen, du skriver på, bliver midt på skærmen, som på en skrivemaskine.
 - F11 er Ro på: fuld skærm med kun teksten, og musemarkøren forsvinder, mens du skriver. Esc bringer det hele tilbage. Wifi-knappen nederst til venstre slukker wifi, til du går ud igen.
-- F7 slår stiltjekket til. Det streger lange sætninger, floskler, fyldord og tunge vendinger under, og det finder fejl med nutids-r (»at lærer«, »vi lære«) og dobbelte ord med en blå bølget streg.
+- F7 slår stiltjekket til. Det streger lange sætninger, floskler, fyldord og tunge vendinger under, og det finder grammatikfejl med en blå bølget streg: nutids-r (»at lærer«, »vi lære«), kongruens (»et stor hus«), komma og dobbelte ord. Under Indstillinger › Tekst vælger du, om kommaet tjekkes med eller uden startkomma, eller slet ikke.
 - Shift+F7 farver ordklasserne, så du kan se for eksempel navneord og udsagnsord.
 - Ctrl+plus og Ctrl+minus gør skriften større og mindre.
 

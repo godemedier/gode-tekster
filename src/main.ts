@@ -34,7 +34,7 @@ import { toggleShortcuts } from "./ui/shortcutsHelp.ts";
 import { setFocusFallback } from "./ui/focus.ts";
 import { installScrollbars } from "./ui/scrollbars.ts";
 import { OutlinePanel } from "./ui/outlinePanel.ts";
-import { setStyleCheck } from "./editor/styleCheck.ts";
+import { setCommaStyle, setStyleCheck } from "./editor/styleCheck.ts";
 import { currentLang, isEnglish, tr } from "./i18n.ts";
 import { hasDefaultName, titleFromText } from "./ui/autoName.ts";
 import { setCommandHooks } from "./editor/setup.ts";
@@ -339,6 +339,7 @@ function applySettings(s: Settings): void {
   // Ordklasser og stiltjek bygger på danske ordlister: på engelsk er de slået fra, også selv om
   // indstillingerne (fra en dansk kørsel) siger til.
   void setWordClasses(view, s.wordClasses && !isEnglish());
+  setCommaStyle(view, s.commaStyle ?? "start");
   setStyleCheck(view, s.styleCheck && !isEnglish());
   setParagraphs(view, s.paragraphs === "indryk");
   setBullet(view, bulletChar(s));
