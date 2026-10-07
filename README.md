@@ -119,4 +119,4 @@ version must have its own name.
 
 The components the app is built on have their own licences, listed in
 [`src-tauri/resources/LICENSES.txt`](src-tauri/resources/LICENSES.txt). The parts-of-speech list
-is built from UD Danish-DDT and is under CC BY-SA 4.0.
+and the agreement data for the grammar check are built from UD Danish-DDT and are under CC BY-SA 4.0.

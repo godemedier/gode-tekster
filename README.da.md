@@ -116,5 +116,5 @@ Navnet Gode Tekster og logoet er ikke omfattet af licensen (GPL-3.0 afsnit 7e). 
 skal have sit eget navn.
 
 Komponenterne, programmet bygger på, har deres egne licenser. De står i
-[`src-tauri/resources/LICENSES.txt`](src-tauri/resources/LICENSES.txt). Ordklasselisten er bygget af
-UD Danish-DDT og er under CC BY-SA 4.0.
+[`src-tauri/resources/LICENSES.txt`](src-tauri/resources/LICENSES.txt). Ordklasselisten og grammatikkens
+kongruensdata er bygget af UD Danish-DDT og er under CC BY-SA 4.0.
