@@ -1,5 +1,5 @@
-// Højre spalte (design runde 2-5): Fraklip er standardfanen, Fodnoter (id »noter«) er fodnoterne. Sprog, Input
-// og Kommandoer tilføjes af deres egne moduler med `addTab` (main.ts). Indholdet læses af dokumentet hver gang,
+// Højre spalte (design runde 2-5): Fraklip er standardfanen, Fodnoter (id »noter«) er fodnoterne. Sprog og
+// Input tilføjes af deres egne moduler med `addTab` (main.ts). Kommandoer bor i Indstillinger (7/10). Indholdet læses af dokumentet hver gang,
 // så filen altid er sandheden (ADR-0003): fanerne er en visning af kommentarer og definitioner i
 // teksten, ikke en kopi.
 
@@ -91,8 +91,7 @@ export class RightPanel {
     this.stale = true;
     window.clearTimeout(this.timer);
     // Skjult spalte tegnes ikke for ingenting; den tegnes, når musen kommer (performance 2/10).
-    // Kommandoer har sin egen tilstand og tegnes ikke om ved hvert tastetryk.
-    if (!this.visible || this.active === "kommandoer") return;
+    if (!this.visible) return;
     this.timer = window.setTimeout(() => this.render(), 200);
   }
 

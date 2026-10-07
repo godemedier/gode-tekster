@@ -614,17 +614,18 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
 
     // 7. Fanen Kommandoer: feltet til en ny kommando øverst, og det markerede som skabelon.
     const { allCommands } = await import("./commands/store.ts");
-    [...document.querySelectorAll<HTMLButtonElement>("#right .rp-tab")].find((b) => /Kommandoer|Commands/.test(b.textContent ?? ""))?.click();
+    // Fanen bor i Indstillinger (7/10).
+    window.dispatchEvent(new CustomEvent("gt-open-settings", { detail: "kommandoer" }));
     await pause(800);
-    const box = document.querySelector("#right .cmd-new");
-    await say(`kommandoer 7: ${document.querySelectorAll("#right .cmd-row").length} rækker, ${allCommands().length} kommandoer, felt til ny kommando ${box?.querySelector("textarea") ? "med AI" : box ? "uden AI" : "MANGLER"} · ${(box?.textContent ?? "").slice(0, 120)}`);
+    const box = document.querySelector(".settings .cmd-new");
+    await say(`kommandoer 7: ${document.querySelectorAll(".settings .cmd-row").length} rækker, ${allCommands().length} kommandoer, felt til ny kommando ${box?.querySelector("textarea") ? "med AI" : box ? "uden AI" : "MANGLER"} · ${(box?.textContent ?? "").slice(0, 120)}`);
     const sig = view.state.doc.length;
     view.dispatch({ changes: { from: sig, insert: "\n\nMed venlig hilsen\nKim" }, selection: { anchor: sig + 2, head: sig + 23 } });
     const byKey = (k: string) => document.querySelector<HTMLElement>(`#right [data-key="${k}"]`);
     byKey("from-selection")?.click();
     await pause(600);
     const proposalName = (byKey("proposal-name") as HTMLInputElement | null)?.value;
-    await say(`kommandoer 8: forslag /${proposalName} · ${(document.querySelector("#right .cmd-form")?.textContent ?? "").slice(0, 200)}`);
+    await say(`kommandoer 8: forslag /${proposalName} · ${(document.querySelector(".settings .cmd-form")?.textContent ?? "").slice(0, 200)}`);
     await pause(1500);
     byKey("back")?.click();
     await pause(400);
@@ -640,7 +641,7 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
       byKey("consent-yes")?.click();
       for (let i = 0; i < 120 && !byKey("proposal-name") && !document.querySelector("#left .cl-message"); i++) await pause(1000);
       const name = (byKey("proposal-name") as HTMLInputElement | null)?.value;
-      await say(`kommandoer 9: ${name ? `forslag /${name}` : "INTET forslag"} · ${(document.querySelector("#right .cmd-form")?.textContent ?? "").slice(0, 260)}`);
+      await say(`kommandoer 9: ${name ? `forslag /${name}` : "INTET forslag"} · ${(document.querySelector(".settings .cmd-form")?.textContent ?? "").slice(0, 260)}`);
       await pause(2500);
       byKey("back")?.click();
     } else {

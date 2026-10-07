@@ -71,7 +71,7 @@ Type / at the start of a line or after a space, and you get a list of templates 
 
 If you've selected something, / works the same way, and the command then applies to the selection. /tidy, for example, cleans up text you pasted from an email. Esc closes the list.
 
-If a command is missing, describe it in your own words in the Commands tab on the left. The program sets it up, and you see a preview before you save. Commands are ordinary files in Documents\Gode Tekster\Commands.
+If a command is missing, describe it in your own words under Commands in Settings (Ctrl+,). The program sets it up, and you see a preview before you save. Commands are ordinary files in Documents\Gode Tekster\Commands.
 
 ## Versions
 

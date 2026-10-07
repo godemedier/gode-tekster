@@ -110,17 +110,13 @@ const feedbackDialog = new FeedbackDialog();
 const feedback = iconButton(ICON.feedback, tr("Skriv til Gode Medier om fejl og ønsker", "Write to Gode Medier about bugs and wishes"), () => feedbackDialog.open());
 leftFoot.append(gear, feedback, spacer, leftPin);
 
-// »Bygget af Gode Medier« nederst i venstre spalte, som i Prismet (3/10). Firkanten med G er
-// husets mærke (gode-medier-ui Wordmark). Klik åbner godemedier.dk.
+// »Bygget af Gode Medier« nederst i venstre spalte, som i Prismet (3/10). Kun tekst, uden husets
+// orange mærke (7/10). Klik åbner godemedier.dk.
 const credit = document.createElement("button");
 credit.type = "button";
 credit.className = "gm-credit";
 credit.title = "godemedier.dk";
-const mark = document.createElement("span");
-mark.className = "gm-credit-mark";
-mark.setAttribute("aria-hidden", "true");
-mark.textContent = "G";
-credit.append(mark, tr("Bygget af Gode Medier", "Built by Gode Medier"));
+credit.textContent = tr("Bygget af Gode Medier", "Built by Gode Medier");
 credit.addEventListener("click", () => void invoke("open_url", { url: "https://godemedier.dk" }));
 left.registerPin(leftPin);
 
@@ -224,9 +220,19 @@ left.onShow(() => {
 });
 
 const settingsPanel = new SettingsPanel();
-// Fanen Input og beskeder om AI-hjælpen kan åbne indstillingerne.
-window.addEventListener("gt-open-settings", () => {
-  if (!settingsPanel.isOpen) settingsPanel.open();
+// Kommandoer er en fane i Indstillinger (7/10, før i højre spalte). Fanen har sin egen tilstand
+// (en halvskrevet beskrivelse, en åben formular), så den samme flade flyttes ind, når vinduet tegnes.
+settingsPanel.addTab({
+  id: "kommandoer",
+  label: tr("Kommandoer", "Commands"),
+  mount: (host) => {
+    host.replaceChildren(commandsPanel.el);
+    commandsPanel.refresh();
+  },
+});
+// Fanen Input og beskeder om AI-hjælpen kan åbne indstillingerne, eventuelt på en bestemt fane.
+window.addEventListener("gt-open-settings", (e) => {
+  if (!settingsPanel.isOpen) settingsPanel.open((e as CustomEvent<string | undefined>).detail ?? "generelt");
 });
 
 const rightFoot = document.createElement("div");
@@ -270,18 +276,6 @@ window.addEventListener("gt-test-tab", (e) => {
 });
 onSettings(() => language.refresh());
 rightPanel.addTab({ id: "claude", label: "Input", secondary: true, render: (b) => claude.render(b) });
-// Kommandoer i højre spalte (6/10), ved siden af Input, hvor deres svar står. Fanen har sin
-// egen tilstand (en halvskrevet beskrivelse, en åben formular): den sættes kun ind, når den vises.
-rightPanel.addTab({
-  id: "kommandoer",
-  label: tr("Kommandoer", "Commands"),
-  secondary: true,
-  render: (b) => {
-    if (commandsPanel.el.parentElement === b) return;
-    b.replaceChildren(commandsPanel.el);
-    commandsPanel.refresh();
-  },
-});
 window.addEventListener("gt-claude", (e) => {
   const what = (e as CustomEvent<string>).detail;
   if (what === "cut") void claude.cut(false);

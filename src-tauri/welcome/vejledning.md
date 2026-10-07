@@ -72,7 +72,7 @@ Skriv / først på en linje eller efter et mellemrum, så kommer der en liste me
 
 Har du markeret noget, virker / på samme måde, og kommandoen gælder så det markerede. /ryd rydder for eksempel op i tekst, du har sat ind fra en mail. Esc lukker listen.
 
-Mangler du en kommando, så beskriv den med dine egne ord i fanen Kommandoer til venstre. Programmet sætter den op, og du ser en prøve, før du gemmer. Kommandoerne ligger som almindelige filer i Dokumenter\Gode Tekster\Kommandoer.
+Mangler du en kommando, så beskriv den med dine egne ord under Kommandoer i Indstillinger (Ctrl+,). Programmet sætter den op, og du ser en prøve, før du gemmer. Kommandoerne ligger som almindelige filer i Dokumenter\Gode Tekster\Kommandoer.
 
 ## Versioner
 

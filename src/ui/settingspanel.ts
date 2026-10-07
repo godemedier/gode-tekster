@@ -40,6 +40,8 @@ export class SettingsPanel {
   private portable = false;
   /** Den åbne fane. Vinduet åbner altid på Generelt (6/10). */
   private tab = "generelt";
+  /** Faner, som andre moduler sætter ind (Kommandoer, 7/10). De har deres egen tilstand. */
+  private extra: ExtraTab[] = [];
 
   // Biblioteker styres i biblioteksfanen (3/10), ikke her.
   constructor() {
@@ -71,9 +73,14 @@ export class SettingsPanel {
     else this.open();
   }
 
-  open(): void {
+  /** En fane efter de faste. `mount` får fanens tomme flade, hver gang vinduet tegnes. */
+  addTab(tab: ExtraTab): void {
+    this.extra.push(tab);
+  }
+
+  open(tab = "generelt"): void {
     this.restore = rememberFocus();
-    this.tab = "generelt";
+    this.tab = tab;
     this.render();
     this.sheet.hidden = false;
     // Fokus på den åbne fane, så Esc, Tab og pilene virker med det samme (også efter Ctrl+,).
@@ -210,16 +217,23 @@ export class SettingsPanel {
         row(tr("Dit navn", "Your name"), nameField(), { hint: tr("Bruges i byline og forfatterskab.", "Used for the byline and authorship.") }),
         row("Sprog · Language", language, s.language === "en" ? { hint: "Word classes and the style check are only available in Danish." } : {}),
         ...(this.portable ? [] : [switchRow(tr("Start med Windows", "Start with Windows"), "", s.startWithWindows, (v) => set({ startWithWindows: v }))]),
-        switchRow(tr("Hent opdateringer af sig selv", "Update automatically"), "", s.checkUpdates, (v) => set({ checkUpdates: v })),
+        switchRow(tr("Automatiske opdateringer i baggrunden", "Automatic updates in the background"), "", s.checkUpdates, (v) => set({ checkUpdates: v })),
       ),
       aboutLine(),
     );
 
+    const extra = this.extra.map((t) => {
+      const p = panel();
+      p.classList.add("st-panel-flush");
+      t.mount(p);
+      return { id: t.id, label: t.label, panel: p };
+    });
     const tabs = tabbar(
       [
         { id: "generelt", label: tr("Generelt", "General"), panel: general },
         { id: "tekst", label: tr("Tekst", "Text"), panel: text },
         { id: "ai", label: tr("AI-hjælp", "AI help"), panel: ai },
+        ...extra,
       ],
       this.tab,
       (id) => (this.tab = id),
@@ -227,7 +241,7 @@ export class SettingsPanel {
 
     const box = document.createElement("div");
     box.className = "settings-box st";
-    box.append(head, tabs, general, text, ai);
+    box.append(head, tabs, general, text, ai, ...extra.map((t) => t.panel));
     this.sheet.replaceChildren(box);
   }
 }
@@ -369,6 +383,7 @@ function nameField(): HTMLElement {
 // --- byggestenene: faner, grupper, linjer og valg ------------------------------------------------
 
 type Tab = { id: string; label: string; panel: HTMLElement };
+export type ExtraTab = { id: string; label: string; mount: (host: HTMLElement) => void };
 
 /** Fanerne øverst. Pil til venstre og højre skifter, som i en tablist. */
 function tabbar(items: Tab[], current: string, change: (id: string) => void): HTMLElement {

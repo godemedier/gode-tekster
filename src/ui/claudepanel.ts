@@ -103,7 +103,7 @@ export class ClaudePanel {
             "AI-hjælpen er ikke sat op. Den kan bruge dit eget Claude-, ChatGPT- eller Gemini-abonnement.",
             "AI help isn't set up. It can use your own Claude, ChatGPT or Gemini subscription.",
           ), [
-        { label: tr("Indstillinger", "Settings"), run: () => void window.dispatchEvent(new Event("gt-open-settings")) },
+        { label: tr("Indstillinger", "Settings"), run: () => void window.dispatchEvent(new CustomEvent("gt-open-settings", { detail: "ai" })) },
       ]);
       return false;
     }

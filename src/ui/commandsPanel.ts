@@ -1,6 +1,6 @@
-// Fanen Kommandoer i venstre spalte (plan 2026-10-05, research 3.9). En liste over »/«-kommandoerne
-// med egne øverst, hver med en til/fra-kontakt. Øverst står et felt, hvor en ny kommando beskrives
-// med egne ord (6/10: »det skal bare beskrives med ord, og så sætter systemet selv op«).
+// Fanen Kommandoer i Indstillinger (7/10, før i venstre og højre spalte; research 3.9). En liste
+// over »/«-kommandoerne med egne øverst, hver med en til/fra-kontakt. Øverst står et felt, hvor en
+// ny kommando beskrives med egne ord (6/10: »det skal bare beskrives med ord, og så sætter systemet selv op«).
 // Sprogmodellen foreslår kommandoen, og forslaget vises med navn, prøve og Gem. »Gem det markerede
 // som skabelon« virker uden AI. Formularen med de fire slags er »Byg selv« for den, der vil rette
 // selv. Alt går gennem samme validator og gemmes først ved et klik. Visningerne afløser listen

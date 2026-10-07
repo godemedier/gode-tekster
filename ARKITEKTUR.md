@@ -686,3 +686,13 @@ sig selv.
 woff2-filerne (to til tre MB mere i programmet), og Google Docs og ældre Word på Mac ser bort fra
 dem alligevel.
 **Revurdér hvis:** nogen klager over, at Word-filen ikke ligner skærmen, fordi skriften er skiftet.
+
+### ADR-0032 — Kommandoer i Indstillinger (7/10-2026)
+**Beslutning:** Fanen Kommandoer er flyttet fra højre spalte til Indstillinger som fjerde fane
+(`SettingsPanel.addTab`, main.ts). Den samme flade (`CommandsPanel.el`) flyttes ind, hver gang
+vinduet tegnes, så en halvskrevet beskrivelse eller en åben formular ikke går tabt. Fanen har samme
+højde som de andre, og listen ruller inden i den. `gt-open-settings` kan nu åbne på en bestemt
+fane (knappen Indstillinger i fanen Input åbner AI-hjælp). Højre spalte har Fraklip, Fodnoter,
+Sprog og Input. Afløser placeringen i ADR-0028.
+**Hvorfor:** at lave og slå kommandoer til og fra er opsætning, ikke noget man gør, mens man
+skriver. I spalten fyldte fanen ved siden af Input, hvor kommandoernes svar står.

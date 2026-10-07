@@ -348,6 +348,12 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 /* Samme højde på alle faner, så vinduet står stille, når der skiftes. */
 .st-panel { min-height: 536px; display: flex; flex-direction: column; }
 .st-panel[hidden] { display: none; }
+/* Kommandoer i Indstillinger (7/10): samme højde som de andre faner, listen ruller inden i fanen.
+   Vinduet har sin egen margen, så fanens egen falder væk i siderne. */
+.st-panel-flush { height: 536px; min-height: 0; }
+.st-panel-flush .cmd { flex-grow: 1; }
+.st-panel-flush .cmd-new, .st-panel-flush .cmd-form, .st-panel-flush .cmd > .cmd-actions { padding-left: 0; padding-right: 0; }
+.st-panel-flush .cmd-list { padding: 0 6px 12px 0; }
 .st-group { padding: 2px 0; }
 .st-group + .st-group { border-top: 1px solid var(--streg); margin-top: 8px; padding-top: 10px; }
 .st-group h3 { margin: 0 0 2px; font-size: 11.5px; font-weight: 600; color: var(--svag); }
@@ -476,11 +482,9 @@ body.ro.ro-typing, body.ro.ro-typing * { cursor: none !important; }
 body.ro #ro-wifi { display: inline-flex; }
 body.ro.ro-typing #ro-wifi { opacity: 0; pointer-events: none; }
 
-/* »Bygget af Gode Medier« nederst i venstre spalte (3/10, som i Prismet). Mærket er husets
-   vermilion-firkant med G (gode-medier-ui, --gm-accent #db5230). */
+/* »Bygget af Gode Medier« nederst i venstre spalte (3/10, som i Prismet). Kun tekst (7/10). */
 .gm-credit { display: flex; align-items: center; gap: 7px; margin: 0 14px; padding: 6px 2px 2px; font: inherit; font-size: 11.5px; color: var(--dæmpet); background: none; border: none; cursor: pointer; text-align: left; }
 .gm-credit:hover { color: var(--svag); text-decoration: underline; text-underline-offset: 2px; }
-.gm-credit-mark { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 3px; background: #db5230; color: #ffffff; font-size: 9.5px; font-weight: 700; }
 
 /* AI-hjælp i indstillingerne (delbar udgave 3/10). */
 .settings-toggle input.settings-radio { appearance: auto; width: 16px; height: 16px; margin: 0 7px; border-radius: 50%; background: none; accent-color: var(--blå); }
@@ -563,7 +567,7 @@ body.rp-wide.right-pinned { --hoejre: var(--rp-bred); }
 /* Ctrl over et link (links.ts): hånden viser, at et klik åbner det. */
 .cm-editor .cm-content.gt-link-hand, .cm-editor .cm-content.gt-link-hand * { cursor: pointer !important; }
 
-/* ==== Kommandoer med »/« (plan 2026-10-05): fanen i venstre spalte og resultaterne i fanen Input ==== */
+/* ==== Kommandoer med »/« (plan 2026-10-05): fanen i Indstillinger og resultaterne i fanen Input ==== */
 .cmd { font-size: 13px; }
 .cmd-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px 6px; }
 .cmd-form .cmd-actions, .cl-message .cmd-actions, .cmd-new .cmd-actions { padding: 4px 0 0; }
