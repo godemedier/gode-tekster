@@ -632,12 +632,20 @@ export class ClaudePanel {
     const name = document.createElement("span");
     name.className = "cl-src-name";
     name.textContent = s.publisher || host(s.url);
-    const title = document.createElement("button");
-    title.type = "button";
+    // Et link, ikke en knap: en knap er altid en blok i Chromium, så titlen hoppede ned under
+    // kildens navn i stedet for at flyde med i linjen. Rust åbner siden, WebView'et navigerer aldrig.
+    const title = document.createElement("a");
     title.className = "cl-src-title";
+    title.href = s.url;
     title.textContent = s.title || s.url;
     title.title = s.url;
-    title.addEventListener("click", () => void this.open(s));
+    title.addEventListener("click", (e) => {
+      e.preventDefault();
+      void this.open(s);
+    });
+    // Midterklik åbner ellers et nyt WebView-vindue med siden.
+    title.addEventListener("auxclick", (e) => e.preventDefault());
+    title.draggable = false;
     text.append(name, " · ", title);
     if (s.date) text.append(` · ${s.date}`);
     // Værtsnavnet står i forklaringen: »står på siden« betyder kun noget, når man ved, hvis side det er.
