@@ -86,6 +86,8 @@ Ctrl+R viser teksten, som den kommer til at se ud. Derfra kan du udskrive, gemme
 
 Hver tekst har sit eget vindue. Ctrl+N åbner et nyt, og Ctrl+klik på en tekst i biblioteket åbner den i et nyt vindue. Prøver du at åbne en tekst, der allerede er åben, hentes dens vindue frem.
 
+Et nyt vindue uden tekst viser dine seneste tekster som små ark. Klik på et, så åbner teksten.
+
 ## Hjælp fra en sprogmodel
 
 Gode Tekster kan bruge din egen sprogmodel. Du vælger den under Indstillinger, AI-hjælp:

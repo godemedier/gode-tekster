@@ -16,7 +16,7 @@ gode-tekster/
 │   ├── editor/                  CodeMirror: live preview, forfatterskab, genveje, søg, fraklip,
 │   │                            tilstande, ordtal, ordklasser, dæmpning, kilder, stiltjek (worker),
 │   │                            links (Ctrl+klik), tabeller vist som tabeller (tables.ts), markeringen (wordSelection.ts)
-│   ├── ui/                      paneler, bibliotek, disposition, hurtigåbning, menu, højre spalte, indstillinger
+│   ├── ui/                      paneler, bibliotek, disposition, hurtigåbning, menu, højre spalte, seneste tekster som ark, indstillinger
 │   │                            (med AI-hjælp og Om), versioner, fanen Input, ordtal-hjørnet, genveje (F1), beskedlinje
 │   ├── commands/                »/«-kommandoer: indbyggede, egne, menuen, kørsel og tjek (ADR-0027, -0028)
 │   ├── sprog/                   stiltjek: klarhed, AI-fingeraftryk, anførselstegn

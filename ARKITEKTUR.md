@@ -653,3 +653,18 @@ Efter 0.2.6.
   første kørsel er fjernet. Samtykket til at sende til en udbyder spørges der stadig om én gang
   (`allowed`): det er det eneste, en ny bruger møder.
 **Revurdér hvis:** Mistrals agent-API med websøgning bliver en del af den gratis plan.
+
+### ADR-0030 — De seneste tekster som papirark i et vindue uden tekst (7/10-2026)
+**Beslutning:** Når et vindue ikke har en tekst (Ctrl+N, eller den åbne fil er flyttet eller
+slettet), viser fladen de op til otte seneste tekster som små ark (`ui/recentPapers.ts`). Hvert
+ark er et frimærke af tekstens første side i tekstens egen skrift: overskriften og de første
+afsnit, uden markdown-tegn, skjulte blokke, tabeller og kode. Arkene ligger lidt skævt som papir
+på et bord og retter sig op under musen. Under arket står tid og mappe. `recent_documents`
+(`session.rs`) læser kun stier fra `session.json`, altså tekster brugeren selv har åbnet, kun
+.md, .markdown og .txt, højst 16 MB, og sender de første 1.200 tegn uden forfatterblok. En
+OneDrive-fil, der ikke er hentet ned, læses ikke og får et tomt ark.
+**Hvorfor:** knappen »Åbn en tekst« alene var en blindgyde. Springlisten viser de samme tekster,
+men kun som navne og kun fra proceslinjen.
+**Ikke valgt:** at vise arkene ved hver start i stedet for den sidste tekst. Princip 8 i
+STRATEGI (programmet åbner der, hvor skribenten slap) gælder stadig.
+**Revurdér hvis:** der skal flere end otte ark til, eller arkene skal kunne fastgøres.

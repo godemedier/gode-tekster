@@ -151,7 +151,7 @@ fn is_worktree(dir: &Path) -> bool {
 
 /// OneDrive-pladsholder: at læse den henter filen fra skyen. Uddraget springes over.
 #[cfg(windows)]
-fn is_cloud_placeholder(meta: &fs::Metadata) -> bool {
+pub(crate) fn is_cloud_placeholder(meta: &fs::Metadata) -> bool {
     use std::os::windows::fs::MetadataExt;
     const RECALL_ON_DATA_ACCESS: u32 = 0x0040_0000;
     const OFFLINE: u32 = 0x0000_1000;
@@ -159,7 +159,7 @@ fn is_cloud_placeholder(meta: &fs::Metadata) -> bool {
 }
 
 #[cfg(not(windows))]
-fn is_cloud_placeholder(_meta: &fs::Metadata) -> bool {
+pub(crate) fn is_cloud_placeholder(_meta: &fs::Metadata) -> bool {
     false
 }
 
@@ -185,7 +185,7 @@ pub struct Folder {
     pub entries: Vec<Entry>,
 }
 
-fn modified_ms(meta: &fs::Metadata) -> u64 {
+pub(crate) fn modified_ms(meta: &fs::Metadata) -> u64 {
     meta.modified()
         .ok()
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())

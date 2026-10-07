@@ -43,6 +43,7 @@ import { openCommandMenu } from "./commands/slashMenu.ts";
 import type { CommandHooks } from "./commands/types.ts";
 import { CommandsPanel } from "./ui/commandsPanel.ts";
 import { showCommandResult } from "./ui/commandResults.ts";
+import { renderPapers, type RecentDoc } from "./ui/recentPapers.ts";
 
 // index.html er skrevet på dansk. Sproget og de faste tekster sættes her, før vinduet vises.
 document.documentElement.lang = currentLang();
@@ -376,6 +377,7 @@ function show(dto: DocumentDto | null): void {
     empty.hidden = false;
     view.dom.hidden = true;
     void library.reveal(null);
+    void showPapers();
     return;
   }
   empty.hidden = true;
@@ -608,6 +610,14 @@ async function fileMoved(from: string, to: string | null): Promise<void> {
 }
 
 document.getElementById("open-file")?.addEventListener("click", () => openQuick((p) => void openPath(p)));
+
+/** De seneste tekster som papirark på den tomme flade (ADR-0030). */
+async function showPapers(): Promise<void> {
+  const docs = await invoke<RecentDoc[]>("recent_documents").catch(() => []);
+  // Er en tekst nået at blive åbnet imens, skal arkene ikke tegnes oven på den.
+  if (session) return;
+  renderPapers(document.getElementById("papers") as HTMLElement, docs, (p) => void openPath(p));
+}
 
 // --- tastatur ---------------------------------------------------------------------------------
 

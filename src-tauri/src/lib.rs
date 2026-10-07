@@ -197,6 +197,7 @@ pub fn run() -> tauri::Result<()> {
             library::list_libraries,
             library::list_folder,
             library::list_all_files,
+            session::recent_documents,
             library::create_file,
             library::create_folder,
             library::rename_entry,

@@ -55,6 +55,8 @@
   --blå: #1aa3ff;
   --markering: #cde9fd;
   --skygge: 0 8px 24px rgba(0,0,0,0.12);
+  --papir-skygge: 0 1px 2px rgba(0,0,0,0.05), 0 10px 20px -8px rgba(0,0,0,0.12);
+  --papir-skygge-op: 0 2px 4px rgba(0,0,0,0.06), 0 22px 34px -12px rgba(0,0,0,0.22);
   --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
 }
@@ -91,6 +93,8 @@ body.dark {
   --wc-c: #6cc27a;
   --markering: #1f4a6b;
   --skygge: 0 8px 24px rgba(0,0,0,0.45);
+  --papir-skygge: 0 1px 2px rgba(0,0,0,0.35), 0 10px 22px -8px rgba(0,0,0,0.55);
+  --papir-skygge-op: 0 2px 4px rgba(0,0,0,0.4), 0 22px 36px -12px rgba(0,0,0,0.7);
   color-scheme: dark;
 }
 
@@ -121,14 +125,63 @@ body.right-pinned { --hoejre: 320px; }
 #editor .cm-scroller { scrollbar-width: thin; }
 
 #empty {
-  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 40px; padding: 48px 32px; box-sizing: border-box; overflow-y: auto;
 }
 #empty[hidden] { display: none; }
-#empty button {
+#open-file {
   font: inherit; font-size: 14px; color: var(--blæk); background: var(--kort);
   border: 1px solid var(--kant); border-radius: 8px; padding: 10px 18px; cursor: pointer;
 }
-#empty button:hover { border-color: var(--kant-hover); }
+#open-file:hover { border-color: var(--kant-hover); }
+/* Med arkene over sig er knappen bare en stille vej videre. */
+#papers:not([hidden]) + #open-file {
+  font-size: 13px; color: var(--svag); background: none; border: none; padding: 4px 6px;
+}
+#papers:not([hidden]) + #open-file:hover { color: var(--blæk); }
+
+/* De seneste tekster som papirark (ADR-0030). Arket er et frimærke af tekstens første side i
+   tekstens egen skrift, lidt skævt som papir på et bord. Det retter sig op under musen. */
+#papers[hidden] { display: none; }
+.gt-papers-label {
+  margin: 0 0 26px; font: 400 11px var(--ui); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--svag); text-align: center;
+}
+.gt-papers { display: grid; grid-template-columns: repeat(4, 140px); gap: 36px 32px; justify-content: center; }
+@media (max-width: 780px) { .gt-papers { grid-template-columns: repeat(3, 140px); } }
+@media (max-width: 580px) { .gt-papers { grid-template-columns: repeat(2, 140px); } }
+.gt-paper {
+  display: flex; flex-direction: column; gap: 14px; width: 140px; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: left; background: none; border: none; cursor: pointer;
+}
+.gt-paper-sheet {
+  display: block; height: 186px; box-sizing: border-box; padding: 17px 15px;
+  background: var(--kort); border: 1px solid var(--streg); border-radius: 2px;
+  box-shadow: var(--papir-skygge); transform: rotate(var(--tilt, 0deg));
+  transition: transform 240ms cubic-bezier(.2,.8,.2,1), box-shadow 240ms cubic-bezier(.2,.8,.2,1);
+}
+.gt-paper:hover .gt-paper-sheet,
+.gt-paper:focus-visible .gt-paper-sheet { transform: translateY(-5px) rotate(0deg); box-shadow: var(--papir-skygge-op); }
+.gt-paper:focus-visible { outline: none; }
+.gt-paper:focus-visible .gt-paper-sheet { outline: 2px solid var(--blå); outline-offset: 4px; }
+.gt-paper-text {
+  display: block; height: 100%; overflow: hidden; font-family: var(--skrift); color: var(--blæk);
+  overflow-wrap: anywhere;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+.gt-paper-title {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  margin-bottom: 8px; font-size: 10.5px; font-weight: 700; line-height: 1.3;
+}
+.gt-paper-h { display: block; margin: 6px 0 1px; font-size: 7px; font-weight: 700; line-height: 1.5; }
+.gt-paper-p { display: block; margin-bottom: 4px; font-size: 6.5px; line-height: 1.65; color: var(--manchet); }
+.gt-paper-caption {
+  padding: 0 2px; font: 11.5px var(--ui); color: var(--svag);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gt-paper:hover .gt-paper-caption, .gt-paper:focus-visible .gt-paper-caption { color: var(--blæk); }
+@media (prefers-reduced-motion: reduce) { .gt-paper-sheet { transition: none; } }
 
 /* Beskedlinjen: et valg eller en kort kvittering. Ligger over skrivefladen, ikke over panelerne. */
 #banner {

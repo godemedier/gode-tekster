@@ -85,6 +85,8 @@ Ctrl+R shows the text the way it will look. From there you can print, save as PD
 
 Each text has its own window. Ctrl+N opens a new one, and Ctrl+click on a text in the library opens it in a new window. If you try to open a text that's already open, its window comes to the front.
 
+A new window without a text shows your recent texts as small sheets of paper. Click one to open it.
+
 ## Help from a language model
 
 Gode Tekster can use your own language model. You choose it in Settings, under AI help:
