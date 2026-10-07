@@ -14,7 +14,7 @@ When you opened Gode Tekster for the first time, it made a folder called Gode Te
 
 At the top of the tab you can go up a level and choose *Add folder…* to include a new folder.
 
-You make a new text with the plus sign at the top of the library. Ctrl+O finds a text by name, and Ctrl+Shift+O opens a file anywhere on your computer.
+You make a new text with the plus sign at the top of the library. Ctrl+O finds a text by name, and Ctrl+Shift+O opens a file anywhere on your computer. Right-click a text to copy its path or show it in File Explorer.
 
 You can drag Word files into the window. The app then offers to make a new text from them.
 

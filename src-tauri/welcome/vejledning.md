@@ -14,7 +14,7 @@ Da du åbnede Gode Tekster første gang, lavede systemet mappen Gode Tekster und
 
 Øverst i fanen kan du gå et niveau op og vælge *Tilføj mappe …* for at tage en ny mappe med.
 
-En ny tekst laver du med plus-symbolet øverst i biblioteket. Ctrl+O finder en tekst på navnet, og Ctrl+Shift+O åbner en fil et hvilket som helst sted på computeren.
+En ny tekst laver du med plus-symbolet øverst i biblioteket. Ctrl+O finder en tekst på navnet, og Ctrl+Shift+O åbner en fil et hvilket som helst sted på computeren. Højreklik på en tekst for at kopiere stien eller vise den i Stifinder.
 
 Word-filer kan du trække ind i vinduet. Så tilbyder programmet at lave en ny tekst ud af dem.
 
