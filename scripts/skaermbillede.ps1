@@ -27,7 +27,9 @@ $g.Dispose()
 # Den synlige del af vinduet. Fejler DWM, gemmes hele rektanglet som før.
 $v = New-Object Snap+RECT
 if ([Snap]::DwmGetWindowAttribute($p.MainWindowHandle, 9, [ref]$v, 16) -eq 0) {
-  $crop = New-Object System.Drawing.Rectangle ($v.L - $r.L), ($v.T - $r.T), ($v.R - $v.L), ($v.B - $v.T)
+  # Inden for de synlige grænser ligger vinduets egen ramme: 1 px sort hele vejen rundt (7/10,
+  # målt på 1282x872). Den skæres også væk, så kun vinduets indhold kommer med.
+  $crop = New-Object System.Drawing.Rectangle ($v.L - $r.L + 1), ($v.T - $r.T + 1), ($v.R - $v.L - 2), ($v.B - $v.T - 2)
   $visible = $bmp.Clone($crop, $bmp.PixelFormat)
   $bmp.Dispose()
   $bmp = $visible
