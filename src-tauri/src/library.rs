@@ -638,6 +638,22 @@ pub fn rename_path(app: &AppHandle, p: &Path, new_name: &str) -> Result<PathBuf,
     Ok(target)
 }
 
+/// »Vis i Stifinder« (7/10): Stifinder åbner mappen med filen markeret. Kun inden for bibliotekerne.
+#[tauri::command]
+pub async fn reveal_entry(app: AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    // guard kanoniserer stien, så den skal findes og ligge i et bibliotek.
+    guard(&app, Path::new(&path))?;
+    app.opener()
+        .reveal_item_in_dir(Path::new(&path))
+        .map_err(|e| {
+            t!(
+                format!("Stifinder kunne ikke åbnes: {e}"),
+                format!("File Explorer could not be opened: {e}")
+            )
+        })
+}
+
 /// Til papirkurven, aldrig slettet for altid.
 #[tauri::command]
 pub async fn delete_entry(app: AppHandle, path: String) -> Result<(), String> {

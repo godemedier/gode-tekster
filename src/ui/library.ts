@@ -11,7 +11,7 @@ import { setLibraries, settings, updateSettings } from "../settings.ts";
 import { formatTime } from "./format.ts";
 import { ICON, iconButton } from "./icons.ts";
 import { showMenu, type MenuItem } from "./menu.ts";
-import { errorText, showBanner } from "./banner.ts";
+import { errorText, notify, showBanner } from "./banner.ts";
 import { afterMove, isStarred, toggleStar } from "./stars.ts";
 
 type Entry = { name: string; path: string; isDir: boolean; modifiedMs: number; visibility: "normal" | "dimmed"; preview: string };
@@ -321,7 +321,11 @@ export class LibraryPanel {
     b.addEventListener("contextmenu", (ev) => {
       ev.preventDefault();
       showMenu(ev.clientX, ev.clientY, [
-        ...(e.isDir ? [] : ([{ label: tr("Åbn i nyt vindue (Ctrl+klik)", "Open in new window (Ctrl+click)"), run: () => this.hooks.openNew(e.path) }, { separator: true }] as MenuItem[])),
+        ...(e.isDir ? [] : ([{ label: tr("Åbn i nyt vindue (Ctrl+klik)", "Open in new window (Ctrl+click)"), run: () => this.hooks.openNew(e.path) }] as MenuItem[])),
+        // Stien og Stifinder (7/10), til filer og mapper.
+        { label: tr("Kopiér sti", "Copy path"), run: () => void copyPath(e.path) },
+        { label: tr("Vis i Stifinder", "Show in File Explorer"), run: () => void invoke("reveal_entry", { path: e.path }).catch((err) => showBanner(errorText(err))) },
+        { separator: true },
         { label: isStarred(settings().starred ?? [], e.path) ? tr("Fjern stjernen (*)", "Remove star (*)") : tr("Stjernemarkér (*)", "Star (*)"), run: () => this.toggleStar(e) },
         { label: tr("Omdøb", "Rename"), run: () => this.rename(e, nameEl) },
         { label: tr("Læg i papirkurven", "Move to Recycle Bin"), run: () => void this.remove(e) },
@@ -443,5 +447,15 @@ export class LibraryPanel {
       showBanner(String(err));
     }
     await this.refresh();
+  }
+}
+
+/** Stien til udklipsholderen. Lykkes det ikke, står stien i beskeden, så den kan kopieres derfra. */
+async function copyPath(path: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(path);
+    notify(tr("Stien er kopieret.", "Path copied."));
+  } catch {
+    showBanner(path);
   }
 }

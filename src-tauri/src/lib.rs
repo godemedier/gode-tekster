@@ -203,6 +203,7 @@ pub fn run() -> tauri::Result<()> {
             library::rename_entry,
             document::rename_open_document,
             library::delete_entry,
+            library::reveal_entry,
             library::move_entry,
             library::sibling_clippings,
             library::read_clipping,
