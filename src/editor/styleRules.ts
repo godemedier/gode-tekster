@@ -3,9 +3,10 @@
 
 import { analyzeClarity, type ClarityKind } from "../sprog/clarity.ts";
 import { analyzeAiTells } from "../sprog/aitells.ts";
+import { grammarFlags } from "./grammar.ts";
 
 export type Flag = { from: number; to: number; kind: string; message: string; replacement?: string };
-type Category = "stryg" | "enklere" | "saetning" | "hus";
+type Category = "stryg" | "enklere" | "saetning" | "hus" | "grammatik";
 
 const CATEGORY: Partial<Record<ClarityKind, Category>> = {
   floskel: "stryg",
@@ -40,7 +41,8 @@ export function mask(doc: string): string {
     .replace(/(\*\*|__|~~|\{--|--\}|\{\+\+|\+\+\}|\{~~|~>|<\/?u>)/g, blank);
 }
 
-export function analyze(doc: string): { flags: Flag[]; lix: number; lixLabel: string } {
+/** `verbs` er udsagnsordene fra ordklasselisten. Uden dem springes grammatikken over (grammar.ts). */
+export function analyze(doc: string, verbs?: ReadonlySet<string>): { flags: Flag[]; lix: number; lixLabel: string } {
   const text = mask(doc);
   const clarity = analyzeClarity(text);
   const flags: Flag[] = [];
@@ -52,9 +54,11 @@ export function analyze(doc: string): { flags: Flag[]; lix: number; lixLabel: st
     if (f.inQuote) continue;
     flags.push({ from: f.offset, to: f.offset + f.length, kind: `hus:${f.kind}`, message: f.message, replacement: f.replacement });
   }
+  if (verbs) flags.push(...grammarFlags(text, verbs));
   return { flags, lix: clarity.lix, lixLabel: clarity.lixLabel };
 }
 
 export function categoryOf(kind: string): Category {
+  if (kind.startsWith("grammatik:")) return "grammatik";
   return kind.startsWith("hus:") ? "hus" : (CATEGORY[kind as ClarityKind] ?? "saetning");
 }

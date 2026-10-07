@@ -121,5 +121,7 @@ export const styleCheckTheme = EditorView.theme({
   ".gt-style-stryg": { textDecoration: "line-through", textDecorationColor: "var(--svag)", color: "var(--svag)" },
   ".gt-style-enklere": { textDecoration: "underline dotted var(--link)", textUnderlineOffset: "4px" },
   ".gt-style-saetning": { backgroundColor: "var(--fund)", borderRadius: "2px" },
+  // Grammatik som i Word: en blå bølget streg (7/10).
+  ".gt-style-grammatik": { textDecoration: "underline wavy var(--link)", textDecorationThickness: "1px", textUnderlineOffset: "4px" },
   ".gt-style-hus": { textDecoration: "underline wavy var(--fejl)", textDecorationThickness: "1px", textUnderlineOffset: "4px" },
 });

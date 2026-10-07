@@ -723,3 +723,19 @@ der ikke er taget stilling til (`{++…++}`, `{~~gammel~>ny~~}`), bliver sporede
 før markdown-it læser teksten, og findes igen i løbene. Fluebenet »Noter og rettelser i Word« i
 forhåndsvisningen er slået til, og det vises kun, når teksten har noter eller forslag. PDF og
 print er rene som før. Afprøvet i Word 16: 2 kommentarer og 3 rettelser læses rigtigt.
+
+### ADR-0035 — Dansk grammatik lokalt i stiltjekket (7/10-2026)
+**Beslutning:** tre regler, der kører i stiltjekkets worker uden net (`editor/grammar.ts`):
+navnemåde efter »at« og mådesudsagnsord, nutid efter jeg/du/han/hun/vi/man (ikke ved omvendt
+ordstilling), og dobbelte småord. Udsagnsordene er ordklasselistens (UD Danish-DDT, ca. 300 par
+med navnemåde og nutid). Fundene står under »Grammatik« i fanen Sprog med en blå bølget streg.
+**Prøvet:** 1.774 artikler fra et fagblad (1,65 mio. ord) gav 71 fund. Hvert blev gennemgået, og de
+falske blev fjernet med undtagelser, der nu står som test: navne (»Povl Gad er«), »ved« som
+forholdsord, omvendt ordstilling efter ethvert udsagnsord, navneord efter »at« som bindeord
+(»at lærer og pædagog«), betingelse efter »at« (»at søger man«), endelser efter punktum og
+apostrof (»ph.d.en en«), gentagne forholdsord (»på på kort sigt«). Derefter 66 fund. På 114.726
+ord i prøveteksterne: ét fund, og det var en rigtig fejl.
+**Ikke valgt:** LanguageTool (Gode Ord bruger en intern server, men teksten må ikke forlade
+brugerens pc), kommaregler (startkomma er valgfrit efter Dansk Sprognævn) og kongruens (listen
+har ikke navneordenes køn).
+**Revurdér hvis:** ordklasselisten får køn og bøjning, så kongruens (»et stor hus«) kan tjekkes.
