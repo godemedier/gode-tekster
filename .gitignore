@@ -1,0 +1,48 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Rust / Tauri
+src-tauri/target
+src-tauri/gen/schemas
+
+# Hemmeligheder
+.env
+.env*.local
+
+# Office-affald
+~$*
+Thumbs.db
+desktop.ini
+
+# Lokal sessionsnotesblok — committes aldrig
+HANDOFF.md
+
+# Kopier af brugerens rigtige filer til tests (plan 1) - aldrig i git
+tests/private/
+
+# Signeringsnøglen til opdateringer (delbar udgave 3/10). ALDRIG i git: den beviser, at en
+# opdatering kommer fra Gode Medier. Nøglen har en backup uden for repoet.
+.updater/
+HANDOFF-ARKIV.md

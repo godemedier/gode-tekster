@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Fladen må kun det, kernen tilbyder. opener-rettigheder tilføjes først, når trin 9 skal åbne kildelinks (AGENTS, sikkerhed). Gælder hovedvinduet og de ekstra tekstvinduer (tekst-1, tekst-2 …).",
+  "windows": [
+    "main",
+    "tekst-*"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}

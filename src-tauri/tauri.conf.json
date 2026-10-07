@@ -1,0 +1,80 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Gode Tekster",
+  "version": "0.2.7",
+  "identifier": "dk.godemedier.godetekster",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "Gode Tekster",
+        "width": 1280,
+        "height": 840,
+        "minWidth": 640,
+        "minHeight": 480,
+        "label": "main",
+        "dragDropEnabled": false,
+        "visible": false,
+        "backgroundColor": "#f7f7f7"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; font-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; font-src 'self'; connect-src ipc: http://ipc.localhost ws://localhost:1420; object-src 'none'; base-uri 'none'; form-action 'none'",
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown"
+        ],
+        "name": "Markdown",
+        "description": "Tekst i markdown",
+        "role": "Editor",
+        "mimeType": "text/markdown"
+      }
+    ],
+    "publisher": "Gode Medier",
+    "shortDescription": "Skriveprogram til markdown",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English",
+          "Danish"
+        ],
+        "displayLanguageSelector": false,
+        "customLanguageFiles": {
+          "Danish": "nsis/Danish.nsh"
+        },
+        "installerHooks": "nsis/hooks.nsh"
+      }
+    },
+    "resources": [
+      "resources/LICENSES.txt"
+    ]
+  }
+}

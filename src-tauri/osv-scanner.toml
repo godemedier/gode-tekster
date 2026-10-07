@@ -1,0 +1,20 @@
+# Undtagelser for osv-scanner (laeses automatisk fra lockfilens mappe).
+#
+# Begge fund ligger i GTK-laget, som Tauri kun bruger paa Linux. De staar i Cargo.lock, fordi
+# lockfilen daekker alle platforme, men de oversaettes ikke i et Windows-byg. Efterproevet
+# 2/10-2026 med `cargo tree --target x86_64-pc-windows-msvc -i <crate>` → "nothing to print".
+# Gode Tekster bygges kun til Windows (STRATEGI, ikke-maal).
+#
+# Udloeber, saa de tages op igen. Koer cargo tree-tjekket igen, foer datoen flyttes.
+
+# osv-scanner grupperer glib-fundet under GHSA-id'et; RUSTSEC-2024-0429 er aliaset.
+[[IgnoredVulns]]
+id = "GHSA-wrw7-89jp-8q8g"
+ignoreUntil = 2027-04-01
+reason = "glib 0.18 (RUSTSEC-2024-0429, Linux/GTK, via Tauri). Ikke i Windows-bygget."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+ignoreUntil = 2027-04-01
+reason = "proc-macro-error er uvedligeholdt (Linux/GTK-makroer, via Tauri). Ikke i Windows-bygget."
+

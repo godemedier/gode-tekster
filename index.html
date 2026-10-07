@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gode Tekster</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/print/print.css" />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <div id="banner" role="status" aria-live="polite" hidden></div>
+    <main id="main">
+      <div id="editor"></div>
+      <div id="empty" hidden>
+        <button type="button" id="open-file">Åbn en tekst</button>
+      </div>
+      <div id="count" aria-live="off"></div>
+    </main>
+    <div class="hover-zone" id="zone-left"></div>
+    <div class="hover-zone" id="zone-right"></div>
+    <aside class="panel panel-left" id="left" aria-label="Bibliotek"></aside>
+    <aside class="panel panel-right" id="right" aria-label="Fraklip og noter"></aside>
+    <div id="overlay" hidden></div>
+  </body>
+</html>

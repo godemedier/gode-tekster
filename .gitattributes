@@ -1,0 +1,28 @@
+# .gitattributes
+
+# --- Sikkerhed, ikke kosmetik (tilfoejet 2026-09-04) -------------------------
+# Git for Windows kobler *.doc/*.docx/*.pdf/*.rtf til diff-driveren `astextplain`.
+# Paa en fil den ikke genkender svarer git `unsupported filetype` og opgiver HELE
+# diff'en - saa scanner gitleaks nul bytes og melder groent. `binary` (= -diff -merge
+# -text) faar git til at holde op med at forsoege en tekstkonvertering, og resten af
+# diff'en overlever. Se rodens .gitattributes og L-176 for maalingen bag.
+*.doc   binary
+*.docx  binary
+*.pdf   binary
+*.rtf   binary
+*.xls   binary
+*.xlsx  binary
+*.ppt   binary
+*.pptx  binary
+*.odt   binary
+*.jpg   binary
+*.jpeg  binary
+*.png   binary
+*.webp  binary
+*.gif   binary
+
+# Tauri-ikoner
+*.ico   binary
+*.icns  binary
+*.woff2 binary
+*.woff  binary
