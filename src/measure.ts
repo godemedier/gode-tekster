@@ -1175,6 +1175,35 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
     await say(`link: titel nu »${await getCurrentWindow().title()}«, ${view.state.doc.line(1).text}`);
   } else if (name === "zoom") {
     await zoomScenario(view);
+  } else if (name === "grammatik") {
+    // 0.2.10 (8/10): kongruens og de tre kommavalg i fanen Sprog, Indstillinger › Tekst og
+    // »dage til deadline« i hjørnet. Indstillinger kun i hukommelsen; skærmbilleder tages udefra.
+    Object.assign(settings(), { styleCheck: true, wordClasses: false });
+    const { setStyleCheck, setCommaStyle, currentFlags, categoryOf } = await import("./editor/styleCheck.ts");
+    const grammar = () => currentFlags().filter((f) => categoryOf(f.kind) === "grammatik");
+    const report = async (label: string) => {
+      await pause(1500);
+      const g = grammar();
+      await say(`grammatik ${label}: ${g.length} fund · ${g.map((f) => `»${view.state.sliceDoc(f.from, f.to)}« ${f.message}`).join(" | ")}`);
+    };
+    setStyleCheck(view, true);
+    window.dispatchEvent(new CustomEvent("gt-test-tab", { detail: "sprog" }));
+    await report("startkomma");
+    await say(`hjørnet: ${document.querySelector(".count-long")?.textContent ?? "(intet)"} · ${document.querySelector(".count-short")?.textContent ?? ""}`);
+    await say("skærmbillede sprog-start");
+    await pause(6000);
+    setCommaStyle(view, "uden");
+    await report("uden startkomma");
+    setCommaStyle(view, "fra");
+    await report("komma fra");
+    setCommaStyle(view, "start");
+    window.dispatchEvent(new Event("gt-open-settings"));
+    await pause(1200);
+    const tab = [...document.querySelectorAll<HTMLButtonElement>(".settings [role='tab']")].find((t) => t.textContent?.trim() === "Tekst");
+    tab?.click();
+    await pause(800);
+    await say(`skærmbillede indstillinger-tekst · ${tab ? "fanen fundet" : "FANEN IKKE FUNDET"}`);
+    await pause(6000);
   } else if (name === "anslag") {
     const { count } = await import("./editor/count.ts");
     const c = count(view.state.doc.toString());
