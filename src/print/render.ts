@@ -127,13 +127,13 @@ export function pageCss(t: Template, meta: Meta): string {
   const margin = `${m.top}cm ${m.right}cm ${m.bottom}cm ${m.left}cm`;
   if (t === "manuskript") {
     return `@page { size: A4; margin: ${margin};
-  @top-left { content: ${cssString([surname(meta.author), meta.title].filter(Boolean).join(" · "))}; font: 7.5pt "IBM Plex Sans", sans-serif; color: #888888; }
-  @top-right { content: ${cssString(meta.date)}; font: 7.5pt "IBM Plex Sans", sans-serif; color: #888888; }
-  @bottom-center { content: counter(page) " / " counter(pages); font: 7.5pt "IBM Plex Sans", sans-serif; color: #888888; } }
+  @top-left { content: ${cssString([surname(meta.author), meta.title].filter(Boolean).join(" · "))}; font: 7.5pt "Schibsted Grotesk", sans-serif; color: #888888; }
+  @top-right { content: ${cssString(meta.date)}; font: 7.5pt "Schibsted Grotesk", sans-serif; color: #888888; }
+  @bottom-center { content: counter(page) " / " counter(pages); font: 7.5pt "Schibsted Grotesk", sans-serif; color: #888888; } }
 @page :first { @top-left { content: none; } @top-right { content: none; } }`;
   }
   return `@page { size: A4; margin: ${margin};
-  @top-center { content: ${cssString(meta.title.toUpperCase())}; font: 8.5pt "Newsreader", serif; letter-spacing: 0.08em; color: #555; }
+  @top-center { content: ${cssString(meta.title.toUpperCase())}; font: 8.5pt "Newsreader", serif; letter-spacing: 0.08em; color: #555; font-variation-settings: "opsz" 9; }
   @bottom-center { content: counter(page); font: 9pt "Newsreader", serif; color: #555; } }
 @page :first { @top-center { content: none; } }`;
 }

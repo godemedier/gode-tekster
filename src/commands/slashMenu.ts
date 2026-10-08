@@ -409,8 +409,8 @@ const MENU = ".cm-tooltip.cm-tooltip-autocomplete.gt-cmd-menu";
 
 const menuTheme = EditorView.baseTheme({
   [MENU]: {
-    background: "var(--kort, #fff)",
-    border: "1px solid var(--kant, #dcdcdc)",
+    background: "var(--kort)",
+    border: "1px solid var(--kant)",
     borderRadius: "8px",
     boxShadow: "var(--skygge, 0 8px 24px rgba(0,0,0,0.12))",
     overflow: "hidden",
@@ -430,16 +430,17 @@ const menuTheme = EditorView.baseTheme({
     gap: "10px",
     padding: "5px 12px",
     lineHeight: "20px",
-    color: "var(--blæk, #2b2b2b)",
+    color: "var(--blæk)",
     cursor: "default",
   },
-  [`${MENU} > ul > li[aria-selected]`]: { background: "var(--valgt, #e2f1fc)", color: "var(--blæk, #2b2b2b)" },
+  [`${MENU} > ul > li[aria-selected]`]: { background: "var(--valgt)", color: "var(--blæk)", boxShadow: "inset 3px 0 0 var(--accent)" },
   [`${MENU} > ul > completion-section`]: {
     display: "block",
     padding: "7px 12px 2px",
     lineHeight: "16px",
     fontSize: "11px",
-    color: "var(--dæmpet, #8f8f8f)",
+    fontFamily: "var(--ui-lille)",
+    color: "var(--svag)",
     borderBottom: "none",
     opacity: "1",
   },
@@ -452,9 +453,9 @@ const menuTheme = EditorView.baseTheme({
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     fontStyle: "normal",
-    color: "var(--svag, #6b6b6b)",
+    color: "var(--svag)",
   },
-  [`${MENU} .gt-cmd-kind`]: { flex: "none", fontSize: "11px", color: "var(--dæmpet, #8f8f8f)" },
+  [`${MENU} .gt-cmd-kind`]: { flex: "none", fontSize: "11px", fontFamily: "var(--ui-lille)", color: "var(--dæmpet)" },
 });
 
 /** F5, F6, F8 og F9 kører den kommando, der har tasten som `shortcut`. Uden en kommando slipper tasten igennem. */

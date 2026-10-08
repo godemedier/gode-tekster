@@ -1,4 +1,4 @@
-// Kontrasten mellem farvetokens i styles.css, i lys og mørk (personatjek 2/10: mørk tilstand kunne
+// Kontrasten mellem farvetokens i styles.css, i lys, mørk og aften (personatjek 2/10: mørk tilstand kunne
 // ikke læses flere steder, fordi farverne stod direkte i reglerne). Tekst mindst 4,5:1 (WCAG AA),
 // dæmpet tekst mindst 3:1, fordi den bevidst skal træde tilbage.
 
@@ -28,12 +28,12 @@ function contrast(a: string, b: string): number {
 const TEXT = ["blæk", "svag", "link", "fejl", "ok", "manchet", "ai-tekst", "wc-n", "wc-v", "wc-a", "wc-d", "wc-c"];
 const SURFACES = ["flade", "panel", "kort"];
 
-for (const [mode, selector] of [
-  ["lys", ":root"],
-  ["mørk", "body.dark"],
-]) {
-  const light = tokens(":root");
-  const t = new Map([...light, ...tokens(selector)]);
+for (const [mode, selectors] of [
+  ["lys", [":root"]],
+  ["mørk", [":root", "body.dark"]],
+  ["aften", [":root", "body.dark", "body.dark.aften"]],
+] as const) {
+  const t = new Map(selectors.flatMap((s) => [...tokens(s)]));
   test(`${mode}: al tekst står mindst 4,5:1 på flade, panel og kort`, () => {
     for (const fg of TEXT) {
       for (const bg of SURFACES) {
@@ -48,5 +48,7 @@ for (const [mode, selector] of [
     assert.ok(contrast(t.get("note-tekst")!, t.get("note-flade")!) >= 4.5, `note ${contrast(t.get("note-tekst")!, t.get("note-flade")!).toFixed(2)}:1`);
     assert.ok(contrast(t.get("dæmpet")!, t.get("flade")!) >= 3, `dæmpet ${contrast(t.get("dæmpet")!, t.get("flade")!).toFixed(2)}:1`);
     assert.ok(contrast(t.get("link-tekst")!, t.get("link")!) >= 4.5, "knap med link-farve");
+    // Accenten er en streg og en markør: grafik, ikke tekst (WCAG 1.4.11, mindst 3:1).
+    assert.ok(contrast(t.get("accent")!, t.get("flade")!) >= 3, `accent ${contrast(t.get("accent")!, t.get("flade")!).toFixed(2)}:1`);
   });
 }

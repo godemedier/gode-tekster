@@ -61,7 +61,7 @@ If you get a text back with changes from someone else, they're shown as suggesti
 - The style check (F7) and parts of speech in color (Shift+F7) are built on Danish word lists, so they only work when Gode Tekster runs in Danish. The style check also finds common Danish grammar mistakes: present-tense -r, agreement, commas and doubled words. In Settings › Text you choose whether commas are checked with or without the start comma, or not at all.
 - Ctrl+plus and Ctrl+minus make the text bigger and smaller.
 
-In Settings (Ctrl+,) you choose the font, line width, quotation marks and dark background. Under Paragraphs you choose whether paragraphs are separated by space, like on the web, or by indenting the first line, like in a book. The choice also applies to printing, PDF and Word.
+In Settings (Ctrl+,) you choose the font, line width, quotation marks and appearance: light, dark or evening, with amber letters on a dark ground. With »Automatic« the app switches to evening when the sun sets and back when it rises. Under Paragraphs you choose whether paragraphs are separated by space, like on the web, or by indenting the first line, like in a book. The choice also applies to printing, PDF and Word.
 
 ## Search
 

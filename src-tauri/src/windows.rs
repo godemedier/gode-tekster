@@ -193,18 +193,18 @@ pub fn quit_app(app: AppHandle, window: tauri::Window) {
 }
 
 /// Titellinjen i programmets egen farve (visuel gennemgang 5/10): samme flade og tekstfarve som
-/// skrivefladen (--flade, --blæk i styles.css), lys eller mørk. Windows 11 farver den gennem DWM;
-/// på Windows 10 sker der intet. Kaldes fra fladen, når udseendet sættes.
+/// skrivefladen (--flade, --blæk i styles.css) i det aktuelle udseende (ADR-0037). Windows 11
+/// farver den gennem DWM; på Windows 10 sker der intet. Kaldes fra fladen, når udseendet sættes.
 #[tauri::command]
-pub fn set_titlebar(window: tauri::WebviewWindow, dark: bool) {
+pub fn set_titlebar(window: tauri::WebviewWindow, theme: String) {
     #[cfg(windows)]
     if let Ok(hwnd) = window.hwnd() {
         use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
         // COLORREF er 0x00BBGGRR. 20: mørke vinduesknapper, 35: titellinjens farve, 36: titlens.
-        let (caption, text): (u32, u32) = if dark {
-            (0x001e_1e1e, 0x00d4_d4d4)
-        } else {
-            (0x00f7_f7f7, 0x002b_2b2b)
+        let (caption, text, dark): (u32, u32, bool) = match theme.as_str() {
+            "moerk" => (0x001c_1917, 0x00dd_d9d5, true),
+            "aften" => (0x000f_1316, 0x009a_c7e6, true),
+            _ => (0x00f7_f6f5, 0x0025_211d, false),
         };
         let immersive: u32 = u32::from(dark);
         for (attr, value) in [(20u32, immersive), (35, caption), (36, text)] {
@@ -215,7 +215,7 @@ pub fn set_titlebar(window: tauri::WebviewWindow, dark: bool) {
         }
     }
     #[cfg(not(windows))]
-    let _ = (window, dark);
+    let _ = (window, theme);
 }
 
 /// Vinduets titel: tekstens navn uden .md (visuel gennemgang 5/10).

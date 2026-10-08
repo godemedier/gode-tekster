@@ -21,7 +21,12 @@ export type Settings = {
   quotes: "guillemets" | "curly" | "low";
   alwaysShowCount: boolean;
   showAuthorship: boolean;
+  /** Afløst af theme (8/10). Kun fra ældre indstillingsfiler. */
   dark: boolean;
+  /** Udseendet: lys, mørk, aften eller »Skifter selv« (ADR-0037). */
+  theme: "lys" | "moerk" | "aften" | "auto";
+  /** Statusserne i biblioteket (ADR-0038). Den sidste betyder færdig. */
+  statuses: { id: string; name: string }[];
   startWithWindows: boolean;
   checkUpdates: boolean;
   /** Afsnit som på nettet (luft) eller som i bøger (indryk). */

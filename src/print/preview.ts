@@ -9,6 +9,7 @@ import { imageUrl } from "../editor/images.ts";
 import { findNotes, findRevisions } from "../editor/critic.ts";
 import { bulletChar, settings } from "../settings.ts";
 import { errorText, notify, showBanner } from "../ui/banner.ts";
+import { fontName } from "../ui/settingspanel.ts";
 import type { Meta, PrintOptions, Template } from "./render.ts";
 import { tr, currentLang } from "../i18n.ts";
 
@@ -209,7 +210,7 @@ export class PrintPreview {
         template: this.opts.template,
         book: s.paragraphs === "indryk",
         bullet: bulletChar(s),
-        font: s.font,
+        font: fontName(s.font),
       });
       const saved = await invoke<string>("write_export", { bytes: Array.from(bytes) });
       const file = saved.slice(saved.lastIndexOf("\\") + 1);

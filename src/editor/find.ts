@@ -233,7 +233,7 @@ export function findExtension(): Extension {
       ".gt-find-input::placeholder": { color: "var(--dæmpet)" },
       ".gt-find-results": { listStyle: "none", margin: "0", padding: "4px 6px 8px", maxHeight: "40vh", overflowY: "auto", fontFamily: "var(--ui)", fontSize: "13px" },
       ".gt-find-results li": { padding: "6px 10px", borderRadius: "8px", cursor: "pointer", display: "flex", flexDirection: "column", gap: "2px" },
-      ".gt-find-results li[aria-selected='true']": { background: "var(--valgt)", boxShadow: "inset 3px 0 0 var(--blå)" },
+      ".gt-find-results li[aria-selected='true']": { background: "var(--valgt)", boxShadow: "inset 3px 0 0 var(--accent)" },
       ".gt-find-hit-line": { color: "var(--svag)", fontSize: "12px" },
       ".gt-find-note": { color: "var(--svag)", cursor: "default" },
     }),

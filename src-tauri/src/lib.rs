@@ -30,6 +30,7 @@ mod search;
 mod session;
 mod settings;
 mod spelling;
+mod textmeta;
 mod updater;
 mod watcher;
 mod welcome;
@@ -197,6 +198,8 @@ pub fn run() -> tauri::Result<()> {
             library::list_libraries,
             library::list_folder,
             library::list_all_files,
+            library::library_index,
+            library::set_status,
             session::recent_documents,
             library::create_file,
             library::create_folder,

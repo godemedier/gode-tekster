@@ -11,6 +11,7 @@
 import { todayIso } from "./dates.ts";
 import { resolvePending } from "./critic.ts";
 import { GOAL_LINE } from "./goal.ts";
+import { STATUS_LINE, withoutTagLine } from "./textStatus.ts";
 
 export type Parked = { id: string; date: string; text: string; from: number; to: number };
 
@@ -86,10 +87,13 @@ export function parkChanges(
 /** Teksten uden parkerede blokke: til ordtal, eksport og sprogmodellen (designprincip 5). */
 /**
  * Det, læseren og Claude skal se: uden fraklip, uden Claudes gemte resultater (claudeBlocks.ts),
- * uden noter, og med rettelser, der ikke er taget stilling til, som den oprindelige tekst (critic.ts).
+ * uden noter, uden status og #tags (textStatus.ts), og med rettelser, der ikke er taget stilling til,
+ * som den oprindelige tekst (critic.ts).
  */
 export function withoutParked(doc: string): string {
-  return resolvePending(doc.replace(BLOCK, "").replace(CLAUDE, "").replace(GOAL_LINE, "")).replace(/\n{3,}$/, "\n");
+  // Status øverst og #tags sidst er etiketter, ikke tekst (ADR-0038).
+  const rest = withoutTagLine(doc.replace(STATUS_LINE, "$1").replace(BLOCK, "").replace(CLAUDE, "").replace(GOAL_LINE, ""));
+  return resolvePending(rest).replace(/\n{3,}$/, "\n");
 }
 
 /** Samme mønster som CLAUDE_BLOCK i claudeBlocks.ts (gentaget her for ikke at importere i ring). */

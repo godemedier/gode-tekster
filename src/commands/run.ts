@@ -141,7 +141,7 @@ function leaveStops(view: EditorView): boolean {
 
 const stopTheme = EditorView.baseTheme({
   ".gt-stop": { borderBottom: "1px dotted var(--kant-hover, #bdbdbd)" },
-  ".gt-stop-active": { borderBottom: "1px solid var(--blå, #1aa3ff)" },
+  ".gt-stop-active": { borderBottom: "1px solid var(--accent)" },
 });
 
 /**

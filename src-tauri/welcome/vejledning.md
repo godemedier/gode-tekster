@@ -62,7 +62,7 @@ Får du en tekst tilbage med rettelser fra en anden, vises de som forslag, du ka
 - Shift+F7 farver ordklasserne, så du kan se for eksempel navneord og udsagnsord.
 - Ctrl+plus og Ctrl+minus gør skriften større og mindre.
 
-Under Indstillinger (Ctrl+,) vælger du skrift, linjebredde, anførselstegn og mørk baggrund. Under Afsnit vælger du, om afsnittene skal adskilles med afstand, som på nettet, eller med indrykning af første linje, som i en bog. Valget gælder også udskrift, PDF og Word.
+Under Indstillinger (Ctrl+,) vælger du skrift, linjebredde, anførselstegn og udseende. Udseendet kan være lyst, mørkt eller aften, med ravgule bogstaver på mørk bund. Vælger du »Skifter selv«, går programmet over til aften, når solen går ned, og tilbage, når den står op. Under Afsnit vælger du, om afsnittene skal adskilles med afstand, som på nettet, eller med indrykning af første linje, som i en bog. Valget gælder også udskrift, PDF og Word.
 
 ## Søg
 

@@ -23,6 +23,9 @@ import { setBullet, setMarkMode } from "./editor/livePreview.ts";
 import { FeedbackDialog } from "./ui/feedbackDialog.ts";
 import { LanguagePanel } from "./ui/languagePanel.ts";
 import { SettingsPanel, fontStack } from "./ui/settingspanel.ts";
+import { setLineLength } from "./ui/lineWidth.ts";
+import { followTheme } from "./ui/theme.ts";
+import { statusChange } from "./editor/textStatus.ts";
 import { CountCorner } from "./ui/countcorner.ts";
 import { setModes, setQuoteStyle } from "./editor/modes.ts";
 import { setTransformQuotes } from "./commands/blocks.ts";
@@ -141,8 +144,15 @@ const library = new LibraryPanel(libraryBox, {
   openNew: (path) => void invoke("new_window", { path }),
   activePath: () => session?.path ?? null,
   moved: (from, to) => void fileMoved(from, to),
+  // Statussen på den åbne tekst skiftes i editoren og gemmes med det samme (ADR-0038).
+  setActiveStatus: (id) => {
+    view.dispatch({ changes: statusChange(view.state.doc.toString(), id), userEvent: "input.status" });
+    window.dispatchEvent(new Event("gt-save-now"));
+  },
 });
 await library.init();
+// Indekset over alle biblioteker bygges i baggrunden, når vinduet har fået ro (ADR-0038).
+window.setTimeout(() => library.warm(), 20_000);
 const outline = new OutlinePanel(view, {
   visible: () => left.visible && leftTab === "disposition",
   done: () => {
@@ -274,6 +284,18 @@ window.addEventListener("gt-test-tab", (e) => {
   rightPanel.show((e as CustomEvent<string>).detail);
   right.open();
 });
+// Testkørsler: begge spalter frem eller væk på én gang, uden at fastgøre dem (fastgørelsen huskes).
+window.addEventListener("gt-test-panels", (e) => {
+  const d = (e as CustomEvent<{ left?: "bibliotek" | "disposition"; right?: string }>).detail;
+  if (d.left) {
+    showLeftTab(d.left);
+    left.open();
+  } else left.close();
+  if (d.right) {
+    rightPanel.show(d.right);
+    right.open();
+  } else right.close();
+});
 onSettings(() => language.refresh());
 rightPanel.addTab({ id: "claude", label: "Input", secondary: true, render: (b) => claude.render(b) });
 window.addEventListener("gt-claude", (e) => {
@@ -326,10 +348,9 @@ window.addEventListener("gt-style", () => counter.schedule());
 function applySettings(s: Settings): void {
   const root = document.documentElement.style;
   root.setProperty("--skrift", fontStack(s.font));
-  root.setProperty("--linjelaengde", `${s.lineLength}ch`);
-  document.body.classList.toggle("dark", s.dark);
-  // Titellinjen i samme farve som skrivefladen (windows.rs, visuel gennemgang 5/10).
-  void invoke("set_titlebar", { dark: s.dark }).catch(() => {});
+  void setLineLength(s.lineLength, fontStack(s.font));
+  // Udseendet og titellinjen i samme farve som skrivefladen (ui/theme.ts, ADR-0037).
+  followTheme(s.theme ?? (s.dark ? "moerk" : "lys"));
   // »Hvem skrev hvad« vises ikke, til funktionen er gentænkt (4/10). Data bevares i filen.
   setAuthorshipVisible(view, false);
   setModes(view, { focus: s.focusMode, typewriter: s.typewriter });
@@ -909,7 +930,7 @@ function greetOnce(): void {
 const testMode = await invoke<{ panels: boolean; measure: boolean; scenario: string | null }>("test_mode");
 if (!testMode.measure && !testMode.scenario) window.setTimeout(greetOnce, 4000);
 // Kun hovedvinduet kører testscenariet; et ekstra vindue arver testtilstanden.
-if (testMode.scenario && getCurrentWindow().label === "main") window.setTimeout(() => void import("./measure.ts").then((m) => m.runScenario(testMode.scenario as string, view)), 800);
+if (testMode.scenario && getCurrentWindow().label === "main") window.setTimeout(() => void import("./measure.ts").then((m) => m.runScenario(testMode.scenario as string, view, session?.path ?? null)), 800);
 if (testMode.panels) {
   left.showForTest();
   right.showForTest();

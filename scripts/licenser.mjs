@@ -157,8 +157,8 @@ Gode Tekster er lavet af Gode Medier (godemedier.dk) og er fri software under GN
 License version 3 (GPL-3.0). Kildekoden ligger på https://github.com/godemedier/gode-tekster.
 
 Programmet bygger på frie komponenter, som andre
-har lavet og givet fri. De fleste er under MIT- eller Apache-licensen, og skrifterne IBM Plex og
-Newsreader under SIL Open Font License. De må bruges og deles gratis. Licenserne står nedenfor.
+har lavet og givet fri. De fleste er under MIT- eller Apache-licensen, og skrifterne Recursive,
+IBM Plex Mono, Literata, Schibsted Grotesk og Newsreader under SIL Open Font License. De må bruges og deles gratis. Licenserne står nedenfor.
 Tak til dem, der har lavet dem.
 
 Ved dobbeltlicens (fx »MIT OR Apache-2.0«) bruger Gode Tekster MIT-licensen.
@@ -171,8 +171,16 @@ https://crates.io under hvert navn.
 `;
 
 text += `\n${"=".repeat(78)}\nSkrifter, ordklasser og ikoner\n${"=".repeat(78)}\n`;
-text += `\n${"-".repeat(78)}\nIBM Plex Mono, IBM Plex Sans, IBM Plex Serif (SIL Open Font License 1.1)\n${"-".repeat(78)}\n\n${readFileSync(join(assets, "fonts", "LICENSE-IBMPlex.txt"), "utf8").replace(/\r\n/g, "\n").trim()}\n`;
-text += `\n${"-".repeat(78)}\nNewsreader (SIL Open Font License 1.1)\n${"-".repeat(78)}\n\n${readFileSync(join(assets, "fonts", "LICENSE-Newsreader.txt"), "utf8").replace(/\r\n/g, "\n").trim()}\n`;
+// Skrifterne (ADR-0037). Halvmono er Recursive med mono-aksen fastlagt og beskåret til latinske tegn.
+for (const [name, file] of [
+  ["Recursive (her som »Recursive Halvmono«: mono-aksen fastlagt på 0,5, beskåret til latinske tegn)", "LICENSE-Recursive.txt"],
+  ["IBM Plex Mono (IBM's variable filer, uændrede)", "LICENSE-IBMPlex.txt"],
+  ["Literata", "LICENSE-Literata.txt"],
+  ["Schibsted Grotesk", "LICENSE-SchibstedGrotesk.txt"],
+  ["Newsreader", "LICENSE-Newsreader.txt"],
+]) {
+  text += `\n${"-".repeat(78)}\n${name} (SIL Open Font License 1.1)\n${"-".repeat(78)}\n\n${readFileSync(join(assets, "fonts", file), "utf8").replace(/\r\n/g, "\n").trim()}\n`;
+}
 text += `\n${"-".repeat(78)}\nOrdklasser (ordklasser.json)\n${"-".repeat(78)}\n\n${readFileSync(join(assets, "LICENSE-ordklasser.md"), "utf8").replace(/\r\n/g, "\n").trim()}\n`;
 text += `\n${"-".repeat(78)}\nIkoner fra Lucide (lucide.dev): tandhjul og taleboble (ISC)\n${"-".repeat(78)}\n
 ISC License

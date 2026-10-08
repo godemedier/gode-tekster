@@ -8,6 +8,28 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusDef {
+    pub id: String,
+    pub name: String,
+}
+
+/// Idé · I gang · Til gennemsyn · Færdig (7/10: bredt, ikke kun journalister).
+fn default_statuses() -> Vec<StatusDef> {
+    [
+        ("ide", "Idé"),
+        ("igang", "I gang"),
+        ("gennemsyn", "Til gennemsyn"),
+        ("faerdig", "Færdig"),
+    ]
+    .into_iter()
+    .map(|(id, name)| StatusDef {
+        id: id.to_owned(),
+        name: name.to_owned(),
+    })
+    .collect()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     /// Mapperne i venstre panel. Ingen fra start: første start lægger `Dokumenter\Gode Tekster`
@@ -24,7 +46,14 @@ pub struct Settings {
     pub quotes: String,
     pub always_show_count: bool,
     pub show_authorship: bool,
+    /// Afløst af `theme` (8/10). Læses kun fra ældre filer: `true` bliver til "moerk".
     pub dark: bool,
+    /// Udseendet (ADR-0037): "lys", "moerk", "aften" eller "auto" (lys om dagen, aften fra
+    /// solnedgang til solopgang).
+    pub theme: String,
+    /// Statusserne i biblioteket (ADR-0038). Filen gemmer id'et, så et nyt navn ikke mister teksterne.
+    /// Den sidste betyder færdig.
+    pub statuses: Vec<StatusDef>,
     pub start_with_windows: bool,
     /// Hent opdateringer af sig selv (updater.rs). Til som standard.
     pub check_updates: bool,
@@ -69,7 +98,7 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             libraries: Vec::new(),
-            font: "IBM Plex Mono".to_owned(),
+            font: "Recursive Halvmono".to_owned(),
             author_name: None,
             ai_provider: None,
             line_length: 72,
@@ -77,6 +106,8 @@ impl Default for Settings {
             always_show_count: false,
             show_authorship: true,
             dark: false,
+            theme: "lys".to_owned(),
+            statuses: default_statuses(),
             // Slået fra, til brugeren slår det til: ellers skriver en testudgave sig ind i
             // opstarten.
             start_with_windows: false,
@@ -121,19 +152,32 @@ pub fn load(app: &AppHandle) -> Settings {
 }
 
 /// Indstillingerne fra filens bytes. En fil fra før 7/10 har kun `hideMarks`: `true` bliver til
-/// visningen "skjul". En ukendt visning bliver standarden.
+/// visningen "skjul". En fil fra før 8/10 har kun `dark`: `true` bliver til udseendet "moerk".
+/// En ukendt visning eller et ukendt udseende bliver standarden.
 fn parse(raw: Option<&[u8]>) -> Settings {
     let mut s: Settings = raw
         .and_then(|b| serde_json::from_slice(b).ok())
         .unwrap_or_default();
-    let has_mode = raw
-        .and_then(|b| serde_json::from_slice::<serde_json::Value>(b).ok())
-        .is_some_and(|v| v.get("markMode").is_some());
-    if !has_mode && s.hide_marks {
+    let value = raw.and_then(|b| serde_json::from_slice::<serde_json::Value>(b).ok());
+    let has = |key: &str| value.as_ref().is_some_and(|v| v.get(key).is_some());
+    if !has("markMode") && s.hide_marks {
         s.mark_mode = "skjul".to_owned();
     }
     if !matches!(s.mark_mode.as_str(), "skjul" | "markoer" | "alle" | "raa") {
         s.mark_mode = "markoer".to_owned();
+    }
+    // En fil fra før 8/10 har kun `dark`.
+    if !has("theme") && s.dark {
+        s.theme = "moerk".to_owned();
+    }
+    if !matches!(s.theme.as_str(), "lys" | "moerk" | "aften" | "auto") {
+        s.theme = "lys".to_owned();
+    }
+    // Mindst to statusser, ellers kan intet være i gang. Et ugyldigt id fjernes.
+    s.statuses
+        .retain(|d| crate::textmeta::valid_id(&d.id) && !d.name.trim().is_empty());
+    if s.statuses.len() < 2 {
+        s.statuses = default_statuses();
     }
     s
 }
@@ -271,5 +315,18 @@ mod tests {
             "alle"
         );
         assert_eq!(parse(Some(br#"{"markMode":"noget"}"#)).mark_mode, "markoer");
+    }
+
+    #[test]
+    fn udseendet_oversaettes_fra_den_gamle_moerk_kontakt() {
+        assert_eq!(parse(None).theme, "lys");
+        assert_eq!(parse(Some(br#"{"dark":true}"#)).theme, "moerk");
+        assert_eq!(parse(Some(br#"{"dark":false}"#)).theme, "lys");
+        assert_eq!(
+            parse(Some(br#"{"dark":true,"theme":"aften"}"#)).theme,
+            "aften"
+        );
+        assert_eq!(parse(Some(br#"{"theme":"auto"}"#)).theme, "auto");
+        assert_eq!(parse(Some(br#"{"theme":"lilla"}"#)).theme, "lys");
     }
 }

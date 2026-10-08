@@ -1,46 +1,53 @@
-/* Opsætningen (ADR-0015): lysegrå flade, IBM Plex Mono, tyk blå markør, ingen småtekster. IBM Plex (OFL)
-   afløste iA Writer Duo og Quattro 3/10, fordi iA beder om, at deres skrifter ikke bundles i andre
-   skriveprogrammer (licensgennemgangen før deling). */
+/* Udtrykket (ADR-0037, 8/10): halvmono på en kølig papirflade, én vermilion-accent, der betyder »her
+   er du« (markøren, den aktive fane, den valgte række, fokus), og Segoe UI i rammen. Afløser iA-opsætningen
+   fra ADR-0015. Alle skrifter er OFL og ligger i programmet; licenserne står ved siden af filerne. */
 
-@font-face { font-family: "IBM Plex Mono"; src: url("./assets/fonts/IBMPlexMono-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
-@font-face { font-family: "IBM Plex Mono"; src: url("./assets/fonts/IBMPlexMono-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
-@font-face { font-family: "IBM Plex Mono"; src: url("./assets/fonts/IBMPlexMono-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: block; }
-@font-face { font-family: "IBM Plex Mono"; src: url("./assets/fonts/IBMPlexMono-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; font-display: block; }
-@font-face { font-family: "IBM Plex Sans"; src: url("./assets/fonts/IBMPlexSans-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
-@font-face { font-family: "IBM Plex Sans"; src: url("./assets/fonts/IBMPlexSans-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
-@font-face { font-family: "IBM Plex Sans"; src: url("./assets/fonts/IBMPlexSans-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
-@font-face { font-family: "IBM Plex Sans"; src: url("./assets/fonts/IBMPlexSans-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; font-display: swap; }
-@font-face { font-family: "IBM Plex Serif"; src: url("./assets/fonts/IBMPlexSerif-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
-@font-face { font-family: "IBM Plex Serif"; src: url("./assets/fonts/IBMPlexSerif-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
-@font-face { font-family: "IBM Plex Serif"; src: url("./assets/fonts/IBMPlexSerif-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
-@font-face { font-family: "IBM Plex Serif"; src: url("./assets/fonts/IBMPlexSerif-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; font-display: swap; }
+/* Halvmono: Recursive med mono-aksen bagt fast på 0,5 og casual på 0 (fontTools-instans). Kursiv er
+   hældningsaksen: en skrå-face gør, at Chromium selv sætter slnt og tegner de løbende kursivformer. */
+@font-face { font-family: "Recursive Halvmono"; src: url("./assets/fonts/RecursiveHalvmono.woff2") format("woff2"); font-weight: 300 800; font-style: normal; font-display: block; }
+@font-face { font-family: "Recursive Halvmono"; src: url("./assets/fonts/RecursiveHalvmono.woff2") format("woff2"); font-weight: 300 800; font-style: oblique 0deg 15deg; font-display: block; }
+/* IBM's egne variable filer, uændrede (navnet »Plex« er reserveret). Alle vægte har samme bredde. */
+@font-face { font-family: "IBM Plex Mono"; src: url("./assets/fonts/IBMPlexMonoVar-Roman.woff2") format("woff2"); font-weight: 100 700; font-style: normal; font-display: block; }
+@font-face { font-family: "IBM Plex Mono"; src: url("./assets/fonts/IBMPlexMonoVar-Italic.woff2") format("woff2"); font-weight: 100 700; font-style: italic; font-display: block; }
+@font-face { font-family: "Literata"; src: url("./assets/fonts/Literata.woff2") format("woff2"); font-weight: 200 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Literata"; src: url("./assets/fonts/Literata-Italic.woff2") format("woff2"); font-weight: 200 900; font-style: italic; font-display: swap; }
+@font-face { font-family: "Schibsted Grotesk"; src: url("./assets/fonts/SchibstedGrotesk.woff2") format("woff2"); font-weight: 400 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Schibsted Grotesk"; src: url("./assets/fonts/SchibstedGrotesk-Italic.woff2") format("woff2"); font-weight: 400 900; font-style: italic; font-display: swap; }
 
-/* De fire andre skrifter fra indstillingerne (ADR-0015). Alle OFL, bundlet, licenserne ligger ved siden af. */
+/* Et skift af sig selv (»Skifter selv« ved solnedgang) toner over i stedet for at slå om (ui/theme.ts).
+   Kun de bærende farver er registreret: resten skifter med det samme, og det ses ikke. */
+@property --flade { syntax: "<color>"; inherits: true; initial-value: #f5f6f7; }
+@property --panel { syntax: "<color>"; inherits: true; initial-value: #eef0f2; }
+@property --kort { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
+@property --blæk { syntax: "<color>"; inherits: true; initial-value: #1d2125; }
+@property --svag { syntax: "<color>"; inherits: true; initial-value: #5b636b; }
+@property --streg { syntax: "<color>"; inherits: true; initial-value: #e1e5e9; }
+body.tema-skift { transition: --flade 1.4s ease, --panel 1.4s ease, --kort 1.4s ease, --blæk 1.4s ease, --svag 1.4s ease, --streg 1.4s ease; }
 
-/* Farverne som tokens (personatjek 2/10): lys og mørk er den eneste forskel. Editortemaerne bruger
-   de samme med var(), så mørk tilstand ikke skal lappes regel for regel. tokens.test.ts holder
-   kontrasten: tekst mindst 4,5:1, dæmpet tekst mindst 3:1. */
+/* Farverne som tokens (personatjek 2/10): lys, mørk og aften er den eneste forskel. Editortemaerne
+   bruger de samme med var(). tokens.test.ts holder kontrasten: tekst mindst 4,5:1, dæmpet mindst 3:1.
+   Gråtonerne har et svagt blåt stik, så vermilion står som en farve og ikke som rust på creme. */
 :root {
-  --flade: #f7f7f7;
-  --panel: #f3f3f3;
+  --flade: #f5f6f7;
+  --panel: #eef0f2;
   --kort: #ffffff;
-  --streg: #e4e4e4;
-  --kant: #dcdcdc;
-  --kant-hover: #bdbdbd;
-  --hover: #e9e9e9;
-  --valgt: #e2f1fc;
-  --blæk: #2b2b2b;
-  --svag: #6b6b6b;
-  --dæmpet: #8f8f8f;
-  --pynt: #c4c4c4;
-  --manchet: #4a4a4a;
-  --link: #0a6cb5;
+  --streg: #e1e5e9;
+  --kant: #d7dce1;
+  --kant-hover: #b7bec5;
+  --hover: #e5e9ed;
+  --valgt: #e2e7ed;
+  --blæk: #1d2125;
+  --svag: #5b636b;
+  --dæmpet: #80878f;
+  --pynt: #b4bac1;
+  --manchet: #454c53;
+  --link: #2f5f8a;
   --link-tekst: #ffffff;
   --fejl: #b4232a;
   --ok: #1f6e2c;
   --advarsel: #9a6400;
-  --kode-flade: #ececec;
-  --kode-tekst: #4f4f4f;
+  --kode-flade: #e9ecef;
+  --kode-tekst: #4a5158;
   --ai-tekst: #5b4bb0;
   --ai-flade: #f0edfa;
   --fund: #fff1b8;
@@ -53,35 +60,40 @@
   --wc-a: #80590e;
   --wc-d: #8c3f99;
   --wc-c: #26733a;
-  --blå: #1aa3ff;
-  --markering: #cde9fd;
-  --skygge: 0 8px 24px rgba(0,0,0,0.12);
-  --papir-skygge: 0 1px 2px rgba(0,0,0,0.05), 0 10px 20px -8px rgba(0,0,0,0.12);
-  --papir-skygge-op: 0 2px 4px rgba(0,0,0,0.06), 0 22px 34px -12px rgba(0,0,0,0.22);
+  /* Husets vermilion. Kun som streg og markør, aldrig som flade (3,7:1 på --flade). */
+  --accent: #db5230;
+  --markering: #dce2e9;
+  --skrift-vægt: 400;
+  --skygge: 0 8px 24px rgba(16,24,32,0.12);
+  --papir-skygge: 0 1px 2px rgba(16,24,32,0.05), 0 10px 20px -8px rgba(16,24,32,0.12);
+  --papir-skygge-op: 0 2px 4px rgba(16,24,32,0.06), 0 22px 34px -12px rgba(16,24,32,0.22);
+  /* Segoe UI i tre snit (Microsoft: Small under 12 px, Text til almindelig tekst, Display fra 20 px). */
   --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --ui-lille: "Segoe UI Variable Small", "Segoe UI", system-ui, sans-serif;
+  --ui-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
 }
 body.dark {
-  --flade: #1e1e1e;
-  --panel: #252525;
-  --kort: #2b2b2b;
-  --streg: #333333;
-  --kant: #3a3a3a;
-  --kant-hover: #555555;
-  --hover: #303030;
-  --valgt: #1f3547;
-  --blæk: #d4d4d4;
-  --svag: #9a9a9a;
-  --dæmpet: #6a6a6a;
-  --pynt: #4a4a4a;
-  --manchet: #b5b5b5;
-  --link: #7cc4f5;
-  --link-tekst: #141414;
+  --flade: #17191c;
+  --panel: #1d2024;
+  --kort: #24282c;
+  --streg: #2a2f35;
+  --kant: #353b42;
+  --kant-hover: #535a62;
+  --hover: #2a2e33;
+  --valgt: #262d35;
+  --blæk: #d5d9dd;
+  --svag: #9aa1a8;
+  --dæmpet: #6b7279;
+  --pynt: #4a5057;
+  --manchet: #b3b9bf;
+  --link: #8db5d8;
+  --link-tekst: #17191c;
   --fejl: #f0a3a0;
   --ok: #8fd49b;
   --advarsel: #e6c27a;
-  --kode-flade: #2a2a2a;
-  --kode-tekst: #b5b5b5;
+  --kode-flade: #22262a;
+  --kode-tekst: #b3b9bf;
   --ai-tekst: #b7abf0;
   --ai-flade: #2c2840;
   --fund: #4a4120;
@@ -93,18 +105,51 @@ body.dark {
   --wc-a: #d3a54a;
   --wc-d: #c98ad4;
   --wc-c: #6cc27a;
-  --markering: #1f4a6b;
+  --accent: #ef6a45;
+  --markering: #2e3640;
+  /* Lys tekst på mørk bund ser 16-24 procent federe ud (målt i Edge 8/10). */
+  --skrift-vægt: 360;
   --skygge: 0 8px 24px rgba(0,0,0,0.45);
   --papir-skygge: 0 1px 2px rgba(0,0,0,0.35), 0 10px 22px -8px rgba(0,0,0,0.55);
   --papir-skygge-op: 0 2px 4px rgba(0,0,0,0.4), 0 22px 36px -12px rgba(0,0,0,0.7);
   color-scheme: dark;
+}
+/* Aften (ADR-0037): ravgult lys på næsten sort, efter Daylight-computeren. Et valg for komfort om
+   aftenen, ikke et løfte om øjne eller søvn. Bygger på mørk, så alle mørke regler gælder. */
+body.dark.aften {
+  --flade: #16130f;
+  --panel: #1c1813;
+  --kort: #231e18;
+  --streg: #2c261d;
+  --kant: #3a3226;
+  --kant-hover: #5e5140;
+  --hover: #29231b;
+  --valgt: #30281d;
+  --blæk: #e6c79a;
+  --svag: #b39d7c;
+  --dæmpet: #85735a;
+  --pynt: #5a4b38;
+  --manchet: #cdb48a;
+  --link: #e4a868;
+  --link-tekst: #16130f;
+  --ok: #b5cf8f;
+  --kode-flade: #211c16;
+  --kode-tekst: #cdb48a;
+  --ai-tekst: #d6b4e6;
+  --ai-flade: #2e2230;
+  --fund: #4a3d1c;
+  --note-flade: #3a3020;
+  --note-tekst: #ead39a;
+  --fund-valgt: #6b5420;
+  --accent: #f07a4a;
+  --markering: #3d3226;
 }
 
 html, body { margin: 0; height: 100%; background: var(--flade); color: var(--blæk); }
 body { font-family: var(--ui); overflow: hidden; }
 
 /* Én synlig fokusmarkering til tastaturet (personatjek 2/10). Editoren har sin egen markør. */
-:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #editor .cm-content:focus-visible, #editor .cm-editor:focus-visible { outline: none; }
 
 /* Windows' »Animationseffekter« slået fra: intet glider eller pulserer. */
@@ -146,8 +191,7 @@ body.right-pinned { --hoejre: 320px; }
    tekstens egen skrift, lidt skævt som papir på et bord. Det retter sig op under musen. */
 #papers[hidden] { display: none; }
 .gt-papers-label {
-  margin: 0 0 26px; font: 400 11px var(--ui); letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--svag); text-align: center;
+  margin: 0 0 26px; font: 600 12px var(--ui); color: var(--svag); text-align: center;
 }
 .gt-papers { display: grid; grid-template-columns: repeat(4, 140px); gap: 36px 32px; justify-content: center; }
 @media (max-width: 780px) { .gt-papers { grid-template-columns: repeat(3, 140px); } }
@@ -165,7 +209,7 @@ body.right-pinned { --hoejre: 320px; }
 .gt-paper:hover .gt-paper-sheet,
 .gt-paper:focus-visible .gt-paper-sheet { transform: translateY(-5px) rotate(0deg); box-shadow: var(--papir-skygge-op); }
 .gt-paper:focus-visible { outline: none; }
-.gt-paper:focus-visible .gt-paper-sheet { outline: 2px solid var(--blå); outline-offset: 4px; }
+.gt-paper:focus-visible .gt-paper-sheet { outline: 2px solid var(--accent); outline-offset: 4px; }
 .gt-paper-text {
   display: block; height: 100%; overflow: hidden; font-family: var(--skrift); color: var(--blæk);
   overflow-wrap: anywhere;
@@ -242,12 +286,13 @@ body.left-open:not(.left-pinned) .panel-left, body.right-open:not(.right-pinned)
 /* Biblioteket som iA Writers liste. »Valgt« er altid en flade plus en blå streg til venstre. */
 .lib-head { display: flex; align-items: center; gap: 4px; padding: 10px 8px 4px; }
 .lib-title { flex-grow: 1; font-weight: 600; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-sort[hidden] { display: none; }
 .lib-sort { font: inherit; color: var(--blæk); background: none; border: none; padding: 6px 14px; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .lib-list { flex-grow: 1; overflow-y: auto; padding: 4px 0 8px; }
 .lib-row { display: block; width: 100%; box-sizing: border-box; text-align: left; font: inherit; color: var(--blæk); background: none; border: none; padding: 7px 14px 7px 16px; cursor: pointer; }
 .lib-row:hover { background: var(--hover); }
-.lib-row.active { background: var(--valgt); box-shadow: inset 3px 0 0 var(--blå); }
-.lib-row.drop { background: var(--valgt); box-shadow: inset 0 0 0 2px var(--blå); }
+.lib-row.active { background: var(--valgt); box-shadow: inset 3px 0 0 var(--accent); }
+.lib-row.drop { background: var(--valgt); box-shadow: inset 0 0 0 2px var(--accent); }
 .lib-row.dimmed { opacity: 0.55; font-style: italic; }
 .lib-folder { display: flex; align-items: center; gap: 9px; font-weight: 600; }
 .lib-folder .lib-name { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -259,6 +304,25 @@ body.left-open:not(.left-pinned) .panel-left, body.right-open:not(.right-pinned)
 .lib-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--svag); font-size: 12px; line-height: 1.4; margin-top: 3px; padding-left: 22px; }
 .lib-rename { font: inherit; width: 100%; color: var(--blæk); background: var(--kort); border: 1px solid var(--link); border-radius: 4px; padding: 2px 4px; outline: none; }
 .lib-empty { padding: 20px 16px; color: var(--svag); }
+/* Søgning, chips og status (ADR-0038). Roligt: ingen kasser om rækkerne, prikken bærer statussen. */
+.lib-search { margin: 4px 12px 6px; box-sizing: border-box; width: calc(100% - 24px); font: inherit; font-size: 13px; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 8px; padding: 6px 10px; outline: none; }
+.lib-search::placeholder { color: var(--dæmpet); }
+.lib-search:focus { border-color: var(--kant-hover); }
+.lib-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px 6px; }
+.lib-chip { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12px; color: var(--svag); background: none; border: 1px solid var(--streg); border-radius: 999px; padding: 2px 9px; cursor: pointer; }
+.lib-chip:hover { color: var(--blæk); border-color: var(--kant-hover); }
+.lib-chip[aria-pressed="true"] { color: var(--flade); background: var(--blæk); border-color: var(--blæk); }
+.lib-chip[aria-pressed="true"] .lib-dot { box-shadow: 0 0 0 1.5px var(--flade); }
+/* Prikken: fyldt i statussens farve, den første status (Idé) som tom ring, ingen status som plads. */
+.lib-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--dot, transparent); box-sizing: border-box; }
+.lib-dot[data-first="true"] { background: transparent; border: 1.5px solid var(--dot); }
+.lib-row .lib-dot { width: 9px; height: 9px; margin: 0 4px 0 2px; cursor: pointer; }
+.lib-row .lib-dot[data-none="true"] { border: 1.5px dashed transparent; }
+.lib-row:hover .lib-dot[data-none="true"] { border-color: var(--pynt); }
+.lib-row .lib-preview { padding-left: 17px; }
+.lib-meta { display: block; margin-top: 3px; padding-left: 17px; font-size: 11.5px; color: var(--dæmpet); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-due { color: var(--blæk); }
+.lib-due.late { color: var(--fejl); }
 
 /* Venstre spaltes to faner (Bibliotek · Disposition) deler pladsen over foden. */
 .left-view { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
@@ -272,14 +336,14 @@ body.left-open:not(.left-pinned) .panel-left, body.right-open:not(.right-pinned)
 .outline-3 { color: var(--svag); }
 .outline-row.dragging { opacity: 0.4; }
 /* Hvor sektionen lander: en blå streg over eller under rækken. */
-.outline-row.drop-before { box-shadow: inset 0 2px 0 var(--blå); }
-.outline-row.drop-after { box-shadow: inset 0 -2px 0 var(--blå); }
+.outline-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.outline-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 
 /* Menuer (højreklik, sortering). */
 .menu { position: fixed; z-index: 30; min-width: 190px; background: var(--kort); border: 1px solid var(--kant); border-radius: 10px; box-shadow: var(--skygge); padding: 6px; font-family: var(--ui); font-size: 13px; }
 .menu button { display: flex; width: 100%; align-items: center; gap: 8px; text-align: left; font: inherit; color: var(--blæk); background: none; border: none; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
 .menu button:hover { background: var(--hover); }
-.menu button:focus-visible { background: var(--valgt); box-shadow: inset 3px 0 0 var(--blå); outline: none; }
+.menu button:focus-visible { background: var(--valgt); box-shadow: inset 3px 0 0 var(--accent); outline: none; }
 .menu .check { width: 14px; color: var(--blæk); }
 .menu hr { border: none; border-top: 1px solid var(--streg); margin: 4px 6px; }
 
@@ -290,7 +354,7 @@ body.left-open:not(.left-pinned) .panel-left, body.right-open:not(.right-pinned)
 .quick input { width: 100%; box-sizing: border-box; border: none; border-bottom: 1px solid var(--streg); padding: 14px 18px; font: inherit; font-size: 16px; outline: none; color: var(--blæk); background: var(--kort); }
 .quick ul { list-style: none; margin: 0; padding: 6px; max-height: 50vh; overflow-y: auto; }
 .quick li { padding: 8px 12px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
-.quick li[aria-selected="true"] { background: var(--valgt); box-shadow: inset 3px 0 0 var(--blå); }
+.quick li[aria-selected="true"] { background: var(--valgt); box-shadow: inset 3px 0 0 var(--accent); }
 .quick .q-folder { color: var(--svag); font-size: 12px; }
 .quick .q-none { color: var(--svag); cursor: default; }
 
@@ -298,17 +362,18 @@ body.left-open:not(.left-pinned) .panel-left, body.right-open:not(.right-pinned)
 .rp-tabs { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 11px; row-gap: 2px; padding: 12px 13px 6px; }
 /* På engelsk er fanenavnene længere end spalten (5/10): så brydes rækken i stedet for at skære af. */
 .rp-tab { font: inherit; color: var(--svag); background: none; border: none; padding: 4px 0; cursor: pointer; white-space: nowrap; }
-.rp-tab[aria-selected="true"] { color: var(--blæk); font-weight: 600; box-shadow: inset 0 -2px 0 var(--blå); }
+.rp-tab[aria-selected="true"] { color: var(--blæk); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+.rp-tab:hover { color: var(--blæk); }
 .rp-tab { font-size: 13px; }
 .rp-body { flex-grow: 1; overflow-y: auto; padding: 0 14px 10px; display: flex; flex-direction: column; gap: 10px; }
 .rp-head { display: flex; justify-content: flex-end; }
-.panel-right.rp-drop { box-shadow: inset 0 0 0 2px var(--blå); }
+.panel-right.rp-drop { box-shadow: inset 0 0 0 2px var(--accent); }
 .rp-card { background: var(--kort); border: 1px solid var(--kant); border-radius: 6px; padding: 10px 12px; cursor: grab; }
-.rp-card-text { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rp-card-text { font-family: var(--skrift); font-size: 12.5px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rp-card-tools { display: flex; gap: 12px; margin-top: 6px; opacity: 0; transition: opacity 150ms ease; }
 .rp-card:hover .rp-card-tools, .rp-card:focus-within .rp-card-tools { opacity: 1; }
 .rp-card-tools button { font: inherit; font-size: 12px; color: var(--link); background: none; border: none; padding: 0; cursor: pointer; }
-.rp-edit { width: 100%; box-sizing: border-box; font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.6; color: var(--blæk); border: 1px solid var(--kant); border-radius: 6px; padding: 8px 10px; resize: none; overflow: hidden; outline: none; background: var(--kort); }
+.rp-edit { width: 100%; box-sizing: border-box; font-family: var(--skrift); font-size: 12.5px; line-height: 1.6; color: var(--blæk); border: 1px solid var(--kant); border-radius: 6px; padding: 8px 10px; resize: none; overflow: hidden; outline: none; background: var(--kort); }
 .rp-edit:focus { border-color: var(--kant-hover); box-shadow: none; }
 .rp-note { display: flex; gap: 8px; align-items: flex-start; }
 .rp-note-num { font: inherit; color: var(--link); background: none; border: none; padding: 8px 2px; cursor: pointer; min-width: 18px; }
@@ -323,7 +388,7 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .vs-bar button { font: inherit; border: 1px solid var(--kant); background: var(--kort); color: var(--blæk); border-radius: 8px; height: 32px; padding: 0 14px; cursor: pointer; }
 .vs-bar button:hover { border-color: var(--kant-hover); }
 .vs-bar .vs-primary { background: var(--link); border-color: var(--link); color: var(--link-tekst); }
-.vs-day { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--svag); padding: 10px 2px 2px; }
+.vs-day { font-size: 12px; font-weight: 600; color: var(--svag); padding: 10px 2px 2px; }
 .vs-row { display: flex; flex-direction: column; gap: 2px; text-align: left; font: inherit; color: var(--blæk); background: none; border: none; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 .vs-row:hover { background: var(--hover); }
 .vs-time { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -344,9 +409,9 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .st-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--streg); margin: 4px 0 8px; }
 .st-tabs button { font: inherit; font-size: 13px; color: var(--svag); background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 8px 0 9px; cursor: pointer; }
 .st-tabs button:hover { color: var(--blæk); }
-.st-tabs button[aria-selected="true"] { color: var(--blæk); font-weight: 600; border-bottom-color: var(--blå); }
-.st-tabs button:focus-visible { outline: none; color: var(--blæk); border-bottom-color: var(--blå); box-shadow: 0 2px 0 var(--blå); }
-.st-choices button:focus-visible, .st-switch input:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
+.st-tabs button[aria-selected="true"] { color: var(--blæk); font-weight: 600; border-bottom-color: var(--accent); }
+.st-tabs button:focus-visible { outline: none; color: var(--blæk); border-bottom-color: var(--accent); box-shadow: 0 2px 0 var(--accent); }
+.st-choices button:focus-visible, .st-switch input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Samme højde på alle faner, så vinduet står stille, når der skiftes. */
 .st-panel { min-height: 536px; display: flex; flex-direction: column; }
 .st-panel[hidden] { display: none; }
@@ -368,13 +433,14 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .st-hint { margin: 0; font-size: 12px; color: var(--svag); line-height: 1.4; }
 .st-switch input { appearance: none; flex-shrink: 0; width: 30px; height: 18px; margin: 0; border-radius: 9px; background: var(--kant); position: relative; cursor: pointer; transition: background 150ms ease; }
 .st-switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #ffffff; transition: transform 150ms ease; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-.st-switch input:checked { background: var(--blå); }
+.st-switch input:checked { background: var(--blæk); }
+.st-switch input:checked::after, .settings-toggle input:checked::after { background: var(--kort); }
 .st-switch input:checked::after { transform: translateX(12px); }
 /* Lange valg som radioknapper, én pr. linje (Markdown-visningen, 7/10). */
 .st-radios { display: flex; flex-direction: column; padding: 2px 0 4px; }
 .st-radio { display: flex; align-items: center; gap: 10px; min-height: 30px; font-size: 13px; color: var(--blæk); cursor: pointer; }
-.st-radio input { margin: 0; accent-color: var(--blå); }
-.st-radio input:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
+.st-radio input { margin: 0; accent-color: var(--blæk); }
+.st-radio input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Kun ren markdown: ingen grader, fed eller kursiv fra syntaksfarverne. Live preview er slået fra. */
 .cm-editor.gt-raw .cm-line, .cm-editor.gt-raw .cm-line * { font-weight: inherit; font-style: inherit; text-decoration: none; }
 .st-choices { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; background: var(--hover); border-radius: 8px; }
@@ -385,13 +451,13 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .st-fonts button { flex: 1; font-size: 14px; padding: 6px 4px; }
 .st-glyphs button { min-width: 34px; font-size: 16px; line-height: 1.2; padding: 2px 8px; }
 .st-range { display: flex; align-items: center; gap: 10px; width: 220px; }
-.st-range input { flex-grow: 1; accent-color: var(--blå); }
+.st-range input { flex-grow: 1; accent-color: var(--blæk); }
 .st-value { min-width: 58px; text-align: right; color: var(--svag); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .st-input { width: 220px; box-sizing: border-box; font: inherit; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 6px; padding: 5px 8px; outline: none; }
 .st-input:focus { border-color: var(--link); }
 .st-input.st-key { width: 120px; }
 .st-ai-name { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.st-ai-name input { margin: 0; accent-color: var(--blå); }
+.st-ai-name input { margin: 0; accent-color: var(--blæk); }
 .st-ai-name input:disabled, .st-ai-name input:disabled + span { cursor: default; opacity: 0.55; }
 .st-ai-action { display: flex; align-items: center; gap: 10px; flex-shrink: 0; white-space: nowrap; }
 .st-note { margin: 10px 0 0; font-size: 12px; color: var(--svag); line-height: 1.45; }
@@ -405,9 +471,9 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 /* Kontakter i stedet for afkrydsningsfelter. */
 .settings-toggle input { appearance: none; flex-shrink: 0; width: 30px; height: 18px; margin: 0; border-radius: 9px; background: var(--kant); position: relative; cursor: pointer; transition: background 150ms ease; }
 .settings-toggle input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #ffffff; transition: transform 150ms ease; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-.settings-toggle input:checked { background: var(--blå); }
+.settings-toggle input:checked { background: var(--blæk); }
 .settings-toggle input:checked::after { transform: translateX(12px); }
-.settings-toggle input:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
+.settings-toggle input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .settings-toggle span { flex-grow: 1; }
 .settings-toggle kbd { font: inherit; font-size: 12px; color: var(--svag); }
 
@@ -430,7 +496,7 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .count-bar[data-state="over"] i { background: var(--fejl); }
 .count-goal { font: inherit; color: var(--link); background: none; border: none; padding: 0; cursor: pointer; }
 .count-goal:hover { text-decoration: underline; }
-.count-goal:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
+.count-goal:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .goal-pop { position: fixed; right: calc(var(--hoejre, 0px) + 20px); bottom: 64px; z-index: 30; width: 280px; box-sizing: border-box;
   display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 16px; font-family: var(--ui); font-size: 13px; color: var(--blæk);
   background: var(--kort); border: 1px solid var(--kant); border-radius: 12px; box-shadow: var(--skygge); }
@@ -446,7 +512,7 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .goal-actions button { font: inherit; font-size: 12.5px; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 8px; height: 30px; padding: 0 12px; cursor: pointer; }
 .goal-actions .goal-primary { border-color: var(--link); color: var(--link); font-weight: 600; }
 .goal-actions .goal-remove { margin-left: auto; border-color: transparent; color: var(--svag); }
-.goal-actions button:focus-visible, .goal-pop .st-choices button:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
+.goal-actions button:focus-visible, .goal-pop .st-choices button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Fanen Input, id »claude« (del F): handlinger, research-felt, kort med vurdering og kilder. */
 .cl-actions { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -465,11 +531,11 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .cl-running span { color: var(--svag); animation: cl-pulse 1.6s ease-in-out infinite; }
 @keyframes cl-pulse { 50% { opacity: 0.45; } }
 .cl-card { cursor: default; display: flex; flex-direction: column; gap: 6px; }
-.cl-quote { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.6; text-align: left; color: var(--blæk); background: none; border: none; padding: 0; cursor: pointer; }
+.cl-quote { font-family: var(--skrift); font-size: 12.5px; line-height: 1.6; text-align: left; color: var(--blæk); background: none; border: none; padding: 0; cursor: pointer; }
 .cl-quote:hover { text-decoration: underline; text-decoration-color: var(--pynt); }
 .cl-tools { display: flex; gap: 6px; flex-wrap: wrap; }
 .cl-tools button { height: 26px; padding: 0 10px; font-size: 12px; }
-.cl-verdict { align-self: flex-start; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; border-radius: 4px; padding: 2px 6px; }
+.cl-verdict { align-self: flex-start; font-size: 12px; font-weight: 600; border-radius: 4px; padding: 2px 6px; }
 .cl-v-korrekt { background: #e3f4e5; color: #1f6e2c; }
 .cl-v-forkert { background: #fbe4e4; color: #a12026; }
 .cl-v-upræcis { background: #fbf0d9; color: #7a4f00; }
@@ -486,7 +552,7 @@ body.dark .cl-v-upræcis { background: #3d3118; color: #e6c27a; }
 /* Research og faktatjek som en rolig liste uden kasser (variant A, 7/10). Kildens navn står forrest,
    en prik viser, om citatet er fundet, og knapperne kommer frem ved musen og ved Tab. */
 .cl-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding-top: 12px; border-top: 1px solid var(--streg); }
-.cl-eyebrow { display: block; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--svag); }
+.cl-eyebrow { display: block; font-family: var(--ui-lille); font-size: 11.5px; color: var(--svag); }
 .cl-q { margin: 3px 0 0; font-size: 13.5px; font-weight: 600; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cl-x { flex: none; font: inherit; font-size: 12px; color: var(--svag); background: none; border: none; padding: 2px 0; cursor: pointer; }
 .cl-x:hover { color: var(--blæk); }
@@ -508,7 +574,7 @@ body.dark .cl-v-upræcis { background: #3d3118; color: #e6c27a; }
 .cl-item:hover .cl-icons, .cl-item:focus-within .cl-icons, .cl-claim:hover .cl-icons, .cl-claim:focus-within .cl-icons { opacity: 1; }
 .cl-icon { font: inherit; font-size: 12px; line-height: 1; color: var(--svag); background: none; border: none; border-radius: 6px; height: 22px; min-width: 22px; padding: 0 5px; cursor: pointer; }
 .cl-icon:hover { background: var(--hover); color: var(--blæk); }
-.cl-icon:focus-visible, .cl-x:focus-visible, .cl-src-title:focus-visible, .cl-claim-text:focus-visible, .cl-more:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
+.cl-icon:focus-visible, .cl-x:focus-visible, .cl-src-title:focus-visible, .cl-claim-text:focus-visible, .cl-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cl-summary { display: flex; flex-direction: column; gap: 6px; }
 .cl-bar { display: flex; gap: 2px; height: 4px; border-radius: 2px; overflow: hidden; }
 .cl-bar i { display: block; }
@@ -518,7 +584,7 @@ body.dark .cl-v-upræcis { background: #3d3118; color: #e6c27a; }
 .cl-claim-text { font-family: var(--skrift); font-size: 12.5px; line-height: 1.5; text-align: left; color: var(--blæk); background: none; border: none; padding: 0; cursor: pointer; }
 .cl-claim-text:hover { text-decoration: underline; text-decoration-color: var(--pynt); }
 .cl-why { margin: 0; font-size: 12px; line-height: 1.5; color: var(--svag); }
-.cl-w { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+.cl-w { font-family: var(--ui-lille); font-size: 11.5px; font-weight: 600; }
 .cl-more { font: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--kant); text-underline-offset: 2px; }
 .cl-more:hover { color: var(--blæk); }
 /* Status: samme farve på prikken, striben og ordet. */
@@ -534,7 +600,7 @@ body.dark .cl-v-upræcis { background: #3d3118; color: #e6c27a; }
 /* Genvejsoversigten (F1). */
 .keys { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.18); outline: none; }
 .keys-sheet { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 8px 36px; max-width: 760px; max-height: 80vh; overflow-y: auto; background: var(--kort); border: 1px solid var(--kant); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.16); padding: 22px 26px; font-family: var(--ui); font-size: 13px; color: var(--blæk); }
-.keys-sheet h3 { margin: 6px 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--svag); }
+.keys-sheet h3 { margin: 6px 0 6px; font-size: 12px; font-weight: 600; color: var(--svag); }
 .keys-sheet dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; margin: 0; }
 .keys-sheet dt { margin: 0; }
 .keys-sheet dd { margin: 0; text-align: right; }
@@ -543,7 +609,7 @@ body.dark .cl-v-upræcis { background: #3d3118; color: #e6c27a; }
 .keys-sheet dd { white-space: nowrap; }
 .cl-saved-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-top: 6px; border-top: 1px solid var(--streg); }
 .cl-saved-head strong { font-size: 12.5px; }
-.rp-subhead { margin: 10px 0 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--svag); }
+.rp-subhead { margin: 10px 0 0; font-size: 12px; font-weight: 600; color: var(--svag); }
 .rp-mynote { font: inherit; text-align: left; color: var(--blæk); background: var(--hover); border: none; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
 .rp-mynote:hover { background: var(--valgt); }
 
@@ -570,7 +636,7 @@ body.ro.ro-typing #ro-wifi { opacity: 0; pointer-events: none; }
 .gm-credit:hover { color: var(--svag); text-decoration: underline; text-underline-offset: 2px; }
 
 /* AI-hjælp i indstillingerne (delbar udgave 3/10). */
-.settings-toggle input.settings-radio { appearance: auto; width: 16px; height: 16px; margin: 0 7px; border-radius: 50%; background: none; accent-color: var(--blå); }
+.settings-toggle input.settings-radio { appearance: auto; width: 16px; height: 16px; margin: 0 7px; border-radius: 50%; background: none; accent-color: var(--blæk); }
 .settings-toggle input.settings-radio::after { content: none; }
 .settings-toggle input.settings-radio:disabled, .settings-toggle input.settings-radio:disabled + span { cursor: default; opacity: 0.55; }
 .settings-link { font: inherit; color: var(--link); background: none; border: none; text-align: left; padding: 2px 0; cursor: pointer; }
@@ -618,9 +684,9 @@ body.rp-wide.right-pinned { --hoejre: var(--rp-bred); }
 
 /* »Tænker« (4/10): en tynd streg, der glider, i stedet for teknisk tekst alene. */
 .cl-running { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 3px; padding: 12px 12px 10px; margin: 8px 0; border: 1px solid var(--streg); border-radius: 8px; background: var(--flade, transparent); }
-.cl-progress { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--blå), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: cl-glid 1.4s ease-in-out infinite; }
+.cl-progress { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: cl-glid 1.4s ease-in-out infinite; }
 @keyframes cl-glid { from { background-position: -40% 0; } to { background-position: 140% 0; } }
-@media (prefers-reduced-motion: reduce) { .cl-progress { animation: none; background: var(--blå); opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { .cl-progress { animation: none; background: var(--accent); opacity: 0.4; } }
 .cl-running-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .cl-step { font-size: 13px; color: var(--svag); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .cl-elapsed { font-size: 12px; color: var(--svag); font-variant-numeric: tabular-nums; }
@@ -637,14 +703,14 @@ body.rp-wide.right-pinned { --hoejre: var(--rp-bred); }
 .lp-spell-head { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }
 .lp-title { font-size: 14px; }
 .lp-button { font: inherit; font-size: 13px; padding: 4px 12px; border: 1px solid var(--streg); border-radius: 6px; background: none; color: inherit; cursor: pointer; }
-.lp-button:hover { border-color: var(--blå); }
+.lp-button:hover { border-color: var(--kant-hover); }
 .lp-button:disabled { opacity: 0.6; cursor: default; }
 .lp-spell { margin-top: 6px; padding: 10px 12px; border: 1px solid var(--streg); border-radius: 8px; }
 .lp-spell-word { margin: 0 0 8px; font-weight: 600; text-decoration: underline wavy var(--fejl, #c0392b); text-underline-offset: 4px; }
 .lp-spell-word .lp-count { font-weight: 400; font-size: 12px; text-decoration: none; display: inline-block; margin-left: 6px; }
 .lp-spell-options { display: flex; flex-wrap: wrap; gap: 6px; }
-.lp-chip { font: inherit; font-size: 13px; padding: 3px 10px; border: 1px solid var(--blå); border-radius: 999px; background: none; color: var(--blå); cursor: pointer; }
-.lp-chip:hover { background: var(--blå); color: #ffffff; }
+.lp-chip { font: inherit; font-size: 13px; padding: 3px 10px; border: 1px solid var(--kant-hover); border-radius: 999px; background: none; color: var(--blæk); cursor: pointer; }
+.lp-chip:hover { background: var(--blæk); border-color: var(--blæk); color: var(--flade); }
 .lp-spell-tools { display: flex; gap: 16px; margin-top: 8px; }
 
 /* Ctrl over et link (links.ts): hånden viser, at et klik åbner det. */
@@ -663,7 +729,7 @@ body.rp-wide.right-pinned { --hoejre: var(--rp-bred); }
 .cmd-button { font: inherit; font-size: 12.5px; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 8px; height: 30px; padding: 0 12px; cursor: pointer; }
 .cmd-button:hover:not(:disabled) { border-color: var(--kant-hover); }
 .cmd-button.cmd-primary { border-color: var(--link); color: var(--link); font-weight: 600; }
-.cmd-button:focus-visible, .cmd-icon:focus-visible, .cmd .settings-link:focus-visible, .cmd .lp-chip:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
+.cmd-button:focus-visible, .cmd-icon:focus-visible, .cmd .settings-link:focus-visible, .cmd .lp-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cmd-list { flex-grow: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 0 14px 12px; }
 .cmd-group { margin: 14px 0 4px; font-size: 12px; font-weight: 600; color: var(--svag); }
 .cmd-list > .lp-hint { margin: 2px 0 6px; }
@@ -716,4 +782,15 @@ body.rp-wide.right-pinned { --hoejre: var(--rp-bred); }
 /* Resultater fra tjek og AI-kommandoer i fanen Input (commandResults.ts). */
 .cr-result { display: flex; flex-direction: column; gap: 8px; }
 .cr-comment { margin: 0; line-height: 1.45; }
-.cr-result .cl-quote:focus-visible, .cr-result .cl-tools button:focus-visible { outline: 2px solid var(--blå); outline-offset: 2px; }
+.cr-result .cl-quote:focus-visible, .cr-result .cl-tools button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Små tekster i Segoe UI Variable Small (ADR-0037): åbnere former og mere luft under 12 px. */
+.gt-paper-caption, .st-group h3, .st-label kbd, .cl-src, .cl-tally, .keys-sheet kbd, .keys-sheet .keys-sep,
+.gm-credit, .cmd-kind, .settings-licenses, .lib-meta { font-family: var(--ui-lille); }
+/* Statusserne i Indstillinger › Generelt (ADR-0038). */
+.st-statuses { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 2px; }
+.st-status { display: flex; align-items: center; gap: 10px; }
+.st-status .st-input { flex: 1; width: auto; }
+.st-status .icon-btn { width: 28px; height: 28px; }
+.st-status .icon-btn:disabled { opacity: 0.3; cursor: default; }
+.st-statuses .settings-link { align-self: flex-start; font-size: 13px; }

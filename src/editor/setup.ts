@@ -16,6 +16,7 @@ import { wordSelection } from "./wordSelection.ts";
 import { findExtension } from "./find.ts";
 import { shortcuts } from "./shortcuts.ts";
 import { hiddenBlocks } from "./hidden.ts";
+import { tagLineStyle, tagLineTheme } from "./textStatus.ts";
 import { selectionToolbar, selectionToolbarTheme } from "./selectionToolbar.ts";
 import { parkedDrop } from "./parkedDrop.ts";
 import { authorshipView, authorshipTheme } from "./authorshipView.ts";
@@ -62,21 +63,28 @@ const iaTheme = EditorView.theme({
   // Ctrl+plus og Ctrl+minus ganger størrelsen med --zoom (main.ts, WCAG 1.4.4, testprotokollen 2/10).
   "&": { fontSize: "calc(clamp(15px, 0.45vw + 10px, 19px) * var(--zoom, 1))" },
   ".cm-scroller": {
-    fontFamily: 'var(--skrift, "IBM Plex Mono"), "Segoe UI Emoji", "Segoe UI Symbol", ui-monospace, monospace',
+    fontFamily: 'var(--skrift, "Recursive Halvmono"), "Segoe UI Emoji", "Segoe UI Symbol", ui-monospace, monospace',
+    // Lys tekst på mørk bund ser federe ud: mørk og aften skriver lidt lettere (ADR-0037).
+    fontWeight: "var(--skrift-vægt, 400)",
     lineHeight: "1.85",
     letterSpacing: "0.01em",
   },
   ".cm-content": {
-    maxWidth: "var(--linjelaengde, 72ch)",
+    // Bredden måles i den valgte skrift (ui/lineWidth.ts), så 72 tegn er 72 tegn i alle skrifter.
+    // Feltet regner bredden med sin egen polstring (border-box), så de 2 × 24 px lægges oveni
+    // (8/10: målt 59 tegn i stedet for 72).
+    boxSizing: "border-box",
+    maxWidth: "calc(var(--linjelaengde, 72ch) + 48px)",
     margin: "0 auto",
     padding: "72px 24px 45vh",
-    caretColor: "var(--blå)",
+    caretColor: "var(--accent)",
   },
   ".cm-line": { padding: "0" },
   // CodeMirrors egen animation helt væk; timeren nedenfor blinker.
-  "& .cm-cursorLayer": { animation: "none !important" },
-  "&.gt-caret-off .cm-cursorLayer": { visibility: "hidden" },
-  ".cm-cursor, .cm-dropCursor": { borderLeft: "3px solid var(--blå)", borderRadius: "1px" },
+  // Blødt blink (ADR-0037): markøren toner ud og ind i stedet for at klikke af og på.
+  "& .cm-cursorLayer": { animation: "none !important", transition: "opacity 260ms ease" },
+  "&.gt-caret-off .cm-cursorLayer": { opacity: "0" },
+  ".cm-cursor, .cm-dropCursor": { borderLeft: "3px solid var(--accent)", borderRadius: "1px" },
   // Markeringen tegnes af wordSelection.ts, så den følger ordene. CodeMirrors egen er usynlig.
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
     backgroundColor: "transparent !important",
@@ -162,6 +170,8 @@ export function baseExtensions(onChange: OnChange): Extension[] {
     tableTheme,
     pasteTables,
     hiddenBlocks,
+    tagLineStyle,
+    tagLineTheme,
     selectionToolbar,
     selectionToolbarTheme,
     parkedDrop,

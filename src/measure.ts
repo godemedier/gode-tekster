@@ -271,7 +271,7 @@ const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const banner = () => (document.getElementById("banner")?.hidden ? "(ingen besked)" : (document.getElementById("banner")?.textContent ?? "").slice(0, 200));
 const append = (view: EditorView, text: string) => view.dispatch({ changes: { from: view.state.doc.length, insert: text }, userEvent: "input.type" });
 
-export async function runScenario(name: string, view: EditorView): Promise<void> {
+export async function runScenario(name: string, view: EditorView, path: string | null = null): Promise<void> {
   await say(`start ${name}, ${view.state.doc.length} tegn`);
   if (name === "skriv") {
     append(view, "\n\nSCENARIE-SKREVET midt i en sætning");
@@ -799,7 +799,7 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
     await say("titellinje: lys");
     await pause(2500);
     document.body.classList.add("dark");
-    await invoke("set_titlebar", { dark: true });
+    await invoke("set_titlebar", { theme: "moerk" });
     await pause(500);
     await say("titellinje: moerk");
     await pause(2500);
@@ -828,12 +828,12 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
     await shot("fokus");
     key("d", { ctrlKey: true });
     document.body.classList.add("dark");
-    await invoke("set_titlebar", { dark: true });
+    await invoke("set_titlebar", { theme: "moerk" });
     await pause(300);
     document.body.classList.add("dark");
     await shot("moerk");
     document.body.classList.remove("dark");
-    await invoke("set_titlebar", { dark: false });
+    await invoke("set_titlebar", { theme: "lys" });
     notify("Kopieret som formateret tekst.");
     await shot("kvittering", 1200);
     [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => /Skriv til Gode Medier/.test(b.title || b.getAttribute("aria-label") || ""))?.click();
@@ -1002,7 +1002,7 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
     // Kun visningen: fastgørelsen ligger i localStorage, som brugerens eget program deler. Skriften som
     // på sidens andre billeder, uanset hvad brugeren har valgt.
     document.body.classList.remove("left-pinned", "left-open", "right-pinned", "right-open");
-    document.documentElement.style.setProperty("--skrift", '"IBM Plex Serif"');
+    document.documentElement.style.setProperty("--skrift", '"Literata"');
     // Uden tekstmarkør (5/10, til videoen): markøren øverst og fokus væk fra teksten.
     view.dispatch({ selection: { anchor: view.state.doc.length } });
     view.contentDOM.blur();
@@ -1021,7 +1021,7 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
     const { setStyleCheck } = await import("./editor/styleCheck.ts");
     Object.assign(settings(), { wordClasses: false, styleCheck: false, hiddenWordClasses: [] });
     setHiddenWordClasses(view, []);
-    document.documentElement.style.setProperty("--skrift", '"IBM Plex Serif"');
+    document.documentElement.style.setProperty("--skrift", '"Literata"');
     await setWordClasses(view, false);
     setStyleCheck(view, false);
     click("Disposition");
@@ -1175,6 +1175,89 @@ export async function runScenario(name: string, view: EditorView): Promise<void>
     await say(`link: titel nu »${await getCurrentWindow().title()}«, ${view.state.doc.line(1).text}`);
   } else if (name === "zoom") {
     await zoomScenario(view);
+  } else if (name === "udtryk") {
+    // ADR-0037 (8/10): hele fladen i de tre udseender. Skærmbillederne tages udefra, når loggen
+    // siger »skærmbillede <navn>«. Udseendet sættes kun i vinduet, ikke i indstillingerne.
+    const { showTheme } = await import("./ui/theme.ts");
+    const key = (k: string, extra: KeyboardEventInit = {}) =>
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true, ...extra }));
+    const shot = async (label: string) => {
+      await pause(900);
+      await say(`skærmbillede ${label}`);
+      await pause(6000);
+    };
+    const panels = (detail: { left?: string; right?: string }) => window.dispatchEvent(new CustomEvent("gt-test-panels", { detail }));
+    view.dispatch({ selection: { anchor: Math.min(view.state.doc.length, 400) } });
+    view.focus();
+    // Linjebredden (ADR-0037): så mange tegn står der faktisk på en lang linje i den valgte skrift.
+    await document.fonts.ready;
+    await pause(500);
+    const long = [...view.contentDOM.querySelectorAll<HTMLElement>(".cm-line")].find((l) => (l.textContent ?? "").length > 300);
+    if (long) {
+      const r = document.createRange();
+      r.selectNodeContents(long);
+      const rows = new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size || 1;
+      await say(`linje: ca. ${Math.round((long.textContent ?? "").length / rows)} tegn pr. linje, --linjelaengde ${getComputedStyle(document.documentElement).getPropertyValue("--linjelaengde")}`);
+    }
+    for (const theme of ["lys", "moerk", "aften"] as const) {
+      showTheme(theme);
+      panels({});
+      await shot(`${theme}-flade`);
+      panels({ left: "bibliotek", right: "sprog" });
+      await shot(`${theme}-spalter`);
+      panels({});
+      window.dispatchEvent(new Event("gt-open-settings"));
+      await pause(900);
+      [...document.querySelectorAll<HTMLButtonElement>(".settings [role='tab']")].find((t) => t.textContent?.trim() === "Tekst")?.click();
+      await shot(`${theme}-indstillinger`);
+      document.querySelector<HTMLButtonElement>(".settings:not([hidden]) .settings-head button")?.click();
+      await pause(500);
+      key("o", { code: "KeyO", ctrlKey: true });
+      await shot(`${theme}-hurtig`);
+      key("Escape", { code: "Escape" });
+      document.querySelector<HTMLElement>("#overlay input")?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await pause(500);
+    }
+    showTheme("lys");
+  } else if (name === "bibliotek") {
+    // ADR-0038 (8/10): status, #tags, chips, søgning og »I gang« på kopier i tests/private/proeve/scen.
+    // Filerne er lagt til af scriptet; her sættes status gennem Rust, som biblioteket gør.
+    const dir = (path ?? "").replace(/\\[^\\]+$/, "");
+    for (const [file, status] of [["kronik.md", "igang"], ["ansoegning.md", "gennemsyn"], ["ide.md", "ide"], ["opgave.md", "faerdig"]]) {
+      await invoke("set_status", { path: `${dir}\\${file}`, status }).catch((e) => say(`status ${file}: FEJL ${String(e)}`));
+    }
+    await pause(1500);
+    window.dispatchEvent(new CustomEvent("gt-test-panels", { detail: { left: "bibliotek" } }));
+    await pause(1500);
+    const dots = document.querySelectorAll(".lib-row .lib-dot:not([data-none])").length;
+    await say(`bibliotek: ${dots} prikker, ${document.querySelectorAll(".lib-chip").length} chips`);
+    const shot = async (label: string) => {
+      await pause(900);
+      await say(`skærmbillede ${label}`);
+      await pause(6000);
+    };
+    await shot("bib-mappe");
+    [...document.querySelectorAll<HTMLButtonElement>(".lib-chip")].find((c) => c.textContent === "Undervejs")?.click();
+    const started = Date.now();
+    for (let i = 0; i < 1200 && document.querySelector(".lib-empty")?.textContent?.startsWith("Henter"); i++) await pause(250);
+    await say(`indeks: ${((Date.now() - started) / 1000).toFixed(1)} s`);
+    await say(`undervejs: ${[...document.querySelectorAll(".lib-row .lib-name")].map((n) => n.textContent).join(", ")}`);
+    await shot("bib-igang");
+    [...document.querySelectorAll<HTMLButtonElement>(".lib-chip")].find((c) => c.getAttribute("aria-pressed") === "true")?.click();
+    const search = document.querySelector<HTMLInputElement>(".lib-search");
+    if (search) {
+      search.value = "#kronik";
+      search.dispatchEvent(new Event("input"));
+    }
+    await pause(1200);
+    await say(`søgning: ${[...document.querySelectorAll(".lib-row .lib-name")].map((n) => n.textContent).join(", ")}`);
+    await shot("bib-soeg");
+    document.querySelector<HTMLElement>(".lib-row .lib-dot")?.click();
+    await shot("bib-status");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    window.dispatchEvent(new Event("gt-open-settings"));
+    await pause(900);
+    await shot("bib-indstillinger");
   } else if (name === "grammatik") {
     // 0.2.10 (8/10): kongruens og de tre kommavalg i fanen Sprog, Indstillinger › Tekst og
     // »dage til deadline« i hjørnet. Indstillinger kun i hukommelsen; skærmbilleder tages udefra.

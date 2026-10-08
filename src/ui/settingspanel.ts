@@ -11,29 +11,41 @@ import { BULLETS, settings, updateSettings, type BulletStyle, type Settings } fr
 import { errorText, showBanner } from "./banner.ts";
 import { rememberFocus } from "./focus.ts";
 import { ICON, iconButton } from "./icons.ts";
+import { setLineLength } from "./lineWidth.ts";
+import { statusDot } from "./libraryStatus.ts";
 
-// 3/10: IBM Plex Mono, Atkinson og Courier Prime ud; Avenir Next, Arial og Georgia ind. 7/10: Arial og
-// Georgia ud igen (»for bloated«). Avenir Next er en købeskrift (Linotype), som ikke må ligge i
-// programmet: findes den på maskinen, bruges den, ellers Segoe UI, Windows' egen skrift af samme slags.
-export const FONTS = ["IBM Plex Mono", "IBM Plex Sans", "IBM Plex Serif", "Avenir Next"];
+// Skrifterne på skrivefladen (ADR-0037, 8/10): halvmono som standard og tre valg med hver sin
+// personlighed. Alle ligger i programmet (OFL). Halvmono er Recursive med mono-aksen bagt fast på 0,5.
+export const FONTS = ["Recursive Halvmono", "IBM Plex Mono", "Literata", "Schibsted Grotesk"];
 
-/** Gemte valg af skrifter, der ikke længere er på listen: iA-skrifterne (før 3/10), Arial og Georgia (7/10). */
+/** Navnene på knapperne: hvad skriften er, ikke hvad den hedder. Navnet står ved musen. */
+const FONT_LABELS: Record<string, [string, string]> = {
+  "Recursive Halvmono": ["Halvmono", "Semi-mono"],
+  "IBM Plex Mono": ["Mono", "Mono"],
+  Literata: ["Serif", "Serif"],
+  "Schibsted Grotesk": ["Sans", "Sans"],
+};
+
+/** Gemte valg af skrifter, der ikke længere er på listen, flyttes til den nærmeste af samme slags. */
 const RENAMED: Record<string, string> = {
   "iA Writer Duo": "IBM Plex Mono",
-  "iA Writer Quattro": "IBM Plex Sans",
-  Arial: "IBM Plex Sans",
-  Georgia: "IBM Plex Serif",
+  "iA Writer Quattro": "Recursive Halvmono",
+  Arial: "Schibsted Grotesk",
+  Georgia: "Literata",
+  "IBM Plex Sans": "Schibsted Grotesk",
+  "IBM Plex Serif": "Literata",
+  "Avenir Next": "Schibsted Grotesk",
 };
 
-const STACKS: Record<string, string> = {
-  "Avenir Next": '"Avenir Next", "Avenir Next LT Pro", "Avenir", "Segoe UI Variable Text", "Segoe UI", sans-serif',
-};
+/** Navnet på listen for et gemt valg. En ukendt skrift bliver til standarden. */
+export function fontName(saved: string): string {
+  const renamed = RENAMED[saved] ?? saved;
+  return FONTS.includes(renamed) ? renamed : FONTS[0];
+}
 
-/** CSS-skriften for et navn på listen. En skrift, der er fjernet fra listen, bliver til Duo. */
-export function fontStack(name: string): string {
-  const renamed = RENAMED[name] ?? name;
-  const f = FONTS.includes(renamed) ? renamed : FONTS[0];
-  return STACKS[f] ?? `"${f}"`;
+/** CSS-skriften for et gemt valg. */
+export function fontStack(saved: string): string {
+  return `"${fontName(saved)}"`;
 }
 
 export class SettingsPanel {
@@ -115,8 +127,8 @@ export class SettingsPanel {
 
     // Skrift: hvert navn står i sin egen skrift, så valget kan ses.
     const fonts = choices(
-      FONTS.map((f) => ({ value: f, label: f.replace(/^IBM Plex /, "").replace(/ Next$/, ""), title: f, font: fontStack(f) })),
-      RENAMED[s.font] ?? s.font,
+      FONTS.map((f) => ({ value: f, label: tr(...FONT_LABELS[f]), title: f, font: fontStack(f) })),
+      fontName(s.font),
       (v) => set({ font: v }),
       tr("Skrift", "Font"),
       "st-fonts",
@@ -134,7 +146,7 @@ export class SettingsPanel {
     widthValue.textContent = tr(`${s.lineLength} tegn`, `${s.lineLength} chars`);
     width.addEventListener("input", () => {
       widthValue.textContent = tr(`${width.value} tegn`, `${width.value} chars`);
-      document.documentElement.style.setProperty("--linjelaengde", `${width.value}ch`);
+      void setLineLength(Number(width.value), fontStack(s.font));
     });
     width.addEventListener("change", () => set({ lineLength: Number(width.value) }));
     const widthBox = document.createElement("div");
@@ -194,6 +206,23 @@ export class SettingsPanel {
       tr("Komma", "Commas"),
     );
 
+    // Udseendet (ADR-0037): »Skifter selv« går til aften ved solnedgang og tilbage ved solopgang.
+    const theme = choices(
+      [
+        { value: "lys", label: tr("Lys", "Light") },
+        { value: "moerk", label: tr("Mørk", "Dark") },
+        { value: "aften", label: tr("Aften", "Evening"), title: tr("Ravgult lys på mørk bund", "Amber light on a dark ground") },
+        {
+          value: "auto",
+          label: tr("Skifter selv", "Automatic"),
+          title: tr("Lys om dagen, aften fra solnedgang til solopgang", "Light by day, evening from sunset to sunrise"),
+        },
+      ],
+      s.theme ?? (s.dark ? "moerk" : "lys"),
+      (v) => set({ theme: v as Settings["theme"] }),
+      tr("Udseende", "Appearance"),
+    );
+
     // Sprog (5/10): et skift gemmer og tegner vinduerne forfra (main.ts).
     const language = choices(
       [
@@ -215,7 +244,7 @@ export class SettingsPanel {
         row(tr("Anførselstegn", "Quotation marks"), quotes),
         row(tr("Punkttegn", "Bullet"), bullets),
         row(tr("Komma i stiltjekket", "Commas in the style check"), comma),
-        switchRow(tr("Mørk", "Dark"), "", s.dark, (v) => set({ dark: v })),
+        row(tr("Udseende", "Appearance"), theme),
       ),
       // Markdown-tegnene (7/10): fire visninger af den samme fil. Standard er tegn ved markøren.
       group(
@@ -249,6 +278,7 @@ export class SettingsPanel {
         ...(this.portable ? [] : [switchRow(tr("Start med Windows", "Start with Windows"), "", s.startWithWindows, (v) => set({ startWithWindows: v }))]),
         switchRow(tr("Automatiske opdateringer i baggrunden", "Automatic updates in the background"), "", s.checkUpdates, (v) => set({ checkUpdates: v })),
       ),
+      group(tr("Status i biblioteket", "Status in the library"), statusEditor(() => this.render())),
       aboutLine(),
     );
 
@@ -396,6 +426,46 @@ function aiSection(): HTMLElement {
   // og fanen hoppede (5/10, ved skift af anførselstegn).
   if (lastAi) render(lastAi);
   void load(false);
+  return box;
+}
+
+/**
+ * Statusserne i biblioteket (ADR-0038): navnene kan rettes, og der kan lægges flere til. Filerne gemmer
+ * id'et, så et nyt navn ikke mister teksterne. Den sidste betyder færdig og bliver stående sidst.
+ */
+function statusEditor(refresh: () => void): HTMLElement {
+  const box = document.createElement("div");
+  box.className = "st-statuses";
+  const list = settings().statuses ?? [];
+  const save = (next: { id: string; name: string }[]) => void updateSettings({ statuses: next }).then(refresh);
+  list.forEach((s, i) => {
+    const r = document.createElement("div");
+    r.className = "st-status";
+    const name = document.createElement("input");
+    name.type = "text";
+    name.className = "st-input";
+    name.value = s.name;
+    name.setAttribute("aria-label", tr(`Status ${i + 1}`, `Status ${i + 1}`));
+    name.addEventListener("change", () => {
+      const v = name.value.trim();
+      if (v) save(list.map((x, j) => (j === i ? { ...x, name: v } : x)));
+      else name.value = s.name;
+    });
+    const remove = iconButton(ICON.close, tr("Fjern status (teksterne beholder deres tekst)", "Remove status (the texts keep their text)"), () => save(list.filter((_, j) => j !== i)));
+    remove.disabled = list.length <= 2;
+    r.append(statusDot(s.id), name, remove);
+    box.append(r);
+  });
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "settings-link";
+  add.textContent = tr("Tilføj status", "Add status");
+  // En ny status lægges før den sidste, så »færdig« bliver ved med at stå sidst.
+  add.addEventListener("click", () => save([...list.slice(0, -1), { id: `s${Date.now().toString(36)}`, name: tr("Ny status", "New status") }, ...list.slice(-1)]));
+  const hint = document.createElement("p");
+  hint.className = "st-hint";
+  hint.textContent = tr("Den sidste betyder færdig. Klik på prikken ved en tekst i biblioteket for at give den en status.", "The last one means done. Click the dot next to a text in the library to give it a status.");
+  box.append(add, hint);
   return box;
 }
 

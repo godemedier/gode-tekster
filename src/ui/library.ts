@@ -3,6 +3,8 @@
 // mappe, omdøb, slet (til papirkurven) og sortering. Træk en fil over på en mappe for at flytte den.
 // Stjernemarkerede står øverst (højreklik eller * på en valgt linje, ui/stars.ts).
 // Al adgang til disken går gennem Rust (`library.rs`), der afviser stier uden for bibliotekerne.
+// Status, #tags, søgning og »Undervejs« (ADR-0038): søgefeltet og chips viser én flad liste på tværs af
+// alle biblioteker fra Rusts indeks. Uden søgning og chip er det mapperne som før.
 
 import { invoke } from "@tauri-apps/api/core";
 
@@ -13,8 +15,13 @@ import { ICON, iconButton } from "./icons.ts";
 import { showMenu, type MenuItem } from "./menu.ts";
 import { errorText, notify, showBanner } from "./banner.ts";
 import { afterMove, isStarred, toggleStar } from "./stars.ts";
+import { deadlineLabel, inProgress, statusDot, statusItems, statusName, statuses } from "./libraryStatus.ts";
 
-type Entry = { name: string; path: string; isDir: boolean; modifiedMs: number; visibility: "normal" | "dimmed"; preview: string };
+type Meta = { status: string | null; tags: string[]; deadline: string | null };
+type Entry = Meta & { name: string; path: string; isDir: boolean; modifiedMs: number; visibility: "normal" | "dimmed"; preview: string };
+/** En tekst fra indekset over alle biblioteker (library.rs `library_index`). */
+type Indexed = Meta & { name: string; path: string; folder: string; modifiedMs: number; dimmed: boolean; preview: string };
+type Filter = { kind: "igang" } | { kind: "status"; id: string } | { kind: "tag"; tag: string } | null;
 type Folder = { path: string; name: string; parent: string | null; entries: Entry[] };
 type Library = { path: string; name: string; exists: boolean };
 
@@ -25,6 +32,8 @@ export type LibraryHooks = {
   /** En åben fil er omdøbt, flyttet eller slettet. `to` er null ved sletning. */
   moved(from: string, to: string | null): void;
   activePath(): string | null;
+  /** Statussen på den åbne tekst skiftes i editoren, så den ikke ses som en ændring udefra. */
+  setActiveStatus(id: string | null): void;
 };
 
 const norm = (p: string) => p.replace(/\//g, "\\").toLowerCase();
@@ -38,6 +47,12 @@ export class LibraryPanel {
   private folder: Folder | null = null;
   private libraries: Library[] = [];
   private dragging: string | null = null;
+  private search: HTMLInputElement;
+  private chips: HTMLElement;
+  private query = "";
+  private filter: Filter = null;
+  private index: Indexed[] | null = null;
+  private loading: Promise<void> | null = null;
 
   constructor(root: HTMLElement, hooks: LibraryHooks) {
     this.hooks = hooks;
@@ -70,7 +85,67 @@ export class LibraryPanel {
         showMenu(e.clientX, e.clientY, [...this.newItems(), { separator: true }, ...this.sortItems()]);
       }
     });
-    root.append(head, this.sortButton, this.list);
+    // Søgefeltet (ADR-0038): navn, uddrag, mappe og #tags i alle biblioteker. Esc tømmer det.
+    this.search = document.createElement("input");
+    this.search.type = "search";
+    this.search.className = "lib-search";
+    this.search.placeholder = tr("Søg i biblioteket", "Search the library");
+    this.search.setAttribute("aria-label", this.search.placeholder);
+    this.search.spellcheck = false;
+    this.search.addEventListener("input", () => {
+      this.query = this.search.value.trim();
+      void this.ensureIndex();
+      this.render();
+    });
+    // Tag-chips vises, mens feltet har fokus (renderChips).
+    this.search.addEventListener("focus", () => this.renderChips());
+    this.search.addEventListener("blur", () => window.setTimeout(() => this.renderChips(), 150));
+    this.search.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.search.value) {
+        e.stopPropagation();
+        this.search.value = "";
+        this.query = "";
+        this.render();
+      } else if (e.key === "ArrowDown" || e.key === "Enter") {
+        e.preventDefault();
+        this.list.querySelector<HTMLElement>(".lib-row")?.focus();
+      }
+    });
+    this.chips = document.createElement("div");
+    this.chips.className = "lib-chips";
+    this.chips.setAttribute("role", "group");
+    this.chips.setAttribute("aria-label", tr("Vis kun", "Show only"));
+    // Et klik på en chip tager ikke fokus fra søgefeltet, så tag-chips bliver stående.
+    this.chips.addEventListener("mousedown", (e) => e.preventDefault());
+    root.append(head, this.search, this.chips, this.sortButton, this.list);
+  }
+
+  /** Indekset over alle biblioteker. Hentes første gang, der søges eller vælges en chip. */
+  private ensureIndex(): Promise<void> {
+    if (this.index) return Promise.resolve();
+    if (this.loading) return this.loading;
+    const loading = invoke<Indexed[]>("library_index")
+      .then((idx) => {
+        this.index = idx;
+      })
+      .catch((e) => {
+        showBanner(errorText(e));
+      })
+      .finally(() => {
+        this.loading = null;
+        this.render();
+      });
+    this.loading = loading;
+    return loading;
+  }
+
+  /** Indekset hentes i baggrunden efter start, så søgning og chips er klar, når de bruges. */
+  warm(): void {
+    void this.ensureIndex();
+  }
+
+  private get filtering(): boolean {
+    return Boolean(this.query || this.filter);
   }
 
   async init(): Promise<void> {
@@ -110,6 +185,9 @@ export class LibraryPanel {
   }
 
   async refresh(): Promise<void> {
+    // Indekset er gammelt, når noget er ændret. Det hentes igen, når der søges (Rust læser kun ændrede filer).
+    this.index = null;
+    if (this.filtering) void this.ensureIndex();
     if (this.folder) await this.show(this.folder.path);
   }
 
@@ -122,6 +200,8 @@ export class LibraryPanel {
   /** Det øverste niveau: alle biblioteker og »Tilføj mappe …«. */
   showLibraries(): void {
     this.folder = null;
+    this.renderChips();
+    if (this.filtering) return this.renderResults();
     this.title.textContent = tr("Biblioteker", "Libraries");
     this.back.hidden = true;
     this.sortButton.hidden = true;
@@ -207,8 +287,10 @@ export class LibraryPanel {
   }
 
   render(): void {
+    this.renderChips();
+    if (this.filtering) return this.renderResults();
     const f = this.folder;
-    if (!f) return;
+    if (!f) return this.showLibraries();
     this.title.textContent = f.name;
     // Også i bibliotekets rod: pilen fører til listen over biblioteker.
     this.back.hidden = false;
@@ -233,6 +315,101 @@ export class LibraryPanel {
     this.list.replaceChildren(...rows);
   }
 
+  /** Chips under søgefeltet: »I gang«, statusserne og de mest brugte #tags (når indekset er hentet). */
+  private renderChips(): void {
+    const chip = (label: string, active: boolean, set: Filter, dot?: string): HTMLButtonElement => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "lib-chip";
+      b.setAttribute("aria-pressed", String(active));
+      if (dot) b.append(statusDot(dot));
+      b.append(label);
+      b.addEventListener("click", () => {
+        this.filter = active ? null : set;
+        void this.ensureIndex();
+        this.render();
+      });
+      return b;
+    };
+    const f = this.filter;
+    // »Undervejs« er alt, der ikke er færdigt, på tværs af statusserne (ikke statussen »I gang«).
+    const out: HTMLElement[] = [chip(tr("Undervejs", "Underway"), f?.kind === "igang", { kind: "igang" })];
+    for (const s of statuses()) out.push(chip(s.name, f?.kind === "status" && f.id === s.id, { kind: "status", id: s.id }, s.id));
+    // De mest brugte tags, højst seks. Det valgte står med, også når det ikke er blandt de seks.
+    const counts = new Map<string, number>();
+    for (const e of this.index ?? []) for (const t of e.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], locale())).slice(0, 6).map(([t]) => t);
+    if (f?.kind === "tag" && !top.includes(f.tag)) top.push(f.tag);
+    // Tags kun, mens der søges eller filtreres: ellers fylder chips mere end listen (8/10).
+    if (this.filtering || document.activeElement === this.search) {
+      for (const t of top) out.push(chip(`#${t}`, f?.kind === "tag" && f.tag === t, { kind: "tag", tag: t }));
+    }
+    this.chips.replaceChildren(...out);
+  }
+
+  /** Søgning og chips: én flad liste på tværs af bibliotekerne. »I gang« sorteres efter frist. */
+  private renderResults(): void {
+    const f = this.filter;
+    this.title.textContent = f?.kind === "igang" ? tr("Undervejs", "Underway") : f?.kind === "status" ? statusName(f.id) : f?.kind === "tag" ? `#${f.tag}` : tr("Søgning", "Search");
+    this.back.hidden = true;
+    this.sortButton.hidden = true;
+    if (!this.index) {
+      const p = document.createElement("p");
+      p.className = "lib-empty";
+      p.textContent = tr("Henter teksterne …", "Loading the texts …");
+      this.list.replaceChildren(p);
+      return;
+    }
+    const s = settings();
+    const words = this.query.toLocaleLowerCase(locale()).split(/\s+/).filter(Boolean);
+    const hits = this.index.filter((e) => {
+      if (e.dimmed && !s.showHouseFiles) return false;
+      if (f?.kind === "igang" && !inProgress(e.status)) return false;
+      if (f?.kind === "status" && e.status !== f.id) return false;
+      if (f?.kind === "tag" && !e.tags.includes(f.tag)) return false;
+      const hay = `${e.name} ${e.folder} ${e.preview} ${e.tags.map((t) => `#${t}`).join(" ")}`.toLocaleLowerCase(locale());
+      return words.every((w) => hay.includes(w));
+    });
+    const due = (e: Indexed) => (e.deadline && inProgress(e.status) ? e.deadline : "9999");
+    hits.sort((a, b) => (f?.kind === "igang" ? due(a).localeCompare(due(b)) : 0) || b.modifiedMs - a.modifiedMs);
+    const active = this.hooks.activePath();
+    // Kun den inderste mappe under navnet. Hele stien står ved musen.
+    const rows = hits.slice(0, 300).map((e) => {
+      const row = this.fileRow({ ...e, isDir: false, visibility: e.dimmed ? "dimmed" : "normal" }, active, e.folder.split("/").pop() || "");
+      row.title = e.path;
+      return row;
+    });
+    if (!rows.length) {
+      const p = document.createElement("p");
+      p.className = "lib-empty";
+      p.textContent = f?.kind === "igang" && !words.length
+        ? tr("Ingen tekster er undervejs. Klik på prikken foran en tekst for at give den en status.", "No texts are underway. Click the dot in front of a text to give it a status.")
+        : tr("Ingen tekster passer.", "No texts match.");
+      rows.push(p);
+    }
+    this.list.replaceChildren(...rows);
+  }
+
+  /** Statusmenuen ved prikken eller fra højreklik. */
+  private pickStatus(e: Entry, x: number, y: number): void {
+    showMenu(x, y, statusItems(e.status, (id) => void this.setStatus(e, id)));
+  }
+
+  /** Den åbne tekst skifter i editoren. Andre skrives af Rust med forfatterskabet flyttet med. */
+  private async setStatus(e: Entry, id: string | null): Promise<void> {
+    const active = this.hooks.activePath();
+    try {
+      if (active && norm(active) === norm(e.path)) this.hooks.setActiveStatus(id);
+      else await invoke("set_status", { path: e.path, status: id });
+      e.status = id;
+      const hit = this.index?.find((i) => norm(i.path) === norm(e.path));
+      if (hit) hit.status = id;
+      this.render();
+    } catch (err) {
+      showBanner(errorText(err));
+    }
+  }
+
   private folderRow(e: Entry): HTMLElement {
     const b = document.createElement("button");
     b.type = "button";
@@ -252,28 +429,48 @@ export class LibraryPanel {
     return b;
   }
 
-  private fileRow(e: Entry, active: string | null): HTMLElement {
+  /** En tekst. `where` er mappen, når listen er en søgning på tværs af bibliotekerne. */
+  private fileRow(e: Entry, active: string | null, where?: string): HTMLElement {
     const b = document.createElement("button");
     b.type = "button";
     const isActive = active !== null && norm(active) === norm(e.path);
     b.className = "lib-row" + (isActive ? " active" : "") + (e.visibility === "dimmed" ? " dimmed" : "");
     const top = document.createElement("span");
     top.className = "lib-top";
-    const icon = document.createElement("span");
-    icon.innerHTML = ICON.file;
+    // Prikken står, hvor filikonet stod: status er det, man vil se ved en tekst (ADR-0038).
+    const dot = statusDot(e.status, (el) => {
+      const r = el.getBoundingClientRect();
+      this.pickStatus(e, r.left, r.bottom + 4);
+    });
     const name = document.createElement("span");
     name.className = "lib-name";
     name.textContent = e.name;
     const time = document.createElement("span");
     time.className = "lib-time";
-    time.textContent = formatTime(e.modifiedMs);
-    top.append(icon, name, ...this.star(e), time);
+    // En tekst i gang med en frist viser fristen i stedet for tidspunktet.
+    if (e.deadline && inProgress(e.status)) {
+      const d = deadlineLabel(e.deadline);
+      time.textContent = d.text;
+      time.classList.add("lib-due");
+      time.classList.toggle("late", d.late);
+      time.title = tr(`Deadline ${e.deadline}`, `Deadline ${e.deadline}`);
+    } else {
+      time.textContent = formatTime(e.modifiedMs);
+    }
+    top.append(dot, name, ...this.star(e), time);
     b.append(top);
     if (e.preview) {
       const prev = document.createElement("span");
       prev.className = "lib-preview";
       prev.textContent = e.preview;
       b.append(prev);
+    }
+    const meta = [e.tags.map((t) => `#${t}`).join(" "), where].filter(Boolean).join(" · ");
+    if (meta) {
+      const m = document.createElement("span");
+      m.className = "lib-meta";
+      m.textContent = meta;
+      b.append(m);
     }
     b.addEventListener("click", (ev) => (ev.ctrlKey ? this.hooks.openNew(e.path) : this.hooks.open(e.path)));
     this.rowCommon(b, e, name);
@@ -321,7 +518,12 @@ export class LibraryPanel {
     b.addEventListener("contextmenu", (ev) => {
       ev.preventDefault();
       showMenu(ev.clientX, ev.clientY, [
-        ...(e.isDir ? [] : ([{ label: tr("Åbn i nyt vindue (Ctrl+klik)", "Open in new window (Ctrl+click)"), run: () => this.hooks.openNew(e.path) }] as MenuItem[])),
+        ...(e.isDir
+          ? []
+          : ([
+              { label: tr("Åbn i nyt vindue (Ctrl+klik)", "Open in new window (Ctrl+click)"), run: () => this.hooks.openNew(e.path) },
+              { label: tr("Status …", "Status …"), run: () => this.pickStatus(e, ev.clientX, ev.clientY) },
+            ] as MenuItem[])),
         // Stien og Stifinder (7/10), til filer og mapper.
         { label: tr("Kopiér sti", "Copy path"), run: () => void copyPath(e.path) },
         { label: tr("Vis i Stifinder", "Show in File Explorer"), run: () => void invoke("reveal_entry", { path: e.path }).catch((err) => showBanner(errorText(err))) },

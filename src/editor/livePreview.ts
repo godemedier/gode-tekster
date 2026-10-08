@@ -434,7 +434,7 @@ export const livePreviewTheme = EditorView.theme({
   ".gt-bullet": { color: "var(--svag)", display: "inline-block", width: "0.8em", textIndent: "0" },
   ".cm-line.gt-li": { paddingLeft: "1.6em", textIndent: "-1.05em" },
   ".cm-line.gt-li-cont": { paddingLeft: "1.6em", textIndent: "0" },
-  ".gt-task": { margin: "0 0.4em 0 0", accentColor: "var(--blå)", verticalAlign: "-1px" },
+  ".gt-task": { margin: "0 0.4em 0 0", accentColor: "var(--blæk)", verticalAlign: "-1px" },
   ".gt-hr": { textAlign: "center" },
   ".gt-hr-mark": { color: "var(--pynt)", letterSpacing: "0.6em" },
   ".gt-dim": { color: "var(--dæmpet)" },

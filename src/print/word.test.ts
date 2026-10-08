@@ -37,6 +37,9 @@ test("Word: bogstavliste og valgt punkttegn", async () => {
 test("Manuskript følger skriften fra Indstillinger, med en skrift Office har", async () => {
   assert.equal(wordFont("IBM Plex Serif"), "Georgia");
   assert.equal(wordFont("IBM Plex Mono"), "Consolas");
+  assert.equal(wordFont("Recursive Halvmono"), "Consolas");
+  assert.equal(wordFont("Literata"), "Georgia");
+  assert.equal(wordFont("Schibsted Grotesk"), "Calibri");
   assert.equal(wordFont("iA Writer Duo"), "Consolas");
   assert.equal(wordFont("ukendt"), "Consolas");
   const styles = await part("Tekst.", "word/styles.xml", { font: "IBM Plex Serif" });

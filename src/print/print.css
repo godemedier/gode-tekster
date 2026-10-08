@@ -1,33 +1,29 @@
 /* Print og forhåndsvisning (ADR-0011): én DOM, ét stylesheet til Ctrl+P, PDF og Ctrl+R.
    Skabelonernes mål står i docs/research/2026-10-02-typografi-og-print.md. */
 
-@font-face { font-family: "Newsreader"; src: url("../assets/fonts/Newsreader-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
-@font-face { font-family: "Newsreader"; src: url("../assets/fonts/Newsreader-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
-@font-face { font-family: "Newsreader"; src: url("../assets/fonts/Newsreader-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: block; }
-@font-face { font-family: "Newsreader"; src: url("../assets/fonts/Newsreader-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; font-display: block; }
+/* Newsreader som variabel fil med optisk størrelse (ADR-0037): print sætter opsz efter punkter. */
+@font-face { font-family: "Newsreader"; src: url("../assets/fonts/Newsreader.woff2") format("woff2"); font-weight: 200 800; font-style: normal; font-display: block; }
+@font-face { font-family: "Newsreader"; src: url("../assets/fonts/Newsreader-Italic.woff2") format("woff2"); font-weight: 200 800; font-style: italic; font-display: block; }
 
 #print-root { display: none; }
 
 /* --- forhåndsvisning på skærmen (Ctrl+R) ------------------------------------------------- */
-body.print-preview #print-root { display: block; position: fixed; inset: 0; z-index: 40; overflow-y: auto; background: #e6e6e6; scrollbar-width: thin; }
-body.dark.print-preview #print-root { background: #141414; }
+/* Værktøjslinjen i programmets egne farver. Ingen gennemsigtighed: tekst i et lag med
+   backdrop-filter mister ClearType (målt 8/10). */
+body.print-preview #print-root { display: block; position: fixed; inset: 0; z-index: 40; overflow-y: auto; background: var(--streg); scrollbar-width: thin; }
+body.dark.print-preview #print-root { background: color-mix(in srgb, var(--flade) 70%, #000000); }
 .pv-bar { position: sticky; top: 0; z-index: 2; display: flex; justify-content: center; align-items: center; gap: 10px; padding: 12px 16px;
-  background: color-mix(in srgb, #e6e6e6 88%, transparent); backdrop-filter: blur(6px); font-family: var(--ui); font-size: 13px; color: #2b2b2b; }
-body.dark .pv-bar { background: color-mix(in srgb, #141414 88%, transparent); color: #d4d4d4; }
-.pv-bar button { font: inherit; color: inherit; background: #ffffff; border: 1px solid #d6d6d6; border-radius: 8px; height: 32px; padding: 0 14px; cursor: pointer; }
-body.dark .pv-bar button { background: #2b2b2b; border-color: #3a3a3a; }
+  background: var(--panel); border-bottom: 1px solid var(--streg); font-family: var(--ui); font-size: 13px; color: var(--blæk); }
+.pv-bar button { font: inherit; color: inherit; background: var(--kort); border: 1px solid var(--kant); border-radius: 8px; height: 32px; padding: 0 14px; cursor: pointer; }
+.pv-bar button:hover { border-color: var(--kant-hover); }
 /* Skabelonen er ét valg (segmenteret), hovedhandlingen er den mørke knap (5/10). */
-.pv-seg { display: flex; gap: 2px; padding: 2px; border: 1px solid #d6d6d6; border-radius: 9px; background: #ffffff; }
-body.dark .pv-seg { border-color: #3a3a3a; background: #2b2b2b; }
+.pv-seg { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--kant); border-radius: 9px; background: var(--kort); }
 .pv-seg button { border: none; height: 28px; border-radius: 7px; background: transparent; }
-body.dark .pv-seg button { background: transparent; }
-.pv-seg button[aria-checked="true"] { background: #ececec; color: #111111; }
-body.dark .pv-seg button[aria-checked="true"] { background: #3d3d3d; color: #f0f0f0; }
-.pv-bar .pv-primary { background: #2b2b2b; border-color: #2b2b2b; color: #ffffff; }
-body.dark .pv-bar .pv-primary { background: #d4d4d4; border-color: #d4d4d4; color: #141414; }
+.pv-seg button[aria-checked="true"] { background: var(--hover); color: var(--blæk); font-weight: 600; }
+.pv-bar .pv-primary { background: var(--blæk); border-color: var(--blæk); color: var(--flade); }
 .pv-bar .pv-quiet { border-color: transparent; background: transparent; }
 .pv-bar label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-.pv-bar label input { accent-color: var(--blå); margin: 0; }
+.pv-bar label input { accent-color: var(--blæk); margin: 0; }
 .pv-gap { width: 14px; }
 .pv-paper { box-sizing: border-box; width: 21cm; min-height: 29.7cm; margin: 8px auto 48px; background: #ffffff; color: #111111; box-shadow: 0 2px 18px rgba(0,0,0,0.12); }
 
@@ -52,7 +48,7 @@ body.dark .pv-bar .pv-primary { background: #d4d4d4; border-color: #d4d4d4; colo
 
 /* Manuskript: som på skærmen (2/10: »lige så fedt som på skærmen«). Skriften fra editoren,
    luftig linjeafstand, brede marginer, overskrifter og citater som i iA. Før: Times 12/1,5. */
-.tpl-manuskript { font-family: var(--skrift, "IBM Plex Sans"), "IBM Plex Sans", serif; font-size: 10.5pt; line-height: 1.75; letter-spacing: 0.01em; hyphens: manual; orphans: 2; widows: 2; color: #1f1f1f; }
+.tpl-manuskript { font-family: var(--skrift, "Recursive Halvmono"), "Recursive Halvmono", serif; font-size: 10.5pt; line-height: 1.75; letter-spacing: 0.01em; hyphens: manual; orphans: 2; widows: 2; color: #1f1f1f; }
 .tpl-manuskript p { margin: 0 0 9pt; }
 .tpl-manuskript h1 { font-size: 15pt; line-height: 1.3; margin: 20pt 0 8pt; }
 .tpl-manuskript h2 { font-size: 12.5pt; margin: 18pt 0 6pt; }
@@ -66,20 +62,23 @@ body.dark .pv-bar .pv-primary { background: #d4d4d4; border-color: #d4d4d4; colo
 .tpl-manuskript .notes-title { font-size: 9pt; color: #777777; letter-spacing: 0.06em; text-transform: uppercase; }
 .tpl-manuskript .footnotes { font-size: 9pt; line-height: 1.55; color: #333333; }
 
-/* Læseudgave: som en side i et blad. Newsreader 11/1,4, orddeling, indrykkede afsnit. */
-.tpl-laeseudgave { font-family: "Newsreader", Georgia, serif; font-size: 11pt; line-height: 1.4; hyphens: auto; hyphenate-limit-chars: 6 3 3; text-wrap: pretty; orphans: 3; widows: 3; }
+/* Læseudgave: som en side i et blad. Newsreader 12/1,45, orddeling, indrykkede afsnit (ADR-0037:
+   Newsreaders lille x-højde gjorde 11 pt til ca. 9,5 pt Literata). Optisk størrelse sættes i punkter,
+   fordi CSS ellers regner den i px. Newsreader har tabeltal som standard: løbende tekst får proportionale. */
+.tpl-laeseudgave { font-family: "Newsreader", Georgia, serif; font-size: 12pt; line-height: 1.45;
+  font-optical-sizing: none; font-variation-settings: "opsz" 12; font-variant-numeric: proportional-nums; hyphens: auto; hyphenate-limit-chars: 6 3 3; text-wrap: pretty; orphans: 3; widows: 3; }
 .tpl-laeseudgave p { margin: 0; }
 .tpl-laeseudgave p + p { text-indent: 1em; }
-.tpl-laeseudgave h1 { font-size: 24pt; line-height: 1.15; margin: 0 0 8pt; font-weight: 700; hyphens: manual; }
-.tpl-laeseudgave h2 { font-size: 14pt; margin: 16pt 0 4pt; }
+.tpl-laeseudgave h1 { font-size: 24pt; line-height: 1.15; margin: 0 0 8pt; font-weight: 650; hyphens: manual; font-variation-settings: "opsz" 48; letter-spacing: -0.01em; }
+.tpl-laeseudgave h2 { font-size: 14pt; margin: 16pt 0 4pt; font-variation-settings: "opsz" 24; }
 .tpl-laeseudgave h3 { font-size: 11pt; font-style: italic; margin: 12pt 0 2pt; }
-.tpl-laeseudgave h4 { font-size: 13pt; font-style: italic; font-weight: 400; margin: 0 0 12pt; line-height: 1.35; }
+.tpl-laeseudgave h4 { font-size: 13pt; font-style: italic; font-weight: 400; margin: 0 0 12pt; line-height: 1.35; font-variation-settings: "opsz" 16; }
 .tpl-laeseudgave .lu-head { margin-bottom: 16pt; }
-.tpl-laeseudgave .lu-byline { font-size: 9.5pt; color: #555555; margin: 0; text-indent: 0; }
+.tpl-laeseudgave .lu-byline { font-size: 9.5pt; color: #555555; margin: 0; text-indent: 0; font-variation-settings: "opsz" 9; }
 .tpl-laeseudgave blockquote { margin: 10pt 0; padding-left: 12pt; border-left: 1.5pt solid #111111; font-size: 1.12em; font-style: italic; break-inside: avoid; }
 .tpl-laeseudgave blockquote p { text-indent: 0; }
 .tpl-laeseudgave .notes-title { font-size: 9pt; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
-.tpl-laeseudgave .footnotes { font-size: 9pt; line-height: 1.35; }
+.tpl-laeseudgave .footnotes { font-size: 9pt; line-height: 1.35; font-variation-settings: "opsz" 9; }
 
 /* --- papir: kun artiklen kommer med --------------------------------------------------- */
 @media print {

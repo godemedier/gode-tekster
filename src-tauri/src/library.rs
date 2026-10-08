@@ -5,15 +5,18 @@
 //! `node_modules` aldrig læses fra disken. Alle filoperationer kræver, at stien ligger inde i et
 //! af brugerens biblioteker.
 
+use std::collections::HashMap;
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 use tauri::AppHandle;
 
 use crate::settings;
+use crate::textmeta;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -173,6 +176,12 @@ pub struct Entry {
     pub visibility: Visibility,
     /// To linjers uddrag af teksten (kun filer).
     pub preview: String,
+    /// Status-id fra den skjulte linje øverst (ADR-0038). Kun filer.
+    pub status: Option<String>,
+    /// #tags fra tekstens sidste linje.
+    pub tags: Vec<String>,
+    /// Længdemålets frist (ÅÅÅÅ-MM-DD).
+    pub deadline: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -214,6 +223,10 @@ pub fn preview_of(text: &str) -> String {
         if t.is_empty() || t == "---" || t.starts_with("Annotations:") {
             continue;
         }
+        // #tags er etiketter, ikke tekst (ADR-0038). De står under uddraget for sig.
+        if textmeta::tag_line(t).is_some() {
+            continue;
+        }
         let t = t.trim_start_matches(['#', '>', '-', '*', '+', ' ']);
         let cleaned: String = t
             .chars()
@@ -230,16 +243,58 @@ pub fn preview_of(text: &str) -> String {
     out.chars().take(160).collect()
 }
 
-fn read_preview(path: &Path, meta: &fs::Metadata) -> String {
+/// Det, biblioteket viser om en tekst: uddraget og status fra de første 4 KB, tags og frist fra
+/// halen. En OneDrive-pladsholder eller en Word-fil læses ikke.
+#[derive(Debug, Clone, Default, Serialize, serde::Deserialize)]
+struct Meta {
+    preview: String,
+    status: Option<String>,
+    tags: Vec<String>,
+    deadline: Option<String>,
+}
+
+const HEAD: usize = 4096;
+/// Halen læses i 8 KB. Står der kun forfatterblok i dem (lange tekster med meget forfatterskab), læses
+/// 64 KB. Målt 8/10: 8.400 filer på 150 MB tog for lang tid med 32 KB pr. fil.
+const TAIL: u64 = 8 * 1024;
+const TAIL_LONG: u64 = 64 * 1024;
+
+fn read_meta(path: &Path, meta: &fs::Metadata) -> Meta {
     if is_cloud_placeholder(meta) || path.extension().is_some_and(|e| e == "docx") {
-        return String::new();
+        return Meta::default();
     }
-    let mut buf = vec![0u8; 4096];
-    let n = fs::File::open(path)
-        .and_then(|mut f| f.read(&mut buf))
-        .unwrap_or(0);
+    let Ok(mut f) = fs::File::open(path) else {
+        return Meta::default();
+    };
+    let mut buf = vec![0u8; HEAD];
+    let n = f.read(&mut buf).unwrap_or(0);
     buf.truncate(n);
-    preview_of(&String::from_utf8_lossy(&buf))
+    let head = String::from_utf8_lossy(&buf).into_owned();
+    let len = meta.len();
+    let mut read_tail = |size: u64| {
+        let mut rest = Vec::new();
+        let _ = f
+            .seek(SeekFrom::Start(len.saturating_sub(size)))
+            .and_then(|_| f.read_to_end(&mut rest));
+        // Et snit midt i et UTF-8-tegn giver et erstatningstegn i starten. Det rører kun første linje.
+        String::from_utf8_lossy(&rest).into_owned()
+    };
+    let tail = if len <= HEAD as u64 {
+        head.clone()
+    } else {
+        let short = read_tail(TAIL);
+        if len > TAIL && textmeta::only_hidden(&short) {
+            read_tail(TAIL_LONG)
+        } else {
+            short
+        }
+    };
+    Meta {
+        preview: preview_of(&head),
+        status: textmeta::status_of(&head),
+        tags: textmeta::tags_of(&tail),
+        deadline: textmeta::deadline_of(&tail),
+    }
 }
 
 /// Den mappe i bibliotekerne, stien ligger i. `None` = uden for alle biblioteker.
@@ -364,6 +419,9 @@ fn list(path: &Path, root: &Path) -> Result<Folder, String> {
                     vis
                 },
                 preview: String::new(),
+                status: None,
+                tags: Vec::new(),
+                deadline: None,
             });
         } else {
             let ext = p
@@ -377,8 +435,12 @@ fn list(path: &Path, root: &Path) -> Result<Folder, String> {
             if vis == Visibility::Hidden {
                 continue;
             }
+            let m = read_meta(&p, &meta);
             entries.push(Entry {
-                preview: read_preview(&p, &meta),
+                preview: m.preview,
+                status: m.status,
+                tags: m.tags,
+                deadline: m.deadline,
                 name,
                 path: p.to_string_lossy().into_owned(),
                 is_dir: false,
@@ -444,6 +506,9 @@ pub struct FileHit {
     pub folder: String,
     pub modified_ms: u64,
     pub dimmed: bool,
+    /// Bytes. Sammen med `modified_ms` afgør det, om indekset skal læse filen igen.
+    #[serde(skip)]
+    pub size: u64,
 }
 
 /// Alle tekstfiler i bibliotekerne til hurtigåbningen (Ctrl+O). Skjulte mapper og worktrees
@@ -502,8 +567,10 @@ pub fn files_in(libraries: Vec<PathBuf>) -> Vec<FileHit> {
                 if !seen.insert(p.clone()) {
                     continue;
                 }
+                let meta = item.metadata().ok();
                 out.push(FileHit {
-                    modified_ms: item.metadata().map(|m| modified_ms(&m)).unwrap_or(0),
+                    modified_ms: meta.as_ref().map(modified_ms).unwrap_or(0),
+                    size: meta.as_ref().map(fs::Metadata::len).unwrap_or(0),
                     dimmed: vis == Visibility::Dimmed,
                     name,
                     path: p.to_string_lossy().into_owned(),
@@ -516,6 +583,183 @@ pub fn files_in(libraries: Vec<PathBuf>) -> Vec<FileHit> {
         }
     }
     out
+}
+
+/// En tekst i oversigten over alle biblioteker (søgning, filtre og »I gang«, ADR-0038).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexEntry {
+    pub name: String,
+    pub path: String,
+    pub folder: String,
+    pub modified_ms: u64,
+    pub dimmed: bool,
+    pub preview: String,
+    pub status: Option<String>,
+    pub tags: Vec<String>,
+    pub deadline: Option<String>,
+}
+
+/// Læste tekster efter sti, med (størrelse, ændret) fra sidst. Kun ændrede filer læses igen.
+type Cache = HashMap<PathBuf, (u64, u64, Meta)>;
+static INDEX: OnceLock<Mutex<Cache>> = OnceLock::new();
+
+/// Alle tekster i bibliotekerne med status, tags og frist. Første gang læses hver fils hoved og
+/// hale (et par sekunder ved tusinder af filer); derefter kun det, der er ændret.
+#[tauri::command]
+pub async fn library_index(app: AppHandle) -> Vec<IndexEntry> {
+    let libraries = settings::load(&app).libraries;
+    let file = index_file(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        load_index(file.as_deref());
+        let out = index_of(libraries);
+        save_index(file.as_deref());
+        out
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// Indekset gemmes i `<data>\bibliotek-indeks.json`, så en ny start kun læser nye og ændrede filer.
+/// Første gang kan det tage et minut eller to for tusinder af filer på en kold disk (målt 8/10:
+/// 5.900 filer på 105 s), bagefter få sekunder. Det er en cache: mangler eller fejler den, bygges den igen.
+fn index_file(app: &AppHandle) -> Option<PathBuf> {
+    use tauri::Manager;
+    app.path()
+        .app_local_data_dir()
+        .ok()
+        .map(|d| d.join("bibliotek-indeks.json"))
+}
+
+fn load_index(file: Option<&Path>) {
+    let cache = INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    let Ok(mut c) = cache.lock() else { return };
+    if !c.is_empty() {
+        return;
+    }
+    let Some(raw) = file.and_then(|f| fs::read(f).ok()) else {
+        return;
+    };
+    if let Ok(saved) = serde_json::from_slice::<Vec<(PathBuf, u64, u64, Meta)>>(&raw) {
+        *c = saved
+            .into_iter()
+            .map(|(p, len, ms, m)| (p, (len, ms, m)))
+            .collect();
+    }
+}
+
+fn save_index(file: Option<&Path>) {
+    let (Some(file), Some(cache)) = (file, INDEX.get()) else {
+        return;
+    };
+    let Ok(c) = cache.lock() else { return };
+    let rows: Vec<(&PathBuf, u64, u64, &Meta)> = c
+        .iter()
+        .map(|(p, (len, ms, m))| (p, *len, *ms, m))
+        .collect();
+    if let Ok(json) = serde_json::to_vec(&rows) {
+        let _ = crate::files::write_atomic(file, &json);
+    }
+}
+
+/// Indekset: kendte filer fra cachen, nye og ændrede læses parallelt (otte tråde, mest ventetid på disken).
+fn index_of(libraries: Vec<PathBuf>) -> Vec<IndexEntry> {
+    let hits = files_in(libraries);
+    let cache = INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    let known = cache.lock().map(|c| c.clone()).unwrap_or_default();
+    // (størrelse, ændret) pr. fil, og hvilke der skal læses igen.
+    let stamps: Vec<Option<(u64, u64)>> =
+        hits.iter().map(|h| Some((h.size, h.modified_ms))).collect();
+    let todo: Vec<usize> = (0..hits.len())
+        .filter(|&i| {
+            let p = PathBuf::from(&hits[i].path);
+            stamps[i].is_some_and(|s| !known.get(&p).is_some_and(|(l, ms, _)| (*l, *ms) == s))
+        })
+        .collect();
+    let threads = 8.min(todo.len().max(1));
+    let read: Vec<(usize, Meta)> = std::thread::scope(|scope| {
+        let chunks: Vec<_> = todo
+            .chunks(todo.len().div_ceil(threads).max(1))
+            .map(|chunk| {
+                let hits = &hits;
+                scope.spawn(move || {
+                    chunk
+                        .iter()
+                        .filter_map(|&i| {
+                            let p = Path::new(&hits[i].path);
+                            let meta = fs::metadata(p).ok()?;
+                            Some((i, read_meta(p, &meta)))
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        chunks
+            .into_iter()
+            .flat_map(|c| c.join().unwrap_or_default())
+            .collect()
+    });
+    let mut fresh_meta: HashMap<usize, Meta> = read.into_iter().collect();
+    let mut fresh: Cache = HashMap::with_capacity(hits.len());
+    let mut out = Vec::with_capacity(hits.len());
+    for (i, h) in hits.into_iter().enumerate() {
+        let Some((len, ms)) = stamps[i] else { continue };
+        let p = PathBuf::from(&h.path);
+        let m = match fresh_meta.remove(&i) {
+            Some(m) => m,
+            None => match known.get(&p) {
+                Some((_, _, m)) => m.clone(),
+                None => continue,
+            },
+        };
+        out.push(IndexEntry {
+            name: h.name,
+            path: h.path,
+            folder: h.folder,
+            modified_ms: h.modified_ms,
+            dimmed: h.dimmed,
+            preview: m.preview.clone(),
+            status: m.status.clone(),
+            tags: m.tags.clone(),
+            deadline: m.deadline.clone(),
+        });
+        fresh.insert(p, (len, ms, m));
+    }
+    if let Ok(mut c) = cache.lock() {
+        *c = fresh;
+    }
+    out
+}
+
+/// Sætter eller fjerner statuslinjen øverst i en tekst, der ikke er åben (ADR-0038). Forfatterblokken
+/// (ADR-0009) skrives igen med intervallerne flyttet, så iA Writer stadig ser de samme forfattere.
+/// Filen gemmes atomisk og kun, hvis den ikke er ændret, siden den blev læst.
+#[tauri::command]
+pub fn set_status(app: AppHandle, path: String, status: Option<String>) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    guard(&app, &p)?;
+    if let Some(id) = &status {
+        if !textmeta::valid_id(id) {
+            return Err(t!(
+                "Statussen har et ugyldigt navn.",
+                "The status has an invalid name."
+            )
+            .to_owned());
+        }
+    }
+    let not_saved = |e: &dyn std::fmt::Display| {
+        t!(
+            format!("Statussen kunne ikke gemmes: {e}"),
+            format!("The status could not be saved: {e}")
+        )
+    };
+    let opened = crate::files::open(&p).map_err(|e| not_saved(&e))?;
+    let parsed = crate::annotations::parse(&opened.text, opened.meta.eol);
+    let (text, authors) = textmeta::with_status(&parsed.text, &parsed.authors, status.as_deref());
+    let full = crate::annotations::write(&text, &authors, parsed.block.as_ref(), opened.meta.eol);
+    crate::files::save(&p, &full, &opened.meta, Some(&opened.meta.stamp), false)
+        .map_err(|e| not_saved(&e))?;
+    Ok(())
 }
 
 /// Ingen tekst at starte på (5/10): en blank tekst i mappen, den sidste tekst lå i, hvis
@@ -837,6 +1081,31 @@ pub async fn create_import(app: AppHandle, source: String, text: String) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Måling på rigtige biblioteker: `GT_SOEG_LIB="C:\a;C:\b" cargo test tid_paa_indeks -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn tid_paa_indekset() {
+        let libs: Vec<PathBuf> = std::env::var("GT_SOEG_LIB")
+            .unwrap_or_default()
+            .split(';')
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .collect();
+        for runde in ["kold", "varm"] {
+            let t = std::time::Instant::now();
+            let idx = index_of(libs.clone());
+            let med = idx
+                .iter()
+                .filter(|e| e.status.is_some() || !e.tags.is_empty())
+                .count();
+            println!(
+                "{runde}: {} tekster, {med} med status eller tags, {:?}",
+                idx.len(),
+                t.elapsed()
+            );
+        }
+    }
 
     // Samme sager som den tidligere `library.test.ts`, med stier som i et rigtigt bibliotek (2/10).
 

@@ -54,7 +54,7 @@ Annotations: 0,95 SHA-256 1132bf5e376a605f5bee
 | Sprogmodel | `claude.exe -p` som underproces | Brugerens abonnement, ingen nøgler (ADR-0004, ADR-0010) |
 | Print og PDF | WebView2: `window.print()` og `PrintToPdf` | Samme motor som skærmen (ADR-0011) |
 | Word | JS-pakken `docx` i fladen; import med `mammoth` | Ingen ekstern binær, danske anførselstegn bevares (ADR-0018) |
-| Typografi | iA Writer Duo (skriveflade, standard) og fire valg, Newsreader (læseudgave), Segoe UI (UI, følger med Windows) | OFL, bundlet, CSP tillader kun egne skrifter (ADR-0012, -0015) |
+| Typografi | Recursive Halvmono (skriveflade, standard), IBM Plex Mono, Literata og Schibsted Grotesk som valg, Newsreader (læseudgave), Segoe UI Variable (rammen, følger med Windows) | OFL, bundlet, CSP tillader kun egne skrifter (ADR-0012, -0015, -0037) |
 
 ## Lokal udvikling
 
@@ -329,6 +329,7 @@ men koster måneder på skrivefladen. Varm start er allerede under målet.
 600 ms, eller den skjulte proces bruger mere end 150 MB hukommelse.
 
 ### ADR-0015 — Udseendet er iA Writers opsætning (2/10-2026)
+**Status:** skrift, farver og markør er afløst af ADR-0037 (8/10). Paneler, tal og menuer gælder.
 Afløser skrift og farver i ADR-0012. Valgt på et designlærred (»A2«).
 **Beslutning:**
 - **Flade:** lysegrå som iA (`#f7f7f7` til teksten, `#f3f3f3` til panelerne), ingen beige. Tekst
@@ -758,3 +759,75 @@ til 19, næsten alle rigtige, efter at træbankens homografer (»dansk«, »helt
 efter systemet. Hvert falsk mønster står nu som test.
 **Revurdér hvis:** fanget for lidt. Næste skridt er en rigtig sætningsanalyse (UDPipe eller lignende
 model for dansk), der koster 15-25 MB.
+
+### ADR-0037 — Eget udtryk: halvmono, vermilion og aften (8/10-2026)
+**Baggrund:** programmet var visuelt en iA-klon: lysegrå flade, blå markør og IBM Plex Mono, som iA's
+egne skrifter er tegnet over. Fem researchspor 8/10 (`docs/research/2026-10-08-design/`, oplæg med
+prøveflade). Valgt 8/10: bud B, vermilion og aften, og hele brugerfladen skal med.
+**Beslutning:**
+- **Skrift:** standard er **Recursive Halvmono**: Recursive (OFL, intet reserveret navn) med mono-aksen
+  bagt fast på 0,5 og casual på 0 (fontTools-instans, beskåret til latin, 127 KB). 17 af 29 bogstaver
+  står på fast bredde, m og w får plads, og fed flytter ikke linjen. Valg: **IBM Plex Mono** (IBM's
+  variable filer uændret, navnet er reserveret), **Literata** (serif til lang skærmlæsning) og
+  **Schibsted Grotesk** (husets sans). Plex Sans, Plex Serif og Avenir er ude. Gemte valg flyttes til
+  nærmeste af samme slags (`settingspanel.ts` RENAMED); et gemt Plex Mono bliver Plex Mono.
+- **Kursiv i halvmono** er hældningsaksen: en `oblique 0deg 15deg`-face, så Chromium selv sætter
+  slnt og tegner de løbende former (prøvet i Edge 8/10).
+- **Farver:** gråtoner med et svagt blåt stik (flade `#f5f6f7`, blæk `#1d2125`), så vermilion står som
+  farve og ikke som rust på creme (Chaykas »AI-look«). **Én accent med én betydning:** vermilion
+  `--accent` (`#db5230`, 3,7:1) betyder »her er du«: markøren, den aktive fane, den valgte række,
+  fokusringen, slippemarkeringer og fremdriftsstregen. Kontakter, afkrydsning og skydere står i blæk.
+  Markering af tekst er neutral grå. iA-blå er væk overalt.
+- **Udseende:** Lys, Mørk, Aften og »Skifter selv« (`theme` i settings.json; et gammelt `dark: true`
+  bliver Mørk). Aften er ravgult lys på næsten sort (`body.dark.aften`), bygget oven på mørk. »Skifter
+  selv« går til aften ved solnedgang, tidligst kl. 18, og tilbage ved solopgang. Solen regnes lokalt
+  (NOAA's tilnærmelse, bredde 56°, længde 10,5° i dansk tid, ellers tidszonens midte), ses efter hvert
+  minut og toner over på 1,4 s (registrerede farvevariabler). Titellinjen følger (`set_titlebar(theme)`).
+  Mørk og aften skriver i vægt 360, fordi lys tekst på mørk bund ser 16-24 procent federe ud.
+- **Rammen:** Segoe UI Variable i tre snit (Small under 12 px, Text, Display). Ingen spærrede versaler.
+  Forhåndsvisningens værktøjslinje uden `backdrop-filter`, som slog ClearType fra.
+- **Markøren** blinker blødt (toner ud og ind på 260 ms) i stedet for at klikke af og på.
+**Rettet samtidig:**
+- **Linjebredden** var sat i `ch`, bredden af et nul, og passede kun i mono: 72 blev til 85-106 tegn i
+  de proportionale skrifter. Nu måles den gennemsnitlige tegnbredde på dansk prosa i den valgte skrift
+  (`ui/lineWidth.ts`), og bredden sættes i em.
+- **Avenir** fandtes ikke på de fleste pc'er og faldt tilbage til Segoe UI. Valget er væk.
+- **Læseudgaven:** Newsreader som variabel fil i 12 pt (før et statisk 16pt-snit i 11 pt, der med den
+  lille x-højde svarede til ca. 9,5 pt Literata), optisk størrelse sat i punkter (12, rubrikker 24-48,
+  noter 9) og proportionale tal i løbende tekst. Word bruger stadig Georgia 11 pt.
+**Ikke valgt:** Commit Mono (tung, „ sidder højt, ikke opdateret siden 2023), Monaspace Argon (540 KB,
+ligner GitHub), Iosevka Etoile som standard (for særpræget, jf. Beier og Larson 2013). AI-tekstens lilla
+markering er uændret; oplægget foreslår en vermilion streg i margenen, men det er ikke besluttet.
+**Revurdér hvis:** Recursive (uhintet) ser grødet ud ved 100 procents skalering på en almindelig skærm,
+eller »Skifter selv« skifter på et forkert tidspunkt uden for Danmark.
+
+### ADR-0038 — Status, #tags, søgning og »Undervejs« i biblioteket (8/10-2026)
+**Baggrund:** biblioteket var en mappeliste uden overblik (research 7/10, plan
+`docs/plans/2026-10-08-bibliotek.md`). Bygget i samme omgang som designet (ADR-0037).
+**Beslutning:**
+- **Status** står som én skjult linje øverst i filen: `<!-- gt:status vaerdi=igang -->`. Øverst, så Rust
+  læser den i de første 4 KB, som uddraget allerede læser. Skjult i editoren og beskyttet som de andre
+  skjulte blokke (`hidden.ts`), ude af tal, eksport og AI (`withoutParked`).
+- **Statusserne** er Idé · I gang · Til gennemsyn · Færdig (id'er `ide`, `igang`, `gennemsyn`,
+  `faerdig`) og kan omdøbes og udvides i Indstillinger › Generelt (`statuses` i settings.json). Filen
+  gemmer id'et, så et nyt navn ikke mister teksterne. Den sidste betyder færdig. Farver: den første er en
+  tom ring, så `--advarsel`, `--link`, og den sidste `--ok`. Vermilion bruges ikke (ADR-0037).
+- **#tags** er tekstens sidste synlige linje, når den kun er hashtags (som i Ulysses). Linjen står i
+  svag farve i editoren og tæller ikke med, kommer ikke med ud og sendes ikke til AI. Ingen tags-panel.
+- **Frist** er længdemålets (ADR-0034). Ingen ny frist.
+- **Rust** (`textmeta.rs`, `library.rs`): `Entry` får status, tags og frist (hoved 4 KB, hale 32 KB før
+  forfatterblokken). `library_index` giver alle tekster i alle biblioteker med en cache i hukommelsen
+  efter (størrelse, ændret), gemt i `<data>ibliotek-indeks.json`, så en ny start kun læser nye og
+  ændrede filer. Halen læses i 8 KB (64 KB, hvis der kun står forfatterblok), otte tråde. Målt 8/10 på
+  5.900 filer: 105 s første gang på en kold disk, 4 s med varm disk, derefter kun ændringerne. Indekset
+  bygges i baggrunden 20 s efter start. `set_status` skriver linjen i en fil, der ikke er åben, gennem samme vej
+  som gem: forfatterblokken læses, intervallerne flyttes med linjens længde, og blokken skrives med ny
+  hash, så iA Writer stadig ser de samme forfattere. Er filen åben, skiftes statussen i editoren.
+- **Fladen:** søgefelt og chips under bibliotekets titel: »Undervejs«, statusserne og de seks mest brugte
+  #tags. Uden søgning og chip er det mapperne som før. Med søgning eller chip: én flad liste fra
+  indekset med mappe og #tags under uddraget. »Undervejs« (ikke »I gang«, som er en status) er alt med
+  en status, der ikke er den sidste, sorteret efter frist. Prikken foran navnet (i stedet for filikonet) vælger status ved klik.
+**Ikke valgt:** status i YAML-forside (iA og Notesblok viser den som tekst), status i et indeks uden
+for filen (forsvinder, når filen flyttes, ADR-0003), søgesyntaks, smarte mapper og kanban.
+**Revurdér hvis:** indekset er for langsomt første gang i et stort bibliotek (så et indeks på disken),
+eller tags på sidste linje driller i andre programmer.

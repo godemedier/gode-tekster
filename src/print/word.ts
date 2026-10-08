@@ -45,6 +45,9 @@ const A4_WIDTH = 11906;
  * skrift, der findes i Office på både Windows og Mac.
  */
 const WORD_FONTS: Record<string, string> = {
+  "Recursive Halvmono": "Consolas",
+  Literata: "Georgia",
+  "Schibsted Grotesk": "Calibri",
   "IBM Plex Mono": "Consolas",
   "IBM Plex Sans": "Calibri",
   "IBM Plex Serif": "Georgia",
