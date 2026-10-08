@@ -29,7 +29,7 @@ Dæmpede sætninger kommer ikke med, når du udskriver, og de bliver ikke talt m
 
 Skal et afsnit helt ud, flytter Ctrl+Alt+X det over i Fraklip-fanen. Du kan også trække det med musen ud i højre side af skærmen. Og selvfølgelig altid hente det tilbage igen. 
 
-<!-- En note til dig selv laver du med Ctrl+Alt+N -->.
+<!-- En kommentar til dig selv laver du med Ctrl+Alt+N -->.
 
 Fodnoter laver du med Ctrl+Alt+F.[^1]
 

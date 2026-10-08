@@ -29,7 +29,7 @@ export const GROUPS: [string, [string, string][]][] = [
       ["Ctrl+Shift+9", tr("Afkrydsningsliste", "Checklist")],
       ["Ctrl+Shift+Q", tr("Citat", "Quote")],
       ["Ctrl+Alt+F", tr("Fodnote", "Footnote")],
-      ["Ctrl+Alt+N", tr("Note til mig selv", "Note to yourself")],
+      ["Ctrl+Alt+N", tr("Kommentar til mig selv", "Comment to yourself")],
       ["Ctrl+Alt+X", tr("Flyt til fraklip", "Move to Clippings")],
       ["Ctrl+Alt+I", tr("Indsæt billede", "Insert image")],
       [tr("Ctrl+klik", "Ctrl+click"), tr("Åbn et link", "Open a link")],

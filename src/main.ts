@@ -52,7 +52,7 @@ import { renderPapers, type RecentDoc } from "./ui/recentPapers.ts";
 document.documentElement.lang = currentLang();
 (document.getElementById("open-file") as HTMLElement).textContent = tr("Åbn en tekst", "Open a text");
 document.getElementById("left")?.setAttribute("aria-label", tr("Bibliotek", "Library"));
-document.getElementById("right")?.setAttribute("aria-label", tr("Fraklip og noter", "Clippings and notes"));
+document.getElementById("right")?.setAttribute("aria-label", tr("Fraklip og fodnoter", "Clippings and footnotes"));
 
 const view = new EditorView({ parent: document.getElementById("editor") as HTMLElement });
 setFocusFallback(() => view.focus());

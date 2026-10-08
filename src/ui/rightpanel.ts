@@ -336,14 +336,14 @@ export class RightPanel {
     if (!notes.length) return [];
     const title = document.createElement("h3");
     title.className = "rp-subhead";
-    title.textContent = tr("Dine noter", "Your notes");
+    title.textContent = tr("Dine kommentarer", "Your comments");
     return [
       title,
       ...notes.map((n) => {
         const b = document.createElement("button");
         b.type = "button";
         b.className = "rp-mynote";
-        b.textContent = n.text || tr("(tom note)", "(empty note)");
+        b.textContent = n.text || tr("(tom kommentar)", "(empty comment)");
         b.addEventListener("click", () => {
           this.view.dispatch({ selection: { anchor: n.from + 3 }, scrollIntoView: true });
           this.view.focus();

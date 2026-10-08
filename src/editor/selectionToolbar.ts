@@ -82,7 +82,7 @@ function toolbar(state: EditorState): Tooltip | null {
           { label: tr("Dæmp", "Dim"), run: () => cmd.dim(view) },
           { label: tr("Flyt til fraklip", "Move to Clippings"), run: () => cmd.park(view) },
           { label: tr("Fodnote", "Footnote"), run: () => cmd.footnote(view) },
-          { label: tr("Note til mig selv", "Note to yourself"), run: () => cmd.note(view) },
+          { label: tr("Kommentar til mig selv", "Comment to yourself"), run: () => cmd.note(view) },
           { label: tr("Indsæt billede …", "Insert image …"), run: () => pickImage(view) },
           { separator: true },
           { label: tr("Skær lidt i markeringen", "Trim the selection a little"), run: () => window.dispatchEvent(new CustomEvent("gt-claude", { detail: "cut" })) },

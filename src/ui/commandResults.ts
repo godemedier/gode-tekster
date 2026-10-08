@@ -182,7 +182,7 @@ function findingCard(s: Shown, f: Finding, index: number): HTMLElement {
   ];
   if (f.comment) {
     actions.push([
-      tr("Note", "Note"),
+      tr("Kommentar", "Comment"),
       () => {
         const place = at();
         if (!place) return;
@@ -200,7 +200,7 @@ function questionCard(s: Shown, question: string): HTMLElement {
     para(question, "cr-comment"),
     tools([
       [
-        tr("Som note", "As note"),
+        tr("Som kommentar", "As comment"),
         () => {
           const pos = s.view.state.selection.main.head;
           s.view.dispatch({ changes: { from: pos, insert: noteMarkup(question) }, userEvent: "input.note", scrollIntoView: true });

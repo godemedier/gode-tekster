@@ -152,8 +152,8 @@ export class PrintPreview {
     markBox.type = "checkbox";
     markBox.checked = this.opts.wordMarkup !== false;
     markBox.addEventListener("change", () => this.setOptions({ wordMarkup: markBox.checked }));
-    marked.title = tr("Noter bliver til kommentarer og forslag til sporede ændringer i Word", "Notes become comments and suggestions become tracked changes in Word");
-    marked.append(markBox, document.createTextNode(tr("Noter og rettelser i Word", "Notes and changes in Word")));
+    marked.title = tr("Kommentarer og forslag til rettelser kommer med i Word som kommentarer og sporede ændringer", "Comments and suggested changes go to Word as comments and tracked changes");
+    marked.append(markBox, document.createTextNode(tr("Kommentarer og rettelser i Word", "Comments and changes in Word")));
     const gap = document.createElement("span");
     gap.className = "pv-gap";
     this.bar.replaceChildren(

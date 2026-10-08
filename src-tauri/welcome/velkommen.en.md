@@ -29,7 +29,7 @@ Dimmed sentences are left out when you print, and they don't count in the word c
 
 If a paragraph has to go completely, Ctrl+Alt+X moves it to the Clippings tab. You can also drag it with the mouse to the right side of the screen. And of course you can always bring it back again.
 
-<!-- You make a note to yourself with Ctrl+Alt+N. -->
+<!-- You make a comment to yourself with Ctrl+Alt+N. -->
 
 You make footnotes with Ctrl+Alt+F.[^1]
 

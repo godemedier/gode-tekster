@@ -44,9 +44,9 @@ Dæmpet tekst er tekst, du ikke er helt afklaret omkring. De vises som grå teks
 
 Ctrl+Shift+D dæmper det markerede, og samme genvej fjerner dæmpningen igen.
 
-## Noter, rettelser og fodnoter
+## Kommentarer, rettelser og fodnoter
 
-En note til dig selv laver du med Ctrl+Alt+N. Den står med gult og kommer heller ikke med på print.
+En kommentar til dig selv laver du med Ctrl+Alt+N. Den står med gult og kommer heller ikke med på print.
 
 Fodnoter laver du med Ctrl+Alt+F. Nummeret står i teksten, og selve noten skriver du i fanen Fodnoter.
 
@@ -84,7 +84,7 @@ Programmet gemmer løbende tidligere udgaver af teksten. Du finder dem i fanen V
 
 Ctrl+R viser teksten, som den kommer til at se ud. Derfra kan du udskrive, gemme som PDF eller gemme som Word. Ctrl+P udskriver direkte. Ctrl+Shift+C kopierer det markerede som formateret tekst, så det kan sættes ind i en mail eller i Word.
 
-Har teksten noter eller rettelser, du ikke har taget stilling til, kommer de med i Word som kommentarer og sporede ændringer. Fjern fluebenet »Noter og rettelser i Word«, hvis du vil sende en ren udgave.
+Har teksten kommentarer eller rettelser, du ikke har taget stilling til, kommer de med i Word som kommentarer og sporede ændringer. Fjern fluebenet »Kommentarer og rettelser i Word«, hvis du vil sende en ren udgave.
 
 ## Flere tekster på én gang
 

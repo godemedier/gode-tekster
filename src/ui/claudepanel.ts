@@ -447,8 +447,8 @@ export class ClaudePanel {
         const unclear = (cleaned.match(/^\[\?\d+\] /gm) ?? []).length;
         notify(
           tr(
-            `Renskrevet. Den gamle tekst ligger i Fraklip${unclear ? `, og ${unclear} uklare steder står i en note nederst` : ""}. Ctrl+Z fortryder.`,
-            `Cleaned up. The old text is in Clippings${unclear ? `, and ${unclear} unclear ${unclear === 1 ? "spot is" : "spots are"} listed in a note at the bottom` : ""}. Ctrl+Z undoes it.`,
+            `Renskrevet. Den gamle tekst ligger i Fraklip${unclear ? `, og ${unclear} uklare steder står i en kommentar nederst` : ""}. Ctrl+Z fortryder.`,
+            `Cleaned up. The old text is in Clippings${unclear ? `, and ${unclear} unclear ${unclear === 1 ? "spot is" : "spots are"} listed in a comment at the bottom` : ""}. Ctrl+Z undoes it.`,
           ),
         );
       },

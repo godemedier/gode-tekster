@@ -220,7 +220,7 @@ function gapFindings(text: string, clean: string): Finding[] {
   add(clean, /(?<!!)\[[^\]\n]*\]\(\s*\)/g, tr("Linket har ingen adresse.", "The link has no address."));
   add(clean, /(?<!!)\[\s*\]\([^)\n]+\)/g, tr("Linket har ingen tekst.", "The link has no text."));
   // Noterne er sprunget over i `clean`, så de findes i den rigtige tekst.
-  add(text, /<!--(?!\s*gt:)\s*(?:TJEK|CHECK)\b[\s\S]*?-->|\{>>\s*(?:TJEK|CHECK)\b[\s\S]*?<<\}/g, tr("Note, der skal tjekkes.", "Note to check."));
+  add(text, /<!--(?!\s*gt:)\s*(?:TJEK|CHECK)\b[\s\S]*?-->|\{>>\s*(?:TJEK|CHECK)\b[\s\S]*?<<\}/g, tr("Kommentar, der skal tjekkes.", "Comment to check."));
   // »[???]« rammes af to regler. Det længste fund vinder.
   out.sort((a, b) => a.from - b.from || b.to - a.to);
   const kept: Finding[] = [];

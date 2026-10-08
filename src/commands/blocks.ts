@@ -52,7 +52,7 @@ export const BLOCKS: Spec[] = [
   spec("heading", "0-4", "Sæt overskriftsniveau", "Set heading level", 0, ["0", "1", "2", "3", "4"], 1, 1),
   spec("strip", "format|links", "Fjern formatering eller links", "Remove formatting or links", 0, ["format", "links"], 1, 2),
   spec("dim", "", "Dæmp", "Dim"),
-  spec("note", "", "Lav til note til mig selv", "Make a note to yourself"),
+  spec("note", "", "Lav til kommentar til mig selv", "Make a comment to yourself"),
   spec("clip", "", "Flyt til fraklip", "Move to Clippings"),
   spec("footnote", "", "Lav til fodnote", "Make a footnote"),
 ];

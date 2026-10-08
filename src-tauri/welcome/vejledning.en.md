@@ -44,9 +44,9 @@ Dimmed text is text you haven't quite made up your mind about. It's shown in gra
 
 Ctrl+Shift+D dims the selection, and the same shortcut removes the dimming again.
 
-## Notes, changes and footnotes
+## Comments, changes and footnotes
 
-You make a note to yourself with Ctrl+Alt+N. It's shown in yellow and is left out when you print too.
+You make a comment to yourself with Ctrl+Alt+N. It's shown in yellow and is left out when you print too.
 
 You make footnotes with Ctrl+Alt+F. The number goes in the text, and you write the note itself in the Footnotes tab.
 
@@ -83,7 +83,7 @@ The app keeps saving earlier versions of your text as you go. You'll find them i
 
 Ctrl+R shows the text the way it will look. From there you can print, save as PDF or save as Word. Ctrl+P prints right away. Ctrl+Shift+C copies the selection as formatted text, so you can paste it into an email or into Word.
 
-If the text has notes or changes you haven't decided on, they go into Word as comments and tracked changes. Untick »Notes and changes in Word« to send a clean copy.
+If the text has comments or changes you haven't decided on, they go into Word as comments and tracked changes. Untick »Comments and changes in Word« to send a clean copy.
 
 ## Several texts at once
 
