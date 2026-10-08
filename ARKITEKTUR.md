@@ -831,3 +831,34 @@ eller »Skifter selv« skifter på et forkert tidspunkt uden for Danmark.
 for filen (forsvinder, når filen flyttes, ADR-0003), søgesyntaks, smarte mapper og kanban.
 **Revurdér hvis:** indekset er for langsomt første gang i et stort bibliotek (så et indeks på disken),
 eller tags på sidste linje driller i andre programmer.
+
+### ADR-0039 — Noter på skrivebordet (8/10-2026)
+**Baggrund:** Sticky Notes er hurtig og synlig, men noterne ligger i en skjult database og bliver aldrig
+til en tekst. Research 8/10 (`docs/research/2026-10-08-noter/`, plan `docs/plans/2026-10-08-sedler.md`)
+og et layoutoplæg med tre varianter. Valgt: variant A »Ark«, navnet »noter«, Win+Alt+N, mappen
+`Dokumenter\Gode Tekster\Noter`, altid en ny note.
+**Beslutning:**
+- **En note er en .md-fil** i `Dokumenter\Gode Tekster\Noter`, navngivet efter tidspunktet
+  (`2026-10-08 14.32.md`) og aldrig omdøbt af programmet. `Dokumenter\Gode Tekster` bliver bibliotek,
+  hvis det ikke er det. En tom note efterlader ingen fil, når den lukkes.
+- **Arket** er et rammeløst vindue (`note-1` …, siden `note.html`, `src/note.ts`) med samme editor og
+  autosave som teksterne (`document.rs`): ingen ramme, en top med tre prikker at trække i, knapper ved
+  musen (ny note, farve, hold øverst, mere), Windows 11's runde hjørner og skygge, uden for
+  proceslinjen og Alt+Tab (`WS_EX_TOOLWINDOW`). Dobbeltklik på toppen ruller arket op til første linje.
+- **Farven** står som én skjult linje sidst i filen, `<!-- gt:farve vaerdi=gul -->`, og følger noten
+  til den anden pc. Seks papirtoner (gul, grøn, blå, rosa, papir, grå) i lys og mørk. Aldrig vermilion.
+- **Placering, størrelse, hold øverst, rullet op og fremme** gemmes kun på denne pc i
+  `<data>\noter.json` (fysiske pixel). Arkene, der var fremme, kommer igen ved start. En position på en
+  skærm, der ikke findes mere, giver et nyt sted øverst til højre.
+- **Win+Alt+N** er registreret med Windows' `RegisterHotKey` i en tråd med egen beskedløkke, uden ny
+  crate. Er genvejen taget, står det i loggen. Menuen ved uret har »Ny note«, »Vis alle noter« og
+  »Skjul alle noter«.
+- **En note er ikke »den sidste tekst«**: hovedvinduet åbner aldrig på en note (`session::remember`
+  springes over for `note-*`).
+- **»Noter« om CriticMarkup** hedder nu »kommentarer«, som i Word, hvor de havner.
+**Hukommelse:** hvert ark er et WebView2-vindue, ca. 30 MB privat hukommelse (målt 8/10).
+**Ikke valgt:** ét vindue med alle noter (ikke post-its), et gennemsigtigt vindue over hele skærmen
+(klik igennem og flere skærme virker ikke), native vinduer uden WebView (editoren to gange), variant B
+(fane) og C (kanten).
+**Revurdér hvis:** mange ark fremme bruger for meget hukommelse (så lav prioritet ved fokustab, ADR
+foreslået i spor 2), eller Win+Alt+N ofte er taget.

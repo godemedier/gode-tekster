@@ -31,3 +31,13 @@ test("status og tags tæller ikke og kommer ikke med ud", () => {
   assert.equal(out.includes("#klima"), false);
   assert.ok(out.includes("Tekst her."));
 });
+
+test("notens farve står skjult sidst, skiftes på stedet og kommer ikke med ud", async () => {
+  const { colorChange, findColor } = await import("./textStatus.ts");
+  const a = apply("Ring før kl. 12", colorChange("Ring før kl. 12", "blaa"));
+  assert.equal(a, "Ring før kl. 12\n\n<!-- gt:farve vaerdi=blaa -->\n");
+  assert.equal(findColor(a)?.color, "blaa");
+  const b = apply(a, colorChange(a, "rosa"));
+  assert.equal(findColor(b)?.color, "rosa");
+  assert.equal(withoutParked(b).includes("gt:farve"), false);
+});

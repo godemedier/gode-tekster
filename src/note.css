@@ -1,0 +1,69 @@
+/* Noterne på skrivebordet (ADR-0039, variant A »Ark« fra layoutoplægget 8/10): ingen ramme, en
+   top med tre prikker at trække i, knapper, der kommer frem ved musen, og papirtoner, der følger
+   lys, mørk og aften. Vermilion står kun i markøren (ADR-0037). */
+
+body.note {
+  --ark: #fbf3cf;
+  --ark-blæk: #3b3415;
+  --ark-svag: rgba(59, 52, 21, 0.45);
+  overflow: hidden;
+  background: var(--ark);
+  color: var(--ark-blæk);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+body.note[data-farve="groen"] { --ark: #e3f0dc; --ark-blæk: #22351c; --ark-svag: rgba(34, 53, 28, 0.45); }
+body.note[data-farve="blaa"] { --ark: #dfe9f3; --ark-blæk: #1c2c3c; --ark-svag: rgba(28, 44, 60, 0.45); }
+body.note[data-farve="rosa"] { --ark: #f6e1e4; --ark-blæk: #4a2129; --ark-svag: rgba(74, 33, 41, 0.45); }
+body.note[data-farve="papir"] { --ark: #ffffff; --ark-blæk: #1d2125; --ark-svag: rgba(29, 33, 37, 0.4); }
+body.note[data-farve="graa"] { --ark: #e9eaec; --ark-blæk: #2a2d31; --ark-svag: rgba(42, 45, 49, 0.45); }
+body.note.dark { --ark: #3a3220; --ark-blæk: #ecd9a0; --ark-svag: rgba(236, 217, 160, 0.45); }
+body.note.dark[data-farve="groen"] { --ark: #26301f; --ark-blæk: #cfe3c2; --ark-svag: rgba(207, 227, 194, 0.45); }
+body.note.dark[data-farve="blaa"] { --ark: #212a33; --ark-blæk: #cddbea; --ark-svag: rgba(205, 219, 234, 0.45); }
+body.note.dark[data-farve="rosa"] { --ark: #36242a; --ark-blæk: #efc9d1; --ark-svag: rgba(239, 201, 209, 0.45); }
+body.note.dark[data-farve="papir"] { --ark: #24282c; --ark-blæk: #d5d9dd; --ark-svag: rgba(213, 217, 221, 0.4); }
+body.note.dark[data-farve="graa"] { --ark: #2a2d31; --ark-blæk: #d0d3d7; --ark-svag: rgba(208, 211, 215, 0.45); }
+
+/* Toppen: tre prikker at trække i. Knapperne kommer frem ved musen og ved Tab. */
+.note-top { flex: none; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 11px; user-select: none; }
+.note-grip { display: flex; gap: 3px; }
+.note-grip i { width: 4px; height: 4px; border-radius: 2px; background: var(--ark-svag); }
+.note-title { flex: 1; min-width: 0; font: 600 13px/1 var(--skrift); color: var(--ark-blæk); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; visibility: hidden; }
+.note-tools { display: flex; gap: 2px; align-items: center; opacity: 0; transition: opacity 150ms ease; }
+body.note:hover .note-tools, .note-tools:focus-within, body.note.pinned .note-tools .note-pin { opacity: 1; }
+body.note:hover .note-tools .note-pin, .note-tools:focus-within .note-pin { opacity: 1; }
+.note-tools button { width: 26px; height: 26px; border: none; background: none; border-radius: 6px; color: var(--ark-blæk); display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; opacity: 0.75; }
+.note-tools button:hover { opacity: 1; background: color-mix(in srgb, var(--ark-blæk) 10%, transparent); }
+.note-swatch { width: 12px; height: 12px; border-radius: 6px; background: var(--ark); box-shadow: inset 0 0 0 1.5px var(--ark-svag); }
+/* »Hold øverst« står fremme, når den er slået til, så man kan se det. */
+body.note.pinned .note-tools { opacity: 1; }
+body.note.pinned .note-tools button:not(.note-pin) { opacity: 0; }
+body.note.pinned:hover .note-tools button:not(.note-pin) { opacity: 0.75; }
+body.note.pinned .note-pin { opacity: 1; }
+body.note.pinned .note-pin svg { fill: currentColor; }
+
+/* Rullet op: kun toppen, med første linje som navn (dobbeltklik på toppen). */
+body.note.rolled #editor { display: none; }
+body.note.rolled .note-grip { display: none; }
+body.note.rolled .note-title { visibility: visible; }
+
+/* Farvevælgeren under toppen. */
+.note-colors { position: fixed; top: 32px; right: 8px; z-index: 20; display: flex; gap: 6px; padding: 8px; background: var(--kort); border: 1px solid var(--kant); border-radius: 10px; box-shadow: var(--skygge); }
+.note-colors[hidden] { display: none; }
+.note-colors button { width: 20px; height: 20px; border-radius: 10px; border: none; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, 0.18); }
+.note-colors button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Editoren i et lille ark: mindre skrift, ingen luft om teksten, samme markør. */
+body.note #editor { flex: 1; min-height: 0; }
+body.note .cm-editor { height: 100%; background: transparent !important; font-size: 14.5px !important; }
+body.note .cm-scroller { line-height: 1.6 !important; }
+body.note .cm-content { max-width: none !important; padding: 2px 16px 24px !important; color: var(--ark-blæk); }
+body.note .cm-editor.cm-focused { outline: none; }
+body.note #banner { left: 0; right: 0; font-size: 12px; padding: 6px 10px; }
+.note-colors button[data-farve="gul"] { background: #fbf3cf; }
+.note-colors button[data-farve="groen"] { background: #e3f0dc; }
+.note-colors button[data-farve="blaa"] { background: #dfe9f3; }
+.note-colors button[data-farve="rosa"] { background: #f6e1e4; }
+.note-colors button[data-farve="papir"] { background: #ffffff; }
+.note-colors button[data-farve="graa"] { background: #e9eaec; }

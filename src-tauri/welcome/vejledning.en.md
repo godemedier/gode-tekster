@@ -75,6 +75,12 @@ If you've selected something, / works the same way, and the command then applies
 
 If a command is missing, describe it in your own words under Commands in Settings (Ctrl+,). The program sets it up, and you see a preview before you save. Commands are ordinary files in Documents\Gode Tekster\Commands.
 
+## Notes on the desktop
+
+Press Win+Alt+N wherever you are, and a new note appears on the desktop with the cursor ready. You don't name or save it. The note is an ordinary text in Documents\Gode Tekster\Notes, so you also find it in the library and can open it like any other text.
+
+The buttons in the note show up when the mouse is over it: new note, colour, keep on top and more. Drag the top to move the note, and double-click the top to roll it up to its first line. Ctrl+W closes the note, and Ctrl+D moves it to the Recycle Bin. An empty note disappears by itself. Notes left on the desktop come back the next time you start your computer. Right-click the icon by the clock to show or hide them all.
+
 ## Versions
 
 The app keeps saving earlier versions of your text as you go. You'll find them in the Versions tab on the right. Click one to see it, and Restore this version brings it back. The current text is saved as its own version first, so nothing gets lost. Right-click a version to give it a name.

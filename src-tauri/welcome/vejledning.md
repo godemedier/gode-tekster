@@ -76,6 +76,12 @@ Har du markeret noget, virker / på samme måde, og kommandoen gælder så det m
 
 Mangler du en kommando, så beskriv den med dine egne ord under Kommandoer i Indstillinger (Ctrl+,). Programmet sætter den op, og du ser en prøve, før du gemmer. Kommandoerne ligger som almindelige filer i Dokumenter\Gode Tekster\Kommandoer.
 
+## Noter på skrivebordet
+
+Tryk Win+Alt+N, hvor du end er, så ligger der en ny note på skrivebordet med markøren klar. Du skal ikke give den navn eller gemme den. Noten er en almindelig tekst i mappen Dokumenter\Gode Tekster\Noter, så du finder den også i biblioteket og kan åbne den som alle andre tekster.
+
+Knapperne i noten kommer frem, når musen er over den: ny note, farve, hold øverst og flere valg. Træk i toppen for at flytte noten, og dobbeltklik på toppen for at rulle den op til første linje. Ctrl+W lukker noten, og Ctrl+D lægger den i papirkurven. En tom note forsvinder af sig selv. Noterne, der står fremme, kommer igen næste gang, du starter computeren. Højreklik på ikonet ved uret for at vise eller skjule dem alle.
+
 ## Versioner
 
 Programmet gemmer løbende tidligere udgaver af teksten. Du finder dem i fanen Versioner til højre. Klik på en, så ser du den, og Gendan denne udgave henter den tilbage. Den nuværende bliver gemt som sin egen version først, så intet går tabt. Højreklik på en version for at give den et navn.

@@ -25,6 +25,7 @@ mod library;
 mod media;
 mod merge;
 mod mistral;
+mod notes;
 mod ro;
 mod search;
 mod session;
@@ -80,7 +81,31 @@ fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         None::<&str>,
     )?;
     let afslut = MenuItem::with_id(app, "afslut", t!("Afslut", "Quit"), true, None::<&str>)?;
-    Menu::with_items(app, &[&vis, &afslut])
+    // Noterne (ADR-0039).
+    let ny = MenuItem::with_id(
+        app,
+        "ny-note",
+        // Windows-tasten kan ikke stå som genvej i menuen (muda kender ikke META), så den står i teksten.
+        t!("Ny note (Win+Alt+N)", "New note (Win+Alt+N)"),
+        true,
+        None::<&str>,
+    )?;
+    let alle = MenuItem::with_id(
+        app,
+        "vis-noter",
+        t!("Vis alle noter", "Show all notes"),
+        true,
+        None::<&str>,
+    )?;
+    let skjul = MenuItem::with_id(
+        app,
+        "skjul-noter",
+        t!("Skjul alle noter", "Hide all notes"),
+        true,
+        None::<&str>,
+    )?;
+    let streg = tauri::menu::PredefinedMenuItem::separator(app)?;
+    Menu::with_items(app, &[&ny, &alle, &skjul, &streg, &vis, &afslut])
 }
 
 /// Skiftes sproget i indstillingerne, følger menuen på ikonet med.
@@ -138,6 +163,7 @@ pub fn run() -> tauri::Result<()> {
         .manage(watcher::WatchState::new())
         .manage(export::ExportState::default())
         .manage(claude::ClaudeState::default())
+        .manage(notes::NotesState::default())
         .manage(windows::WindowState::default())
         .invoke_handler(tauri::generate_handler![
             document::open_document,
@@ -198,6 +224,13 @@ pub fn run() -> tauri::Result<()> {
             library::list_libraries,
             library::list_folder,
             library::list_all_files,
+            notes::note_new,
+            notes::note_close,
+            notes::note_delete,
+            notes::note_on_top,
+            notes::note_roll,
+            notes::note_state,
+            notes::note_as_text,
             library::library_index,
             library::set_status,
             session::recent_documents,
@@ -270,6 +303,17 @@ pub fn run() -> tauri::Result<()> {
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "vis" => show_main(app),
+                    "ny-note" => {
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = notes::new_note(&app);
+                        });
+                    }
+                    "vis-noter" => {
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move { notes::show_all(&app) });
+                    }
+                    "skjul-noter" => notes::hide_all(app),
                     // Fladen gemmer først og kalder så `quit_app` (main.ts). Svarer den ikke inden
                     // for 3 s, lukkes der alligevel; teksten ligger da i backup fra sidste gem.
                     "afslut" => windows::request_quit(app.clone()),
@@ -283,6 +327,13 @@ pub fn run() -> tauri::Result<()> {
                 tray = tray.icon(icon.clone());
             }
             tray.build(app)?;
+
+            // Noterne (ADR-0039): Win+Alt+N, og arkene fra sidst kommer igen.
+            notes::hotkey(handle.clone());
+            {
+                let app = handle.clone();
+                tauri::async_runtime::spawn(async move { notes::restore(&app) });
+            }
 
             // Startet ved login (ADR-0014): bliv skjult, til brugeren åbner en fil eller klikker
             // på ikonet.
@@ -331,7 +382,15 @@ pub fn run() -> tauri::Result<()> {
                         }
                     });
                 }
-                WindowEvent::Destroyed => windows::forget(window.app_handle(), window.label()),
+                WindowEvent::Destroyed => {
+                    windows::forget(window.app_handle(), window.label());
+                    notes::destroyed(window.app_handle(), window.label());
+                }
+                WindowEvent::Moved(_) | WindowEvent::Resized(_)
+                    if notes::is_note(window.label()) =>
+                {
+                    notes::moved(window.app_handle(), window);
+                }
                 _ => {}
             }
         })

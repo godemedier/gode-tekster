@@ -4,6 +4,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { EditorView } from "@codemirror/view";
 
 import { DocumentSession, type DocumentDto } from "./document.ts";
@@ -781,7 +782,10 @@ window.addEventListener("focus", () => {
   });
 });
 
-await listen<string>("open-path", (e) => void openPath(e.payload));
+// Hændelser til netop dette vindue (emit_to i Rust) lyttes på vinduet. `listen` alene hører hændelser
+// til alle vinduer: så lukkede et ekstra vindue også hovedvinduet (8/10).
+const here = getCurrentWebviewWindow();
+await here.listen<string>("open-path", (e) => void openPath(e.payload));
 await listen("flush-requested", () => void session?.flush());
 /** Ctrl+Q og »Afslut« i bakken: gem (eller læg i backup), og luk så programmet helt. */
 async function quit(): Promise<void> {
@@ -890,7 +894,7 @@ window.addEventListener("mousemove", (e) => {
   if ((e.movementX || e.movementY) && document.body.classList.contains("ro-typing")) document.body.classList.remove("ro-typing");
 });
 
-await listen("close-requested", () => {
+await here.listen("close-requested", () => {
   // Vinduet lukkes: ud af Ro på først, så wifi er tændt igen, og vinduet ikke gemmes væk i fuld skærm.
   if (document.body.classList.contains("ro")) void setRo(false);
   if (getCurrentWindow().label === "main" && explainCloseOnce()) return;

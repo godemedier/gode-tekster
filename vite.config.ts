@@ -6,6 +6,13 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(() => ({
 
+  // To sider: programmet og noterne på skrivebordet (ADR-0039).
+  build: {
+    rollupOptions: {
+      input: { main: "index.html", note: "note.html" },
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

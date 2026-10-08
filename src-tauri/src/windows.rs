@@ -101,6 +101,13 @@ pub fn open_window(app: &AppHandle, path: Option<PathBuf>) -> Result<(), String>
     Ok(())
 }
 
+/// Et vindue, der ikke laves af `open_window` (noterne, notes.rs), skal også kunne hente sin tekst.
+pub fn set_pending(app: &AppHandle, label: &str, path: &Path) {
+    if let Ok(mut p) = app.state::<WindowState>().pending.lock() {
+        p.insert(label.to_owned(), path.to_path_buf());
+    }
+}
+
 /// Teksten, et nyt vindue skal vise (null for et tomt vindue). Kaldes én gang fra `initial_document`.
 pub fn take_pending(app: &AppHandle, label: &str) -> Option<PathBuf> {
     app.state::<WindowState>()

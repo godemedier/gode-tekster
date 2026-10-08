@@ -9,7 +9,7 @@ import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import { findParked } from "./parked.ts";
 import { findClaudeBlocks } from "./claudeBlocks.ts";
 import { findGoal } from "./goal.ts";
-import { findStatus } from "./textStatus.ts";
+import { findColor, findStatus } from "./textStatus.ts";
 import { FOOTNOTE_DEF } from "./inline.ts";
 import { touchesMarkers } from "./touches.ts";
 
@@ -18,7 +18,8 @@ function build(state: EditorState): DecorationSet {
   const doc = state.doc.toString();
   const goal = findGoal(doc);
   const status = findStatus(doc);
-  for (const p of [...(status ? [status] : []), ...findParked(doc), ...findClaudeBlocks(doc), ...(goal ? [goal] : [])]) {
+  const color = findColor(doc);
+  for (const p of [...(status ? [status] : []), ...findParked(doc), ...findClaudeBlocks(doc), ...(goal ? [goal] : []), ...(color ? [color] : [])]) {
     // Blokken uden sit sidste linjeskift, så linjen efter står urørt.
     const end = doc[p.to - 1] === "\n" ? p.to - 1 : p.to;
     if (end > p.from) out.push(Decoration.replace({ block: true }).range(p.from, end));
@@ -34,7 +35,7 @@ function build(state: EditorState): DecorationSet {
  * Programmets egne ændringer af blokkene: fanerne Fraklip, Input og Fodnoter, import, ekstern
  * ændring, oprydning, gendannelse af en version, og fortryd/gentag.
  */
-const OWN = ["input.goal", "input.status", "input.park", "delete.park", "input.import", "input.ai", "delete.claude", "input.note", "input.external", "delete.cleanup", "input.compare", "restore", "undo", "redo"];
+const OWN = ["input.goal", "input.status", "input.color", "input.park", "delete.park", "input.import", "input.ai", "delete.claude", "input.note", "input.external", "delete.cleanup", "input.compare", "restore", "undo", "redo"];
 
 /** De skjulte blokke plus linjeskiftet foran dem, som [fra, til, fra, til, …]. */
 export function protectedRanges(state: EditorState): number[] {

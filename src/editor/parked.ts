@@ -11,7 +11,7 @@
 import { todayIso } from "./dates.ts";
 import { resolvePending } from "./critic.ts";
 import { GOAL_LINE } from "./goal.ts";
-import { STATUS_LINE, withoutTagLine } from "./textStatus.ts";
+import { COLOR_LINE, STATUS_LINE, withoutTagLine } from "./textStatus.ts";
 
 export type Parked = { id: string; date: string; text: string; from: number; to: number };
 
@@ -92,7 +92,7 @@ export function parkChanges(
  */
 export function withoutParked(doc: string): string {
   // Status øverst og #tags sidst er etiketter, ikke tekst (ADR-0038).
-  const rest = withoutTagLine(doc.replace(STATUS_LINE, "$1").replace(BLOCK, "").replace(CLAUDE, "").replace(GOAL_LINE, ""));
+  const rest = withoutTagLine(doc.replace(STATUS_LINE, "$1").replace(BLOCK, "").replace(CLAUDE, "").replace(GOAL_LINE, "").replace(COLOR_LINE, ""));
   return resolvePending(rest).replace(/\n{3,}$/, "\n");
 }
 

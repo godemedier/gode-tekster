@@ -304,7 +304,10 @@ fn open_path(
             },
         );
     }
-    crate::session::remember(app, path, None);
+    // En note er ikke »den sidste tekst«: hovedvinduet skal ikke åbne på en note (ADR-0039).
+    if !crate::notes::is_note(window) {
+        crate::session::remember(app, path, None);
+    }
     crate::watcher::set_open_file(app, window, path);
     crate::windows::showing(app, window, path);
     if let Some(dir) = path.parent() {
@@ -644,6 +647,11 @@ pub fn log_line(app: AppHandle, text: String) {
 /// Fladen melder, at editoren er tegnet og har fokus. Først nu vises vinduet (ADR-0014).
 #[tauri::command]
 pub fn app_ready(app: AppHandle, window: tauri::Window, state: State<'_, AppState>) {
+    // En note vises uden at tage fokus, hvis den kommer igen ved start (notes.rs).
+    if crate::notes::is_note(window.label()) {
+        crate::notes::ready(&app, window.label());
+        return;
+    }
     // Et ekstra vindue vises bare, når det er klar.
     if window.label() != "main" {
         crate::windows::focus(&app, window.label());

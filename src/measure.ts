@@ -1258,6 +1258,22 @@ export async function runScenario(name: string, view: EditorView, path: string |
     window.dispatchEvent(new Event("gt-open-settings"));
     await pause(900);
     await shot("bib-indstillinger");
+  } else if (name === "noter") {
+    // ADR-0039 (8/10): tre noter på skrivebordet i testmappen (GT_NOTER_DIR). Én skrevet i, én grøn og
+    // rullet op, én blå og holdt øverst. Skærmbilledet tages af hele skærmen udefra.
+    const { emitTo } = await import("@tauri-apps/api/event");
+    for (let i = 0; i < 3; i++) {
+      await invoke("note_new");
+      await pause(1500);
+    }
+    await emitTo("note-1", "gt-test-note", { text: "Ring til forvaltningen før kl. 12\n\n– budgettal for 2024\n– hvem skrev høringssvaret?\n– spørg om kablet til land" });
+    await emitTo("note-2", "gt-test-note", { text: "Idé: podcast om lokalpolitik\n\nSeks afsnit om byrådet.", color: "groen", roll: true });
+    await emitTo("note-3", "gt-test-note", { text: "Denne uge\n\n- [ ] Kronik til redaktionen\n- [x] Ansøgning til fonden", color: "blaa", pin: true });
+    await pause(2500);
+    await say("skærmbillede noter-skrivebord");
+    await pause(6000);
+    for (const n of [1, 2, 3]) await emitTo(`note-${n}`, "gt-test-note", { close: true });
+    await pause(1500);
   } else if (name === "grammatik") {
     // 0.2.10 (8/10): kongruens og de tre kommavalg i fanen Sprog, Indstillinger › Tekst og
     // »dage til deadline« i hjørnet. Indstillinger kun i hukommelsen; skærmbilleder tages udefra.

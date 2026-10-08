@@ -78,3 +78,30 @@ export const tagLineStyle = StateField.define<DecorationSet>({
 export const tagLineTheme = EditorView.theme({
   ".gt-tagline, .gt-tagline *": { color: "var(--svag)" },
 });
+
+// --- notens farve (ADR-0039) -----------------------------------------------------------------------
+// Én skjult linje sidst i filen, som længdemålet: `<!-- gt:farve vaerdi=gul -->`. Farven følger noten
+// til den anden pc. Placeringen på skærmen gemmes kun lokalt (notes.rs).
+
+export const NOTE_COLORS = ["gul", "groen", "blaa", "rosa", "papir", "graa"] as const;
+export type NoteColor = (typeof NOTE_COLORS)[number];
+export const COLOR_LINE = /<!-- gt:farve vaerdi=([a-zæøå]+) -->\n?/g;
+
+/** Notens farve, eller null (så er den gul). Står der flere, gælder den sidste. */
+export function findColor(doc: string): { color: NoteColor; from: number; to: number } | null {
+  let found: { color: NoteColor; from: number; to: number } | null = null;
+  for (const m of doc.matchAll(COLOR_LINE)) {
+    const color = m[1] as NoteColor;
+    if (NOTE_COLORS.includes(color)) found = { color, from: m.index ?? 0, to: (m.index ?? 0) + m[0].length };
+  }
+  return found;
+}
+
+/** Ændringen, der sætter eller skifter farven. En ny farve lægges sidst i teksten. */
+export function colorChange(doc: string, color: NoteColor): { from: number; to: number; insert: string } {
+  const line = `<!-- gt:farve vaerdi=${color} -->\n`;
+  const old = findColor(doc);
+  if (old) return { from: old.from, to: old.to, insert: line };
+  const sep = doc.length === 0 || doc.endsWith("\n\n") ? "" : doc.endsWith("\n") ? "\n" : "\n\n";
+  return { from: doc.length, to: doc.length, insert: sep + line };
+}

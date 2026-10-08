@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "noter",
+  "description": "Noterne paa skrivebordet (ADR-0039): som tekstvinduerne, plus at toppen kan traekkes.",
+  "windows": ["note-*"],
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
+}
