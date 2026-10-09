@@ -28,6 +28,7 @@ mod merge;
 mod mistral;
 mod notes;
 mod ro;
+mod seal;
 mod search;
 mod session;
 mod settings;
@@ -189,6 +190,8 @@ pub fn run() -> tauri::Result<()> {
             spelling::spell_check,
             spelling::spell_add,
             spelling::spell_suggest,
+            seal::seal_text,
+            seal::seal_check,
             updater::update_ready,
             i18n::ui_language,
             windows::set_titlebar,

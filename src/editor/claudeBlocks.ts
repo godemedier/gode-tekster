@@ -52,7 +52,13 @@ export function saveChanges(doc: string, kind: ClaudeKind, data: unknown, date =
   const changes: { from: number; to?: number; insert: string }[] = [];
   let rest = doc;
   if (kind === "faktatjek") {
-    for (const old of findClaudeBlocks(doc).filter((b) => b.kind === "faktatjek").reverse()) {
+    const previous = findClaudeBlocks(doc).filter((b) => b.kind === "faktatjek");
+    const latest = previous[previous.length - 1];
+    if (latest) {
+      const handled = carryHandled(latest.data, data);
+      if (Object.keys(handled).length) data = { ...(data as object), handled };
+    }
+    for (const old of previous.reverse()) {
       changes.push({ from: old.from, to: old.to, insert: "" });
       rest = rest.slice(0, old.from) + rest.slice(old.to);
     }
@@ -60,4 +66,42 @@ export function saveChanges(doc: string, kind: ClaudeKind, data: unknown, date =
   const block = claudeBlock(nextId(doc), kind, date, data);
   changes.push({ from: doc.length, insert: appendParked(rest, block).insert });
   return changes;
+}
+
+/** Skribentens håndtering af én påstand (variant A, 9/10). »Rettet«: citatet stod ikke længere i teksten. */
+export type Handled = { how: "rettet" | "står"; date: string };
+/** Nøglen er påstandens plads i `claims`, som aldrig ændres efter gem. */
+export type HandledMap = Record<string, Handled>;
+type FactData = { claims?: { quote: string; verdict: string }[]; handled?: HandledMap };
+
+/**
+ * Ændringen, der krydser påstand nr. `index` af (eller åbner den igen ved `null`). Kun `handled`
+ * ændres. Modellens del og seglet over den står urørt.
+ */
+export function setHandled(doc: string, id: string, index: number, value: Handled | null): { from: number; to: number; insert: string } | null {
+  const b = findClaudeBlocks(doc).find((x) => x.id === id);
+  if (!b || b.kind !== "faktatjek" || !b.data || typeof b.data !== "object") return null;
+  const data = { ...(b.data as FactData) };
+  const handled: HandledMap = { ...(data.handled ?? {}) };
+  if (value) handled[String(index)] = value;
+  else delete handled[String(index)];
+  data.handled = handled;
+  return { from: b.from, to: b.to, insert: claudeBlock(b.id, b.kind, b.date, data) };
+}
+
+/**
+ * Fluebenene fra et gammelt faktatjek til et nyt, der erstatter det: en påstand med samme citat og
+ * samme dom er stadig håndteret. Har dommen ændret sig, er den åben igen.
+ */
+export function carryHandled(old: unknown, fresh: unknown): HandledMap {
+  const o = (old ?? {}) as FactData;
+  const n = (fresh ?? {}) as FactData;
+  const out: HandledMap = {};
+  for (const [key, h] of Object.entries(o.handled ?? {})) {
+    const was = o.claims?.[Number(key)];
+    if (!was) continue;
+    const at = (n.claims ?? []).findIndex((c, i) => !out[String(i)] && c.quote === was.quote && c.verdict === was.verdict);
+    if (at !== -1) out[String(at)] = h;
+  }
+  return out;
 }

@@ -890,3 +890,29 @@ gang, også fra en testkopi i `target\release`, så den installerede ikke starte
 kun, når valget ændres.
 **Revurdér hvis:** en Windows-opdatering ændrer skrivebordets vinduer (Rainmeter følger med; se deres
 `GetDesktopIconsHostWindow`), eller arkene blinker synligt ved Win+D.
+
+### ADR-0041 — Flueben i faktatjekket og segl på AI-svar i filen (9/10-2026)
+Supplerer ADR-0022 og ADR-0023.
+**Baggrund:** En påstand i faktatjekket kunne kun læses, ikke håndteres (9/10). Sikkerhedsaudit 9/10
+fund 3: en `gt:claude`-blok er bare tekst, så en fremmed .md kunne vise »Korrekt« og »Citatet står på
+dst.dk«, uden at noget var tjekket.
+**Beslutning:** Variant A fra `docs/research/2026-10-09-faktatjek-haandtering.md` (Google, Word,
+GitHub): hver åben påstand, der ikke er korrekt, har en cirkel til højre. Et klik krydser den af,
+kortet folder sig sammen i gruppen »Håndteret« nederst, og fokus går til næste cirkel. »Rettet« eller
+»Står« sætter programmet selv efter, om citatet stadig står i teksten. Står det ikke længere der, får
+den åbne påstand linjen »Teksten er ændret her«, men lukkes ikke af sig selv. Håndteringen gemmes i
+blokken som `handled` ved siden af `claims` (nøgle = påstandens plads), som en ændring i dokumentet
+(Ctrl+Z virker, Fortryd i beskedlinjen). Et nyt faktatjek tager fluebenene med for påstande med samme
+citat og samme dom.
+Seglet: når et svar gemmes, laver Rust `blake3::keyed_hash` over modellens del (`claims` eller
+`findings` som JSON) med en nøgle, der laves første gang og ligger i Windows' legitimationsadministrator
+(`seal.rs`, `Gode Tekster/Segl`). Fladen ser kun seglet. Ved visning tjekkes det. Uden et gyldigt segl
+står blokken som »Fra filen, ikke tjekket her«: alle påstande er »Ikke efterprøvet«, citaterne vises
+ikke som fundet, og håndterede påstande står foldet ud. Fluebenene ligger uden for seglet, så
+skribentens håndtering ikke gør det ugyldigt.
+**Ikke valgt:** at køre citattjekket igen ved hver åbning (netkald uden at brugeren har bedt om det).
+Tre udfald pr. påstand (variant B): et valg ekstra ved hvert flueben.
+**Konsekvens:** faktatjek og research fra før 9/10 har intet segl og vises som ikke tjekket her, også
+på den pc, de blev lavet på. Et nyt faktatjek løser det. Skifter brugeren pc, gælder det samme.
+**Revurdér hvis:** brugeren deler tekster med faktatjek mellem egne pc'er og vil have dem stolet på.
+Så skal nøglen kunne flyttes med.

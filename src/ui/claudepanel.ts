@@ -15,10 +15,10 @@ import { protectedRanges } from "../editor/hidden.ts";
 import { insertFootnote } from "../editor/editing.ts";
 import { cutChanges, dimmedInBody, parkDimmedChanges } from "../editor/dimming.ts";
 import { clippingText, footnoteText, fragmentUrl, type Source } from "../editor/sources.ts";
-import { findClaudeBlocks, saveChanges, type ClaudeKind } from "../editor/claudeBlocks.ts";
+import { findClaudeBlocks, saveChanges, setHandled, type ClaudeKind, type Handled, type HandledMap } from "../editor/claudeBlocks.ts";
 import { errorText, hideBanner, notify, showBanner } from "./banner.ts";
 import { isEnglish, tr } from "../i18n.ts";
-import { shortDate } from "../editor/dates.ts";
+import { shortDate, todayIso } from "../editor/dates.ts";
 import type { AiCommandAnswer, Command, CommandResult } from "../commands/types.ts";
 import { clearCommandResults, commandResultBlocks, hasCommandResults, onCommandResults, placeExcerpts, showCommandResult } from "./commandResults.ts";
 
@@ -41,6 +41,7 @@ const VERDICT: Record<string, string> = {
 const CHECK: Record<string, string> = {
   fundet: tr("Citatet står på siden", "The quote is on the page"),
   ikke_fundet: tr("Citatet blev ikke fundet på siden", "The quote was not found on the page"),
+  ikke_tjekket: tr("Citatet er ikke tjekket her", "The quote was not checked here"),
   kunne_ikke_hentes: tr("Siden kunne ikke hentes", "The page could not be loaded"),
 };
 
@@ -50,6 +51,12 @@ export class ClaudePanel {
   private status: Status = { kind: "idle" };
   /** Korrekte påstande, brugeren har foldet ud (citatet er nøglen). */
   private unfolded = new Set<string>();
+  /** Segl, Rust har tjekket (seal.rs, fund 3). Nøglen er segl og tekst. */
+  private trust = new Map<string, boolean | "venter">();
+  /** Faktatjek, hvor gruppen »Håndteret« er foldet ud (blokkens id). Kun visning, gemmes ikke. */
+  private openHandled = new Set<string>();
+  /** Blokken, hvis næste åbne påstand skal have fokus efter tegningen (Tab og Mellemrum ned ad listen). */
+  private focusNext: string | null = null;
   /** Hvornår det igangværende kald startede, og uret, der viser det. */
   private runningSince = 0;
   private ticker = 0;
@@ -231,6 +238,13 @@ export class ClaudePanel {
     // Faktatjek og research har brug for plads (4/10): spalten bliver bredere, så længe der står
     // svar i fanen. RightPanel fjerner klassen igen, når en anden fane vises.
     document.body.classList.toggle("rp-wide", saved.length > 0 || results.length > 0 || this.status.kind === "running");
+    // Efter et flueben: fokus til næste åbne påstands cirkel, så man kan gå ned ad listen med Mellemrum.
+    if (this.focusNext) {
+      const id = this.focusNext;
+      this.focusNext = null;
+      const ticks = [...body.querySelectorAll<HTMLButtonElement>(".cl-tick")].filter((t) => t.dataset.block === id);
+      (ticks.find((t) => !t.classList.contains("cl-ticked")) ?? body.querySelector<HTMLButtonElement>(".cl-done-head"))?.focus();
+    }
   }
 
   private rerender(): void {
@@ -335,6 +349,61 @@ export class ClaudePanel {
       );
     }
     this.rerender();
+  }
+
+  /**
+   * Forsegl modellens del (seal.rs, fund 3) og gem. Kan seglet ikke laves, gemmes svaret alligevel
+   * og vises som ikke tjekket her.
+   */
+  private async sealed(path: string, kind: ClaudeKind, data: Record<string, unknown>, part: unknown): Promise<void> {
+    let seal: string | null = null;
+    try {
+      seal = await invoke<string>("seal_text", { text: JSON.stringify(part) });
+    } catch {
+      // Uden segl: blokken står som »Fra filen, ikke tjekket her«.
+    }
+    this.store(path, kind, seal ? { ...data, seal } : data);
+  }
+
+  /** Er blokken lavet på denne pc? »venter«, mens Rust svarer. Første gang spørges Rust, og der tegnes igen. */
+  private trusted(part: unknown, seal: unknown): boolean | "venter" {
+    if (typeof seal !== "string") return false;
+    const key = `${seal}|${JSON.stringify(part ?? null)}`;
+    const known = this.trust.get(key);
+    if (known !== undefined) return known;
+    this.trust.set(key, "venter");
+    invoke<boolean>("seal_check", { text: JSON.stringify(part ?? null), seal })
+      .catch(() => false)
+      .then((ok) => {
+        this.trust.set(key, ok);
+        this.rerender();
+      });
+    return "venter";
+  }
+
+  /**
+   * Kryds påstand nr. `index` af, eller åbn den igen (variant A, 9/10). »Rettet« eller »Står« sætter
+   * programmet selv: står citatet ikke længere i teksten, er det rettet.
+   */
+  private handle(id: string, index: number, quote: string, on: boolean): void {
+    const doc = this.view.state.doc.toString();
+    const value: Handled | null = on ? { how: withoutParked(doc).includes(quote) ? "står" : "rettet", date: todayIso() } : null;
+    const change = setHandled(doc, id, index, value);
+    if (!change) return;
+    // Skribentens handling, ikke AI's: samme slags ændring som at fjerne en blok.
+    this.view.dispatch({ changes: change, userEvent: "input.claude" });
+    this.focusNext = on ? id : null;
+    this.rerender();
+    if (!on) return;
+    const block = findClaudeBlocks(this.view.state.doc.toString()).find((b) => b.id === id);
+    const d = (block?.data ?? {}) as { claims?: Claim[]; seal?: unknown; handled?: HandledMap };
+    const trusted = this.trusted(d.claims ?? [], d.seal) === true;
+    const left = (d.claims ?? []).filter((cl, i) => status(cl, trusted) !== "korrekt" && !d.handled?.[String(i)]).length;
+    const banner =
+      left === 0
+        ? showBanner(tr("Alle påstande er håndteret. Fjern faktatjekket fra teksten?", "All claims are handled. Remove the fact-check from the text?"), [{ label: tr("Fjern", "Remove"), run: () => this.removeBlock(id) }], { closable: true })
+        : showBanner(tr("Påstanden er håndteret.", "The claim is handled."), [{ label: tr("Fortryd", "Undo"), run: () => this.handle(id, index, quote, false) }], { closable: true });
+    window.setTimeout(() => hideBanner(banner), 8000);
   }
 
   private removeBlock(id: string): void {
@@ -465,13 +534,13 @@ export class ClaudePanel {
   async factcheck(): Promise<void> {
     if (!(await this.allowed())) return;
     const { text, what } = this.scope();
-    this.enqueue<Claim[]>(tr(`Faktatjekker ${what}`, `Fact-checking ${shownWhat(what)}`), "claude_factcheck", { text }, (claims, path) => this.store(path, "faktatjek", { what, claims }));
+    this.enqueue<Claim[]>(tr(`Faktatjekker ${what}`, `Fact-checking ${shownWhat(what)}`), "claude_factcheck", { text }, (claims, path) => void this.sealed(path, "faktatjek", { what, claims }, claims));
   }
 
   async research(question: string): Promise<void> {
     if (!(await this.allowed())) return;
     const text = withoutParked(this.view.state.doc.toString());
-    this.enqueue<Finding[]>(tr("Researcher", "Researching"), "claude_research", { question, text }, (findings, path) => this.store(path, "research", { question, findings }));
+    this.enqueue<Finding[]>(tr("Researcher", "Researching"), "claude_research", { question, text }, (findings, path) => void this.sealed(path, "research", { question, findings }, findings));
   }
 
   // --- egne AI-kommandoer (plan 2026-10-05) -------------------------------------------------------
@@ -515,40 +584,49 @@ export class ClaudePanel {
     for (const b of blocks) {
       const remove = () => this.removeBlock(b.id);
       if (b.kind === "faktatjek") {
-        const d = b.data as { what?: string; claims?: Claim[] };
+        const d = b.data as { what?: string; claims?: Claim[]; seal?: unknown; handled?: HandledMap };
         const what = d.what ? (isEnglish() ? shownWhat(d.what) : d.what) : tr("teksten", "the text");
         const claims = d.claims ?? [];
+        const trust = this.trusted(claims, d.seal);
+        const handled = d.handled ?? {};
         out.push(resultHead(tr(`Faktatjek af ${what}`, `Fact-check of ${what}`), b.date, null, remove));
-        if (claims.length) out.push(tally(claims));
-        out.push(this.claimList(claims));
+        if (trust === false) out.push(foreign(tr("Kør faktatjekket igen for at få kilderne efterprøvet.", "Run the fact-check again to have the sources verified.")));
+        if (claims.length) out.push(tally(claims, trust === true, handled));
+        out.push(this.claimList(b.id, claims, trust === true, handled));
       } else {
-        const d = b.data as { question?: string; findings?: Finding[] };
-        out.push(resultHead("Research", b.date, d.question ?? "", remove), this.findingList(d.findings ?? []));
+        const d = b.data as { question?: string; findings?: Finding[]; seal?: unknown };
+        const trust = this.trusted(d.findings ?? [], d.seal);
+        out.push(resultHead("Research", b.date, d.question ?? "", remove));
+        if (trust === false) out.push(foreign(tr("Citaterne er ikke efterprøvet på kilderne.", "The quotes are not verified against the sources.")));
+        out.push(this.findingList(d.findings ?? [], trust === true));
       }
     }
     return out;
   }
 
-  private claimList(claims: Claim[]): HTMLElement {
+  /**
+   * Påstandene. De åbne står først, det, der kræver noget, øverst. Hver åben påstand, der ikke er
+   * korrekt, har en cirkel til højre, der krydser den af (variant A, 9/10). De afkrydsede står grå og
+   * foldet sammen i gruppen »Håndteret« nederst.
+   */
+  private claimList(id: string, claims: Claim[], trusted: boolean, handled: HandledMap): HTMLElement {
     const list = document.createElement("div");
     list.className = "cl-list";
     if (claims.length === 0) {
       list.append(note(tr(`${this.aiName} fandt ingen påstande, der kunne tjekkes.`, `${this.aiName} found no claims to check.`)));
       return list;
     }
+    const body = withoutParked(this.view.state.doc.toString());
+    const all = claims.map((cl, i) => ({ cl, i, st: status(cl, trusted) }));
     // De påstande, der kræver noget af én, står først (4/10).
-    const sorted = [...claims].sort((a, b) => RANK[status(a)] - RANK[status(b)]);
-    for (const cl of sorted) {
-      const st = status(cl);
+    const open = all.filter((x) => !handled[String(x.i)]).sort((a, b) => RANK[a.st] - RANK[b.st]);
+    const done = all.filter((x) => handled[String(x.i)]);
+    for (const { cl, i, st } of open) {
       const row = document.createElement("div");
       row.className = "cl-claim";
-      const body = document.createElement("div");
-      const text = document.createElement("button");
-      text.type = "button";
-      text.className = "cl-claim-text";
-      text.textContent = excerpt(cl.quote);
-      text.title = tr("Vis i teksten", "Show in the text");
-      text.addEventListener("click", () => this.jumpTo(cl.quote));
+      const main = document.createElement("div");
+      const gone = !body.includes(cl.quote);
+      main.append(this.claimText(cl.quote, gone));
       const word = document.createElement("span");
       word.className = `cl-w cl-w-${slug(st)}`;
       // En vurdering uden en kilde, programmet selv har fundet citatet på, er kun modellens ord
@@ -557,7 +635,9 @@ export class ClaudePanel {
       const meta = document.createElement("p");
       meta.className = "cl-why";
       meta.append(word);
-      body.append(text, meta);
+      main.append(meta);
+      // Teksten er ændret, men påstanden lukkes ikke af sig selv (GitHubs »outdated«).
+      if (gone) main.append(note(tr("Teksten er ændret her.", "The text has changed here."), "cl-why cl-gone"));
       // Korrekt og efterprøvet: én linje. Kilden kommer frem ved klik. Kun det, der kræver noget, fylder.
       if (st === "korrekt" && !this.unfolded.has(cl.quote)) {
         const more = document.createElement("button");
@@ -572,25 +652,86 @@ export class ClaudePanel {
       } else {
         meta.append(` · ${cl.explanation}`);
         if (st === "ikke efterprøvet") {
-          body.append(
+          const said = VERDICT[cl.verdict] ?? cl.verdict;
+          main.append(
             note(
-              tr(
-                `Vurderingen fra ${this.aiName} var »${VERDICT[cl.verdict] ?? cl.verdict}«, men ingen kilde blev fundet på siden.`,
-                `The verdict from ${this.aiName} was "${VERDICT[cl.verdict] ?? cl.verdict}", but no source was found on the page.`,
-              ),
+              trusted
+                ? tr(`Vurderingen fra ${this.aiName} var »${said}«, men ingen kilde blev fundet på siden.`, `The verdict from ${this.aiName} was "${said}", but no source was found on the page.`)
+                : tr(`Vurderingen i filen er »${said}«, men den er ikke tjekket her.`, `The verdict in the file is "${said}", but it was not checked here.`),
               "cl-why",
             ),
           );
         }
-        body.append(...cl.sources.map((s) => this.sourceLine(s, cl.quote)));
+        main.append(...cl.sources.map((s) => this.sourceLine(s, cl.quote, "", trusted)));
       }
-      row.append(dot(`cl-s-${slug(st)}`, word.textContent), body);
+      const tick = st === "korrekt" ? document.createElement("span") : this.tick(id, i, cl.quote, false);
+      row.append(dot(`cl-s-${slug(st)}`, word.textContent), main, tick);
       list.append(row);
+    }
+    if (done.length) {
+      // En fremmed fils flueben står foldet ud: den kan have krydset »Forkert« af (fund 3).
+      const unfolded = !trusted || this.openHandled.has(id);
+      const head = document.createElement("button");
+      head.type = "button";
+      head.className = "cl-done-head";
+      head.setAttribute("aria-expanded", String(unfolded));
+      head.textContent = tr(`Håndteret (${done.length})`, `Handled (${done.length})`);
+      head.addEventListener("click", () => {
+        if (this.openHandled.has(id)) this.openHandled.delete(id);
+        else this.openHandled.add(id);
+        this.rerender();
+      });
+      list.append(head);
+      if (unfolded) {
+        for (const { cl, i } of done) {
+          const h = handled[String(i)];
+          const row = document.createElement("div");
+          row.className = "cl-claim cl-done";
+          const main = document.createElement("div");
+          main.append(this.claimText(cl.quote, !body.includes(cl.quote)));
+          const d = new Date(`${h.date}T12:00:00`);
+          const how = h.how === "rettet" ? tr("Rettet", "Fixed") : tr("Står", "Kept");
+          main.append(note(`${how} · ${Number.isNaN(d.getTime()) ? h.date : shortDate(d)}`, "cl-why"));
+          row.append(dot("cl-s-done", how), main, this.tick(id, i, cl.quote, true));
+          list.append(row);
+        }
+      }
     }
     return list;
   }
 
-  private findingList(findings: Finding[]): HTMLElement {
+  /** Citatet. Kan klikkes for at springe til det, så længe det står i teksten. */
+  private claimText(quote: string, gone: boolean): HTMLElement {
+    if (gone) {
+      const span = document.createElement("span");
+      span.className = "cl-claim-text cl-claim-gone";
+      span.textContent = excerpt(quote);
+      return span;
+    }
+    const text = document.createElement("button");
+    text.type = "button";
+    text.className = "cl-claim-text";
+    text.textContent = excerpt(quote);
+    text.title = tr("Vis i teksten", "Show in the text");
+    text.addEventListener("click", () => this.jumpTo(quote));
+    return text;
+  }
+
+  /** Cirklen, der krydser en påstand af, eller fluebenet, der åbner den igen. */
+  private tick(id: string, index: number, quote: string, done: boolean): HTMLButtonElement {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = done ? "cl-tick cl-ticked" : "cl-tick";
+    b.dataset.block = id;
+    const label = done ? tr("Åbn påstanden igen", "Reopen the claim") : tr("Markér som håndteret", "Mark as handled");
+    b.title = label;
+    b.setAttribute("aria-label", label);
+    b.setAttribute("aria-pressed", String(done));
+    b.addEventListener("click", () => this.handle(id, index, quote, !done));
+    return b;
+  }
+
+  private findingList(findings: Finding[], trusted: boolean): HTMLElement {
     const list = document.createElement("div");
     list.className = "cl-list";
     if (findings.length === 0) {
@@ -603,7 +744,7 @@ export class ClaudePanel {
       const sum = document.createElement("p");
       sum.className = "cl-sum";
       sum.textContent = f.summary;
-      item.append(sum, this.sourceLine(f.source, null, f.summary));
+      item.append(sum, this.sourceLine(f.source, null, f.summary, trusted));
       list.append(item);
     }
     return list;
@@ -616,9 +757,11 @@ export class ClaudePanel {
    * navn forrest, titlen og datoen. Fodnote, fraklip og åbn er små knapper til højre, der kommer
    * frem, når man peger på fundet eller går til det med Tab.
    */
-  private sourceLine(s: Source, claimQuote: string | null, summary = ""): HTMLElement {
+  private sourceLine(s: Source, claimQuote: string | null, summary = "", trusted = true): HTMLElement {
     const box = document.createElement("div");
     box.className = "cl-srcbox";
+    // Fra en fremmed fil (fund 3): citatet og »står på siden« er filens ord, ikke programmets.
+    if (!trusted) s = { ...s, check: "ikke_tjekket" };
     if (s.check === "fundet") {
       const q = document.createElement("blockquote");
       q.className = "cl-cite";
@@ -698,6 +841,8 @@ export class ClaudePanel {
   }
 
   private jumpTo(quote: string): void {
+    // Kun i selve teksten: blokken sidst i filen rummer også citatet.
+    if (!withoutParked(this.view.state.doc.toString()).includes(quote)) return;
     const at = this.view.state.doc.toString().indexOf(quote);
     if (at !== -1) this.jump(at, at + quote.length);
   }
@@ -817,15 +962,18 @@ function resultHead(label: string, date: string, question: string | null, remove
   return head;
 }
 
-/** Fordelingen som en tynd stribe, og tallene i ord under den (»3 påstande: 2 korrekte …«). */
-function tally(claims: Claim[]): HTMLElement {
+/**
+ * Fordelingen som en tynd stribe, og tallene i ord under den (»3 påstande: 2 korrekte …«). Med
+ * »1 af 3 håndteret« for dem, der kræver noget (de korrekte kræver intet).
+ */
+function tally(claims: Claim[], trusted: boolean, handled: HandledMap): HTMLElement {
   const box = document.createElement("div");
   box.className = "cl-summary";
   const bar = document.createElement("div");
   bar.className = "cl-bar";
   bar.setAttribute("aria-hidden", "true");
   const count = new Map<ClaimStatus, number>();
-  for (const cl of claims) count.set(status(cl), (count.get(status(cl)) ?? 0) + 1);
+  for (const cl of claims) count.set(status(cl, trusted), (count.get(status(cl, trusted)) ?? 0) + 1);
   for (const k of Object.keys(RANK) as ClaimStatus[]) {
     const n = count.get(k);
     if (!n) continue;
@@ -834,8 +982,21 @@ function tally(claims: Claim[]): HTMLElement {
     seg.style.flexGrow = String(n);
     bar.append(seg);
   }
-  box.append(bar, note(overview(claims), "cl-tally"));
+  const needs = claims.map((cl, i) => ({ st: status(cl, trusted), i })).filter((x) => x.st !== "korrekt");
+  const done = needs.filter((x) => handled[String(x.i)]).length;
+  const line = overview(claims, trusted) + (needs.length ? tr(` ${done} af ${needs.length} håndteret.`, ` ${done} of ${needs.length} handled.`) : "");
+  box.append(bar, note(line, "cl-tally"));
   return box;
+}
+
+/** »Fra filen, ikke tjekket her«: blokken har intet gyldigt segl fra denne pc (fund 3). */
+function foreign(what: string): HTMLElement {
+  const p = document.createElement("p");
+  p.className = "cl-foreign";
+  const strong = document.createElement("strong");
+  strong.textContent = tr("Fra filen, ikke tjekket her.", "From the file, not checked here.");
+  p.append(strong, ` ${what}`);
+  return p;
 }
 
 /** Prikken foran en påstand eller en kilde. Forklaringen står ved musen og for skærmlæsere. */
@@ -879,17 +1040,21 @@ function host(url: string): string {
 type ClaimStatus = "forkert" | "upræcis" | "ikke efterprøvet" | "kan ikke afgøres" | "korrekt";
 const RANK: Record<ClaimStatus, number> = { forkert: 0, upræcis: 1, "ikke efterprøvet": 2, "kan ikke afgøres": 3, korrekt: 4 };
 
-/** Påstandens status, som kortet viser den: uden en fundet kilde er den ikke efterprøvet. */
-function status(cl: Claim): ClaimStatus {
+/**
+ * Påstandens status, som kortet viser den: uden en fundet kilde er den ikke efterprøvet. Fra en
+ * fremmed fil (uden gyldigt segl) er intet efterprøvet her (fund 3).
+ */
+function status(cl: Claim, trusted = true): ClaimStatus {
+  if (!trusted) return "ikke efterprøvet";
   const verified = cl.sources.some((s) => s.check === "fundet");
   if (!verified && cl.verdict !== "kan ikke afgøres") return "ikke efterprøvet";
   return (cl.verdict in RANK ? cl.verdict : "kan ikke afgøres") as ClaimStatus;
 }
 
 /** »6 påstande: 1 forkert, 1 ikke efterprøvet, 4 korrekte.« */
-export function overview(claims: Claim[]): string {
+export function overview(claims: Claim[], trusted = true): string {
   const count = new Map<ClaimStatus, number>();
-  for (const cl of claims) count.set(status(cl), (count.get(status(cl)) ?? 0) + 1);
+  for (const cl of claims) count.set(status(cl, trusted), (count.get(status(cl, trusted)) ?? 0) + 1);
   const plural: Record<ClaimStatus, [string, string]> = isEnglish()
     ? {
         forkert: ["wrong", "wrong"],
