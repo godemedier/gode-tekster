@@ -1391,6 +1391,35 @@ export async function runScenario(name: string, view: EditorView, path: string |
     await say(`print9: menuen ${document.querySelector(".menu") ? "åben" : "IKKE åben"}`);
     await say("skærmbillede print9-indhold");
     await pause(2500);
+  } else if (name === "faktatjek9") {
+    // 9/10: flueben i faktatjekket og segl (ADR-0041). Filen har en blok uden segl (fremmed).
+    const { findClaudeBlocks, claudeBlock } = await import("./editor/claudeBlocks.ts");
+    window.dispatchEvent(new CustomEvent("gt-test-tab", { detail: "claude" }));
+    await pause(1200);
+    await say(`faktatjek9: fremmed ${document.querySelector(".cl-foreign") ? "vist" : "IKKE vist"}, ${document.querySelector(".cl-tally")?.textContent ?? ""}`);
+    await say("skærmbillede fk-fremmed");
+    await pause(2500);
+    // Forsegl blokken, som et nyt faktatjek ville blive det.
+    const b = findClaudeBlocks(view.state.doc.toString()).find((x) => x.kind === "faktatjek");
+    if (b) {
+      const d = b.data as { claims: unknown };
+      const seal = await invoke<string>("seal_text", { text: JSON.stringify(d.claims) });
+      view.dispatch({ changes: { from: b.from, to: b.to, insert: claudeBlock(b.id, b.kind, b.date, { ...(b.data as object), seal }) } });
+    }
+    await pause(1200);
+    await say(`faktatjek9: egen ${document.querySelector(".cl-foreign") ? "STADIG FREMMED" : "stolet på"}, ${document.querySelector(".cl-tally")?.textContent ?? ""}`);
+    await say("skærmbillede fk-egen");
+    await pause(2500);
+    document.querySelector<HTMLButtonElement>(".cl-tick:not(.cl-ticked)")?.click();
+    await pause(800);
+    await say(`faktatjek9: efter flueben ${document.querySelector(".cl-tally")?.textContent ?? ""}, fokus ${document.activeElement?.className ?? ""}, besked »${document.getElementById("banner")?.textContent ?? ""}«`);
+    await say("skærmbillede fk-flueben");
+    await pause(2500);
+    document.querySelector<HTMLButtonElement>(".cl-done-head")?.click();
+    await pause(800);
+    await say(`faktatjek9: håndteret ${document.querySelectorAll(".cl-done").length} vist, ${[...document.querySelectorAll(".cl-done .cl-why")].map((e) => e.textContent).join(" | ")}`);
+    await say("skærmbillede fk-haandteret");
+    await pause(2500);
   } else if (name === "anslag") {
     const { count } = await import("./editor/count.ts");
     const c = count(view.state.doc.toString());
