@@ -16,9 +16,10 @@ import { markupFor } from "../editor/critic.ts";
 import { resolveAll } from "../editor/revisionsView.ts";
 import { findParked } from "../editor/parked.ts";
 import { findClaudeBlocks } from "../editor/claudeBlocks.ts";
+import { countLine, type Summary } from "./versionLine.ts";
 import { tr } from "../i18n.ts";
 
-type VersionInfo = { id: number; ts: number; source: string; label: string | null; chars: number };
+type VersionInfo = { id: number; ts: number; source: string; label: string | null; chars: number; summary: Summary | null };
 type VersionDto = { text: string; authors: Authorship[] };
 
 const SOURCE: Record<string, string> = {
@@ -88,9 +89,17 @@ export class Versions {
       time.textContent = tr(`Kl. ${clock(d)}`, enClock(d));
       const what = document.createElement("span");
       what.className = "vs-what";
-      what.textContent = v.label ?? SOURCE[v.source] ?? v.source;
-      if (v.label) what.classList.add("vs-named");
+      // Navnet, ellers stedet for ændringen (9/10), ellers kilden (»Første udgave«, »Rettet udefra«).
+      const place = v.source === "app" ? v.summary?.place : "";
+      what.textContent = v.label ?? (place || SOURCE[v.source] || v.source);
+      if (v.label || place) what.classList.add("vs-named");
       b.append(time, what);
+      if (v.summary) {
+        const count = document.createElement("span");
+        count.className = "vs-count";
+        count.textContent = countLine(v.summary);
+        b.append(count);
+      }
       b.addEventListener("click", () => void this.preview(v));
       b.addEventListener("contextmenu", (e) => {
         e.preventDefault();

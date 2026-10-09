@@ -407,6 +407,8 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .vs-row { display: flex; flex-direction: column; gap: 2px; text-align: left; font: inherit; color: var(--blæk); background: none; border: none; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 .vs-row:hover { background: var(--hover); }
 .vs-time { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* »+84 nye ord, 12 fjernet« under stedet (9/10). */
+.vs-count { font-size: 12px; color: var(--svag); font-variant-numeric: tabular-nums; }
 .vs-what { color: var(--svag); }
 .vs-what.vs-named { color: var(--blæk); }
 
