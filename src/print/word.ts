@@ -22,9 +22,11 @@ import {
   Packer,
   PageNumber,
   Paragraph,
+  Tab,
   Table,
   TableCell,
   TableRow,
+  TabStopType,
   TextRun,
   WidthType,
   type IRunOptions,
@@ -33,7 +35,8 @@ import {
 import JSZip from "jszip";
 import type { Token } from "markdown-it";
 
-import { bodyFor, countsLine, headLine, MARGINS, markdownIt, SPACE_MARK, type Meta, type Template } from "./render.ts";
+import { bodyFor, markdownIt, SPACE_MARK, type Meta, type Template } from "./render.ts";
+import { defaultLayout, nativeFont, pageRows, rowEmpty, type PageFont, type PageLayout, type Part, type Row } from "./layout.ts";
 import { tr, isEnglish } from "../i18n.ts";
 
 const CM = 567; // twips pr. cm
@@ -47,6 +50,7 @@ const WORD_FONTS: Record<string, string> = {
   "Recursive Halvmono": "Consolas",
   Literata: "Georgia",
   "Schibsted Grotesk": "Calibri",
+  Newsreader: "Georgia",
   "IBM Plex Mono": "Consolas",
   "IBM Plex Sans": "Calibri",
   "IBM Plex Serif": "Georgia",
@@ -143,7 +147,14 @@ export type WordOptions = {
   bullet?: string;
   /** Skriften fra Indstillinger. Manuskript bruger den. */
   font?: string;
+  /** Side-designerens opsætning: pladser, margener, skrift og titel. Uden: skabelonens standard. */
+  layout?: PageLayout;
 };
+
+/** Designerens skriftvalg i Word. »Som på skærmen« er skriften fra Indstillinger. */
+function wordPageFont(font: PageFont, programFont: string): string {
+  return font === "newsreader" ? "Georgia" : font === "grotesk" ? "Calibri" : wordFont(programFont);
+}
 
 /**
  * Noter og forslag med ud i Word (7/10): en note bliver en kommentar, et forslag, der ikke er taget
@@ -421,22 +432,30 @@ function footnotes(tokens: Token[], notes: Map<number, number>, look: Look): Rec
 }
 
 /**
- * Sidehoved og sidefod som skabelonens `@page` (render.ts `pageCss`, 9/10): forfatter og dato øverst
- * på hver side, anslag og ord nederst på første side, sidetal nederst fra side 2. Hver del kan vælges fra.
+ * Sidehoved og sidefod som `@page` (render.ts `pageCss`, layout.ts): venstre, midte og højre som
+ * tabulatorstop, første side for sig. Står der kun noget i midten, centreres afsnittet som før
+ * side-designeren. Det, »Indhold« har valgt fra, kommer ikke med.
  */
-function pageParts(look: Look, meta: Meta, opts: WordOptions) {
-  const small = { size: half(7.5), color: "8A8F94" };
-  const line = (children: (string | typeof PageNumber.CURRENT)[]) =>
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ ...small, font: look.font, children })] });
-  const head = headLine(opts, meta);
-  const counts = countsLine(opts, meta);
-  const header = head ? new Header({ children: [line([head])] }) : new Header({ children: [] });
+function pageParts(look: Look, meta: Meta, opts: WordOptions, layout: PageLayout, width: number) {
+  const small = { size: half(7.5), color: "8A8F94", font: look.font };
+  const runs = (parts: Part[]) => parts.map((p) => (typeof p === "string" ? p : PageNumber.CURRENT));
+  const line = (r: Row): Paragraph[] => {
+    if (rowEmpty(r)) return [];
+    if (!r.left.length && !r.right.length) return [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ ...small, children: runs(r.center) })] })];
+    return [
+      new Paragraph({
+        tabStops: [
+          { type: TabStopType.CENTER, position: Math.round(width / 2) },
+          { type: TabStopType.RIGHT, position: width },
+        ],
+        children: [new TextRun({ ...small, children: [...runs(r.left), new Tab(), ...runs(r.center), new Tab(), ...runs(r.right)] })],
+      }),
+    ];
+  };
+  const rows = pageRows(layout, meta, opts);
   return {
-    headers: { default: header, first: header },
-    footers: {
-      default: new Footer({ children: opts.pageNumbers === false ? [] : [line([PageNumber.CURRENT])] }),
-      first: new Footer({ children: counts ? [line([counts])] : [] }),
-    },
+    headers: { default: new Header({ children: line(rows.pages.header) }), first: new Header({ children: line(rows.first.header) }) },
+    footers: { default: new Footer({ children: line(rows.pages.footer) }), first: new Footer({ children: line(rows.first.footer) }) },
   };
 }
 
@@ -446,16 +465,18 @@ function initials(name: string): string {
 }
 
 /** Titelblokken som i print (render.ts `articleHtml`): titlen kun fra teksten, linjen under kun det valgte. */
-function titleBlock(meta: Meta): Paragraph[] {
-  return meta.startsWithTitle ? [new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun({ text: meta.title })] })] : [];
+function titleBlock(meta: Meta, show: boolean): Paragraph[] {
+  return meta.startsWithTitle && show ? [new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun({ text: meta.title })] })] : [];
 }
 
 export async function wordDocument(markdown: string, meta: Meta, opts: WordOptions): Promise<Uint8Array> {
   const template = opts.template ?? "manuskript";
   const book = opts.book ?? false;
   const bullet = opts.bullet ?? "•";
+  const layout = opts.layout ?? defaultLayout(template);
   const look = lookFor(template, opts.font ?? "", book);
-  const m = MARGINS[template];
+  if (layout.font !== nativeFont(template)) look.font = wordPageFont(layout.font, opts.font ?? "");
+  const m = layout.margins;
   // Noter og forslag med: kodes før parsningen, kommentarerne samles, mens løbene bygges.
   const encoded = opts.markup ? encodeMarkup(markdown) : null;
   const author = meta.author || "Gode Tekster";
@@ -476,7 +497,7 @@ export async function wordDocument(markdown: string, meta: Meta, opts: WordOptio
       }
     }
   }
-  const parts = pageParts(look, meta, opts);
+  const parts = pageParts(look, meta, opts, layout, A4_WIDTH - Math.round(m.left * CM) - Math.round(m.right * CM));
   withImages = opts.images !== false;
   const { font, color } = look;
   const atLeast = (line: number) => ({ line, lineRule: LineRuleType.AT_LEAST });
@@ -485,7 +506,7 @@ export async function wordDocument(markdown: string, meta: Meta, opts: WordOptio
     paragraph: { spacing: { before: tw(before), after: tw(after), ...atLeast(tw(pt * 1.3)) }, keepNext: true },
   });
   const noteParts = footnotes(tokens, notes, look);
-  const body = [...titleBlock(meta), ...blocks(tokens, { notes, listStack: [], listRefs: [], quote: 0, listInstance: 0, look, book, prevPlain: false })];
+  const body = [...titleBlock(meta, layout.title), ...blocks(tokens, { notes, listStack: [], listRefs: [], quote: 0, listInstance: 0, look, book, prevPlain: false })];
   const comments = [...used].map(([n, id]) => ({ id, author, initials: initials(author), date: new Date(stamp), children: [new Paragraph({ children: [new TextRun(encoded?.notes[n] ?? "")] })] }));
   markup = null;
   const doc = new Document({

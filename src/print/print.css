@@ -29,6 +29,75 @@ body.dark.print-preview #print-root { background: color-mix(in srgb, var(--flade
 .pv-gap { width: 14px; }
 .pv-paper { box-sizing: border-box; width: 21cm; min-height: 29.7cm; margin: 8px auto 48px; background: #ffffff; color: #111111; box-shadow: 0 2px 18px rgba(0,0,0,0.12); }
 
+/* --- side-designeren (9/10): »Design« i værktøjslinjen ------------------------------------
+   Papiret viser én side med pladserne i margenen, panelet står til højre. Pladsen under brikken
+   lyser op i stiplet vermilion (ADR-0037: slippemarkering). Papiret er altid hvidt, så farverne
+   på det er faste, også i mørk og aften. */
+.pv-bar .pv-toggle[aria-pressed="true"] { background: var(--hover); border-color: var(--kant-hover); font-weight: 600; }
+.pv-side { display: none; }
+.pv-designing .pv-stage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 24px; padding: 0 16px; }
+.pv-designing .pv-paper { position: relative; flex: none; height: 29.7cm; overflow: hidden; margin: 8px 0 48px; }
+.pv-designing .pv-side { display: flex; flex-direction: column; gap: 18px; box-sizing: border-box; width: 320px; position: sticky; top: 68px; margin: 8px 0 48px; padding: 18px;
+  background: var(--panel); border: 1px solid var(--kant); border-radius: 12px; font: 13px/1.45 var(--ui); color: var(--blæk); }
+.pv-side h2 { margin: 0 0 8px; font: 600 13px var(--ui); color: var(--blæk); }
+.pv-side .pv-hint { margin: 0 0 10px; color: var(--svag); }
+.pv-side .pv-live { margin: 0; color: var(--svag); }
+.pv-side .pv-live:not(:empty) { margin-top: 10px; }
+.pv-side button { font: inherit; color: inherit; background: var(--kort); border: 1px solid var(--kant); border-radius: 8px; height: 30px; padding: 0 12px; cursor: pointer; }
+.pv-side button:hover { border-color: var(--kant-hover); }
+.pv-side .pv-primary { background: var(--blæk); border-color: var(--blæk); color: var(--flade); }
+.pv-side .pv-quiet { align-self: flex-start; border-color: transparent; background: transparent; padding: 0 4px; color: var(--svag); }
+.pv-side .pv-seg { align-self: stretch; flex-wrap: nowrap; }
+.pv-side .pv-seg button { flex: 1 1 auto; }
+.pv-side .pv-seg button { border: none; height: 26px; border-radius: 7px; background: transparent; padding: 0 6px; white-space: nowrap; min-width: 0; }
+.pv-side input[type="text"] { box-sizing: border-box; font: inherit; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 6px; height: 30px; padding: 0 8px; }
+.pv-side input[aria-invalid="true"] { border-color: var(--fejl); }
+.pv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pv-side .pv-seg button[aria-checked="true"] { background: var(--hover); font-weight: 600; }
+.pv-side .pv-chip { border-radius: 999px; touch-action: none; user-select: none; cursor: grab; }
+.pv-chip.is-placed::before { content: "✓"; margin-right: 6px; }
+.pv-own { display: flex; gap: 6px; width: 100%; }
+.pv-own input { flex: 1; min-width: 0; }
+.pv-margins { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.pv-margins label { display: flex; flex-direction: column; gap: 3px; color: var(--svag); }
+.pv-cm { display: flex; align-items: center; gap: 6px; color: var(--svag); }
+.pv-cm input { width: 100%; }
+.pv-switch { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.pv-switch input { accent-color: var(--blæk); margin: 3px 0 0; }
+.pv-switch span { display: flex; flex-direction: column; }
+.pv-switch small { color: var(--svag); font-size: 12px; }
+.pv-actions { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid var(--streg); }
+.pv-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.pv-name { display: flex; flex-direction: column; gap: 4px; color: var(--svag); }
+
+/* Pladserne på papiret. */
+.pv-slots { position: absolute; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr); gap: 8px; align-items: center; pointer-events: none; }
+.pv-slot { pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; box-sizing: border-box; min-height: 30px; padding: 3px 5px;
+  border: 1px dashed #c3c9cf; border-radius: 5px; font: 7.5pt/1.3 "Schibsted Grotesk", sans-serif; color: #8a8f94; }
+.pv-slot-left { justify-content: flex-start; }
+.pv-slot-center { justify-content: center; text-align: center; }
+.pv-slot-right { justify-content: flex-end; text-align: right; }
+.pv-slot.is-empty::before { content: "+"; margin: auto; font: 15px/1 var(--ui); color: #b4bac1; }
+.pv-slot.pv-droppable { border-color: #b4bac1; }
+.pv-slot.pv-target, .pv-slot-title.pv-target { border: 1.5px dashed #db5230; outline: none; background: rgba(219, 82, 48, 0.05); }
+.pv-designing .pv-slot-title { position: relative; border: 1px dashed #c3c9cf; border-radius: 5px; margin: -6px -8px 20pt; padding: 6px 8px; }
+.pv-slot-title.is-empty { min-height: 34px; display: flex; }
+.pv-view-rest .pv-head { display: none; }
+.pv-piece { font: inherit; color: #1d2125; background: #f3f4f5; border: 1px solid #d7dce1; border-radius: 999px; padding: 1px 8px; max-width: 100%; cursor: grab; touch-action: none; user-select: none; overflow-wrap: anywhere; }
+.pv-piece:hover { border-color: #9aa1a8; }
+.pv-piece.is-off { color: #9aa1a8; text-decoration: line-through; }
+.pv-title-chip { position: absolute; top: -10px; left: 8px; font: 7.5pt "Schibsted Grotesk", sans-serif; }
+.is-lifted { outline: 2px dashed #db5230 !important; outline-offset: 2px; }
+.pv-ghost { position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none; padding: 3px 10px; border-radius: 999px; background: var(--kort); color: var(--blæk);
+  border: 1px solid var(--kant-hover); box-shadow: var(--skygge); font: 12px var(--ui); }
+body.pv-dragging, body.pv-dragging * { cursor: grabbing !important; }
+
+/* Skrift fra side-designeren, når den er en anden end skabelonens egen (preview.ts). */
+.pv-article.skrift-skaerm { font-family: var(--skrift, "Recursive Halvmono"), "Recursive Halvmono", serif; }
+.pv-article.skrift-grotesk { font-family: "Schibsted Grotesk", "Segoe UI", sans-serif; }
+.pv-article.skrift-newsreader { font-family: "Newsreader", Georgia, serif; font-optical-sizing: none; font-variation-settings: "opsz" 11; }
+.pv-article.skrift-newsreader :is(.pv-title, h1, h2) { font-variation-settings: "opsz" 36; }
+
 /* --- selve artiklen (9/10: roligere, i husets ånd) ---------------------------------------
    Titlen er tekstens egen, forfatter, dato og tal står i sidehoved og sidefod (render.ts pageCss).
    Ingen farver. Tabeller og billeder må gå 2 cm ud i margenen. */
@@ -111,6 +180,12 @@ body.dark.print-preview #print-root { background: color-mix(in srgb, var(--flade
   #print-root { display: block !important; position: static !important; overflow: visible !important; background: #ffffff !important; }
   .pv-bar { display: none !important; }
   .pv-paper { width: auto; min-height: 0; margin: 0; padding: 0 !important; box-shadow: none; }
+  /* Side-designeren kommer ikke med på papiret. */
+  .pv-side, .pv-design-only { display: none !important; }
+  .pv-stage { display: block !important; padding: 0 !important; }
+  .pv-designing .pv-paper { position: static; height: auto !important; overflow: visible !important; }
+  .pv-designing .pv-slot-title { border: none !important; margin: 0 0 20pt !important; padding: 0 !important; }
+  .pv-view-rest .pv-head { display: block; }
 }
 
 /* Afsnit som i bøger (Indstillinger, Afsnit): ingen luft, indryk på afsnit efter afsnit. */

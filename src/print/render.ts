@@ -11,10 +11,9 @@ import { withoutParked } from "../editor/parked.ts";
 import { count, formatCount } from "../editor/count.ts";
 import { danishDate, longDate } from "../editor/dates.ts";
 import { tr, isEnglish } from "../i18n.ts";
+import { defaultLayout, MARGINS, SLOTS, slotParts, slotsFor, type Margins, type PageLayout, type Part, type Slot, type Template } from "./layout.ts";
 
-export { danishDate };
-
-export type Template = "manuskript" | "laeseudgave";
+export { danishDate, MARGINS, type Template };
 export type PrintOptions = {
   template: Template;
   includeDimmed: boolean;
@@ -28,12 +27,8 @@ export type PrintOptions = {
   pageNumbers?: boolean;
   /** Billeder med. Fra: kun teksten (9/10). Standard: til. */
   images?: boolean;
-};
-
-/** Margener i cm, som skabelonens `@page` (og PDF-kaldet i Rust). */
-export const MARGINS: Record<Template, { top: number; right: number; bottom: number; left: number }> = {
-  manuskript: { top: 3.5, right: 4.5, bottom: 3, left: 4.5 },
-  laeseudgave: { top: 2.5, right: 4, bottom: 3, left: 4 },
+  /** Tekstens egen overskrift øverst (side-designeren). Standard: til. */
+  title?: boolean;
 };
 
 const NBSP = " ";
@@ -44,9 +39,12 @@ const NBSP = " ";
  */
 export const UDFALD = 2;
 
-/** Sidens egne margener: skabelonens, minus udfaldet i siderne (`@page`, Ctrl+R og PDF-kaldet i Rust). */
-export function pageMargins(t: Template): { top: number; right: number; bottom: number; left: number } {
-  const m = MARGINS[t];
+/**
+ * Sidens egne margener: skabelonens (eller side-designerens), minus udfaldet i siderne (`@page`,
+ * Ctrl+R og PDF-kaldet i Rust).
+ */
+export function pageMargins(t: Template, layout?: PageLayout): Margins {
+  const m = layout?.margins ?? MARGINS[t];
   return { ...m, left: m.left - UDFALD, right: m.right - UDFALD };
 }
 
@@ -162,31 +160,34 @@ function cssString(s: string): string {
   return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ")}"`;
 }
 
-/** Forfatter og dato, som de står i sidehovedet, når de er valgt (standard). */
-export function headLine(opts: Partial<PrintOptions>, meta: Meta): string {
-  return opts.byline === false ? "" : [meta.author, meta.date].filter(Boolean).join(" · ");
-}
-
-/** Anslag og ord, som de står i sidefoden på første side, når de er valgt (standard). */
-export function countsLine(opts: Partial<PrintOptions>, meta: Meta): string {
-  return opts.counts === false ? "" : meta.countLine;
+/** En plads som CSS-`content`: strenge og `counter(page)`. */
+function cssContent(parts: Part[]): string {
+  return parts.map((p) => (typeof p === "string" ? cssString(p) : "counter(page)")).join(" ");
 }
 
 /**
- * `@page` kan ikke afgrænses med en klasse, så reglerne skrives for den valgte skabelon (9/10):
- * forfatter og dato i en lille grotesk øverst på hver side, anslag og ord nederst på første side,
- * sidetal nederst fra side 2. Alt kan vælges fra under »Indhold«.
+ * `@page` kan ikke afgrænses med en klasse, så reglerne skrives for den valgte opsætning (9/10):
+ * standard er forfatter og dato i en lille grotesk øverst på hver side, anslag og ord nederst på
+ * første side, sidetal nederst fra side 2. Side-designeren flytter dem rundt (layout.ts), og alt kan
+ * vælges fra under »Indhold«. `:first` skriver kun de pladser, der er anderledes end på de andre sider.
  */
-export function pageCss(t: Template, meta: Meta, opts: Partial<PrintOptions> = {}): string {
-  const m = pageMargins(t);
+export function pageCss(t: Template, meta: Meta, opts: Partial<PrintOptions> = {}, layout: PageLayout = defaultLayout(t)): string {
+  const m = pageMargins(t, layout);
   const margin = `${m.top}cm ${m.right}cm ${m.bottom}cm ${m.left}cm`;
   const small = `font: 7.5pt "Schibsted Grotesk", sans-serif; color: #8a8f94; font-variant-numeric: tabular-nums;`;
-  const head = headLine(opts, meta);
-  const counts = countsLine(opts, meta);
-  const top = head ? `@top-center { content: ${cssString(head)}; ${small} }` : "";
-  const bottom = opts.pageNumbers === false ? "" : `@bottom-center { content: counter(page); ${small} }`;
-  return `@page { size: A4; margin: ${margin}; ${top} ${bottom} }
-@page :first { @bottom-center { content: ${counts ? cssString(counts) : "none"}; ${small} } }`;
+  // Siden har en smallere margen end teksten (UDFALD): venstre og højre plads flugter med teksten.
+  const pad = (slot: Slot) => (slot.endsWith("-left") ? ` padding-left: ${UDFALD}cm;` : slot.endsWith("-right") ? ` padding-right: ${UDFALD}cm;` : "");
+  const box = (slot: Slot, parts: Part[]) => `@${slot} { content: ${parts.length ? cssContent(parts) : "none"}; ${small}${pad(slot)} }`;
+  const rest = Object.fromEntries(SLOTS.map((s) => [s, slotParts(slotsFor(layout, false)[s], meta, opts)])) as Record<Slot, Part[]>;
+  const general = SLOTS.filter((s) => rest[s].length).map((s) => box(s, rest[s]));
+  let css = `@page { size: A4; margin: ${margin}; ${general.join(" ")} }`;
+  if (layout.firstDifferent) {
+    const first = SLOTS.map((s) => [s, slotParts(layout.first[s], meta, opts)] as const)
+      .filter(([s, parts]) => JSON.stringify(parts) !== JSON.stringify(rest[s]))
+      .map(([s, parts]) => box(s, parts));
+    if (first.length) css += `\n@page :first { ${first.join(" ")} }`;
+  }
+  return css;
 }
 
 function esc(s: string): string {
@@ -208,6 +209,6 @@ export function articleHtml(markdown: string, opts: PrintOptions, meta: Meta, im
     .replace(/<p><span class="pv-fig">([\s\S]*?)<\/span><\/p>/g, '<figure class="pv-wide pv-fig">$1</figure>')
     // Et afsnit, der kun var et billede, står tomt, når billederne er fravalgt.
     .replace(/<p>\s*<\/p>\n?/g, "");
-  if (!meta.startsWithTitle) return html;
+  if (!meta.startsWithTitle || opts.title === false) return html;
   return `<header class="pv-head"><h1 class="pv-title">${esc(meta.title)}</h1></header>${html}`;
 }

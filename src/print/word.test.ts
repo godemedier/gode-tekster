@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import JSZip from "jszip";
 import { wordDocument, wordFont, type WordOptions } from "./word.ts";
 import { metaFor } from "./render.ts";
+import { defaultLayout } from "./layout.ts";
 
 const zipOf = async (md: string, opts: Partial<WordOptions> = {}) =>
   JSZip.loadAsync(await wordDocument(md, metaFor(md, "x.md", ""), { includeDimmed: false, ...opts }));
@@ -92,4 +93,38 @@ test("Word uden noter og forslag: den rene udgave med den oprindelige tekst", as
   assert.equal(zip.file("word/comments.xml"), null);
   assert.doesNotMatch(doc, /<w:ins |<w:del |tjek prisen|billigt|helt/);
   assert.match(doc, /dyrt/);
+});
+
+test("Word følger side-designeren: tabulatorstop, første side for sig, margener og titel", async () => {
+  const md = "# Havnebadet\n\nTekst.";
+  const layout = {
+    ...defaultLayout("manuskript"),
+    margins: { top: 3, right: 3, bottom: 2.5, left: 3 },
+    title: false,
+    pages: { "top-left": [{ kind: "author" as const }], "top-right": [{ kind: "date" as const }], "bottom-right": [{ kind: "pageNumber" as const }] },
+    first: { "bottom-center": [{ kind: "text" as const, text: "Til redaktionen" }] },
+  };
+  const zip = await JSZip.loadAsync(await wordDocument(md, metaFor(md, "x.md", "Kim Skribent", new Date(2026, 9, 9)), { includeDimmed: false, layout }));
+  const doc = await zip.file("word/document.xml")!.async("string");
+  // 3 cm = 1.701 twips. Tekstbredden er 11.906 − 2 × 1.701 = 8.504: midten 4.252, højre 8.504.
+  assert.match(doc, /w:left="1701"/);
+  assert.doesNotMatch(doc, /Havnebadet/, "titlen er slået fra");
+  const files = Object.keys(zip.files);
+  const read = (re: RegExp) => Promise.all(files.filter((f) => re.test(f)).map((f) => zip.file(f)!.async("string")));
+  const headers = await read(/^word\/header\d+\.xml$/);
+  const footers = await read(/^word\/footer\d+\.xml$/);
+  const head = headers.find((x) => x.includes("Kim Skribent"));
+  assert.ok(head);
+  assert.match(head, /<w:tab w:val="center" w:pos="4252"\/>/);
+  assert.match(head, /<w:tab w:val="right" w:pos="8504"\/>/);
+  assert.match(head, /Kim Skribent<\/w:t>[\s\S]*<w:tab\/>[\s\S]*<w:tab\/>[\s\S]*9\. oktober 2026/);
+  assert.ok(footers.some((x) => x.includes("Til redaktionen") && /w:jc w:val="center"/.test(x)), "første side: centreret som før");
+  assert.ok(footers.some((x) => /PAGE/.test(x) && /w:val="right"/.test(x)), "de andre sider: sidetal til højre");
+});
+
+test("Word: designerens skrift afløser skabelonens", async () => {
+  const styles = await part("Tekst.", "word/styles.xml", { template: "laeseudgave", layout: { ...defaultLayout("laeseudgave"), font: "grotesk" } });
+  assert.match(styles, /w:ascii="Calibri"/);
+  const same = await part("Tekst.", "word/styles.xml", { template: "laeseudgave", layout: defaultLayout("laeseudgave") });
+  assert.match(same, /w:ascii="Georgia"/);
 });

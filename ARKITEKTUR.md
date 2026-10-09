@@ -916,3 +916,21 @@ Tre udfald pr. påstand (variant B): et valg ekstra ved hvert flueben.
 på den pc, de blev lavet på. Et nyt faktatjek løser det. Skifter brugeren pc, gælder det samme.
 **Revurdér hvis:** brugeren deler tekster med faktatjek mellem egne pc'er og vil have dem stolet på.
 Så skal nøglen kunne flyttes med.
+
+### ADR-0042 — Side-designeren i forhåndsvisningen (9/10-2026)
+Supplerer ADR-0011.
+**Baggrund:** Sidehoved og sidefod lå fast (forfatter og dato øverst, tal og sidetal nederst), og
+brugeren ville selv kunne lægge dem (9/10, skitsen i samtalen).
+**Beslutning:** Knappen »Design« i Ctrl+P viser siden med seks faste pladser i margenen (øverst og
+nederst, til venstre, i midten og til højre, som `@page`-margenboksene) og titlen. Brikkerne
+Forfatter, Dato, Titel, Sidetal, Antal tegn og ord og Egen tekst trækkes med pointer events til en
+plads, mellem pladser og ud igen. Med tastaturet løfter Enter en brik, og piletasterne vælger plads.
+Margener, skrift og »Første side anderledes« står i samme panel. Den rene logik bor i
+`src/print/layout.ts` (testet), fladen i `designer.ts`, der først hentes, når den bruges. Én opsætning
+giver både `@page`-CSS, PDF-margener (minus UDFALD) og Words sidehoved og sidefod med tabulatorstop.
+»Gem som skabelon …« lægger opsætningen i skabelonvalget (localStorage `gt-sidedesign-1`, tjekket felt
+for felt ved indlæsning). Uden egen skabelon er resultatet det samme som før.
+**Ikke valgt:** frit placerede tekstbokse overalt på siden: Chromium kan kun lægge sidehoved og sidefod
+i margenboksene, og Word kun i sidehoved og sidefod.
+**Revurdér hvis:** skabeloner skal følge med til en anden pc (så hører de til i settings.json), eller
+der kommer brug for logo eller billede i sidehovedet.
