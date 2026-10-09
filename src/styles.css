@@ -248,7 +248,7 @@ body.right-pinned { --hoejre: 320px; }
 #banner {
   position: fixed; top: 0; left: var(--venstre, 0px); right: var(--hoejre, 0px); z-index: 10;
   display: flex; align-items: center; justify-content: center; gap: 18px;
-  padding: 10px 20px; background: var(--kort); border-bottom: 1px solid var(--streg);
+  padding: 10px 20px; background: var(--note-flade); color: var(--note-tekst); border-bottom: 1px solid var(--streg);
   font-size: 13px; line-height: 1.4; transition: left 260ms cubic-bezier(.2,.8,.2,1), right 260ms cubic-bezier(.2,.8,.2,1);
 }
 #banner[hidden] { display: none; }
@@ -256,8 +256,8 @@ body.right-pinned { --hoejre: 320px; }
   font: inherit; color: var(--link); background: none; border: none; padding: 4px 2px; cursor: pointer;
 }
 #banner button:hover { text-decoration: underline; }
-#banner .banner-close { color: var(--svag); font-size: 16px; line-height: 1; padding: 2px 6px; margin-left: -6px; }
-#banner .banner-close:hover { color: var(--blæk); text-decoration: none; }
+#banner .banner-close { color: var(--note-tekst); opacity: 0.6; font-size: 16px; line-height: 1; padding: 2px 6px; margin-left: -6px; }
+#banner .banner-close:hover { opacity: 1; text-decoration: none; }
 
 /* Søg og erstat (Ctrl+F, Ctrl+H) som i iA Writer. */
 .gt-find { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; font-family: var(--ui); font-size: 13px; }
@@ -384,6 +384,8 @@ body.left-open:not(.left-pinned) .panel-left, body.right-open:not(.right-pinned)
 .rp-head { display: flex; justify-content: flex-end; }
 .panel-right.rp-drop { box-shadow: inset 0 0 0 2px var(--accent); }
 .rp-card { background: var(--kort); border: 1px solid var(--kant); border-radius: 6px; padding: 10px 12px; cursor: grab; }
+.rp-card.rp-drop-above { box-shadow: inset 0 2px 0 0 var(--accent); }
+.rp-card.rp-drop-below { box-shadow: inset 0 -2px 0 0 var(--accent); }
 .rp-card-text { font-family: var(--skrift); font-size: 12.5px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rp-card-tools { display: flex; gap: 12px; margin-top: 6px; opacity: 0; transition: opacity 150ms ease; }
 .rp-card:hover .rp-card-tools, .rp-card:focus-within .rp-card-tools { opacity: 1; }
@@ -832,3 +834,23 @@ body.rp-wide.right-pinned { --hoejre: var(--rp-bred); }
 .st-status .icon-btn { width: 28px; height: 28px; }
 .st-status .icon-btn:disabled { opacity: 0.3; cursor: default; }
 .st-statuses .settings-link { align-self: flex-start; font-size: 13px; }
+
+/* Fraklip: grupper og farver (9/10). Farverne er skrivebordsnoternes ark (note.css, ADR-0039),
+   så et gult fraklip og en gul note er samme gul, også i mørk og aften. */
+.rp-group-header { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--dæmpet); font-weight: 700; margin: 15px 0 8px 5px; cursor: grab; }
+.rp-group-header.rp-drop-above { box-shadow: 0 -2px 0 0 var(--accent); }
+.rp-group-header.rp-drop-below { box-shadow: 0 2px 0 0 var(--accent); }
+[data-color="gul"] { --fk: #fbf3cf; }
+[data-color="groen"] { --fk: #e3f0dc; }
+[data-color="blaa"] { --fk: #dfe9f3; }
+[data-color="rosa"] { --fk: #f6e1e4; }
+body.dark [data-color="gul"] { --fk: #3a3220; }
+body.dark [data-color="groen"] { --fk: #26301f; }
+body.dark [data-color="blaa"] { --fk: #212a33; }
+body.dark [data-color="rosa"] { --fk: #36242a; }
+.rp-card[data-color] { background: var(--fk, var(--kort)); }
+.rp-card-header { font-weight: 600; margin-bottom: 4px; font-size: 13px; }
+.rp-colors { display: flex; gap: 5px; align-items: center; margin-right: auto; }
+.rp-card-tools button.rp-dot { width: 13px; height: 13px; padding: 0; border-radius: 50%; background: var(--fk, var(--kort)); border: 1px solid var(--kant-hover); }
+.rp-card-tools button.rp-dot[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--blæk); }
+.rp-card-tools button.rp-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

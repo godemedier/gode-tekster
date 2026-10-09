@@ -127,6 +127,29 @@ function saveNow(): boolean {
   return true;
 }
 
+function enterOnHeading(view: EditorView): boolean {
+  const { state } = view;
+  const sel = state.selection.main;
+  if (!sel.empty) return false;
+  
+  const line = state.doc.lineAt(sel.head);
+  const match = /^#{1,6}\s+/.exec(line.text);
+  if (!match) return false;
+  
+  // Hvis markøren står præcis efter markdown-symbolerne (hvor teksten visuelt starter)
+  if (sel.head === line.from + match[0].length) {
+    // Indsæt et linjeskift før overskriften, så hele overskriften rykker ned
+    view.dispatch({
+      changes: { from: line.from, insert: "\n" },
+      selection: { anchor: sel.head + 1 },
+      userEvent: "input.type",
+      scrollIntoView: true
+    });
+    return true;
+  }
+  return false;
+}
+
 export function shortcuts(): Extension {
   return Prec.high(
     keymap.of([
@@ -143,8 +166,8 @@ export function shortcuts(): Extension {
       { key: "Mod-3", run: cmd.heading(3) },
       { key: "Mod-4", run: cmd.heading(4) },
       { key: "Mod-Shift-8", run: cmd.bullets },
-  // Words egen genvej til punktliste.
-  { key: "Mod-Shift-l", run: cmd.bullets },
+      // Words egen genvej til punktliste.
+      { key: "Mod-Shift-l", run: cmd.bullets },
       { key: "Mod-Shift-7", run: cmd.numbered },
       { key: "Mod-Shift-9", run: cmd.tasks },
       { key: "Mod-Shift-q", run: cmd.quote },
@@ -154,6 +177,7 @@ export function shortcuts(): Extension {
       { key: "Mod-Alt-n", run: cmd.note },
       { key: "Mod-s", run: saveNow, preventDefault: true },
       { key: "Tab", run: tab, shift: indentLess, preventDefault: true },
+      { key: "Enter", run: enterOnHeading },
     ]),
   );
 }

@@ -7,15 +7,13 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 
 /** Den rettede markering, eller null, når intet skal rettes. Ren funktion til testene. */
 export function trimmed(state: EditorState, anchor: number, head: number): { anchor: number; head: number } | null {
-  if (anchor === head) return null;
-  const end = Math.max(anchor, head);
-  const start = Math.min(anchor, head);
-  const line = state.doc.lineAt(end);
+  if (anchor >= head) return null;
+  const line = state.doc.lineAt(head);
   // Slutter i kolonne 0, og markeringen begynder på en tidligere linje: tag linjeskiftet fra.
-  if (end !== line.from || line.number === 1 || start >= line.from) return null;
+  if (head !== line.from || line.number === 1 || anchor >= line.from) return null;
   const prevEnd = line.from - 1;
-  if (prevEnd <= start) return null;
-  return anchor > head ? { anchor: prevEnd, head } : { anchor, head: prevEnd };
+  if (prevEnd <= anchor) return null;
+  return { anchor, head: prevEnd };
 }
 
 export const trimLineBreakSelection = EditorState.transactionFilter.of((tr) => {

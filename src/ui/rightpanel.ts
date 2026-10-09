@@ -182,28 +182,117 @@ export class RightPanel {
   private card(p: Parked): HTMLElement {
     const card = document.createElement("div");
     card.className = "rp-card";
+    if (p.color) card.setAttribute("data-color", p.color);
     card.draggable = true;
-    const text = document.createElement("div");
-    text.className = "rp-card-text";
-    text.textContent = p.text;
-    text.addEventListener("dblclick", () => this.editCard(p, text));
-    const tools = document.createElement("div");
-    tools.className = "rp-card-tools";
-    const back = document.createElement("button");
-    back.type = "button";
-    back.textContent = tr("Tilbage i teksten", "Back into the text");
-    back.addEventListener("click", () => this.restore(p));
-    const del = document.createElement("button");
-    del.type = "button";
-    del.textContent = tr("Slet", "Delete");
-    del.addEventListener("click", () => this.removeParked(p.id));
-    tools.append(back, del);
-    card.append(text, tools);
+
+    const lines = p.text.trim().split(/\r?\n/);
+    const first = lines[0] || "";
+    let title = "";
+    let body = p.text;
+    const m = first.match(/^(\*\*|__)(.*?)\1$/);
+    if (m) {
+      title = m[2].trim();
+      body = lines.slice(1).join("\n").trim();
+    }
+
     card.addEventListener("dragstart", (e) => {
       e.dataTransfer?.setData("text/plain", p.text);
       e.dataTransfer?.setData(PARKED_TYPE, p.id);
       if (e.dataTransfer) e.dataTransfer.effectAllowed = "copyMove";
     });
+    card.addEventListener("dragover", (e) => {
+      if (e.dataTransfer?.types.includes(PARKED_TYPE)) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        const rect = card.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        if (e.clientY < mid) {
+          card.classList.add("rp-drop-above");
+          card.classList.remove("rp-drop-below");
+        } else {
+          card.classList.add("rp-drop-below");
+          card.classList.remove("rp-drop-above");
+        }
+      }
+    });
+    card.addEventListener("dragleave", () => {
+      card.classList.remove("rp-drop-above", "rp-drop-below");
+    });
+    card.addEventListener("drop", (e) => {
+      card.classList.remove("rp-drop-above", "rp-drop-below");
+      const draggedId = e.dataTransfer?.getData(PARKED_TYPE);
+      if (draggedId && draggedId !== p.id) {
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = card.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        this.reorderParked(draggedId, p.id, e.clientY >= mid);
+      }
+    });
+
+    if (title && !body) {
+      card.className = "rp-group-header";
+      card.textContent = title;
+      card.addEventListener("dblclick", () => this.editCard(p, card));
+      return card;
+    }
+
+    if (title) {
+      const header = document.createElement("div");
+      header.className = "rp-card-header";
+      header.textContent = title;
+      card.append(header);
+    }
+
+    const text = document.createElement("div");
+    text.className = "rp-card-text";
+    text.textContent = body;
+    text.addEventListener("dblclick", () => this.editCard(p, text));
+    
+    const tools = document.createElement("div");
+    tools.className = "rp-card-tools";
+
+    // Farverne er skrivebordsnoternes (note.css), så de også følger mørk og aften.
+    const colors = document.createElement("div");
+    colors.className = "rp-colors";
+    const COLORS: [string, string][] = [
+      ["gul", tr("Gul", "Yellow")],
+      ["groen", tr("Grøn", "Green")],
+      ["blaa", tr("Blå", "Blue")],
+      ["rosa", tr("Rosa", "Pink")],
+    ];
+    for (const [c, name] of COLORS) {
+      const dot = document.createElement("button");
+      dot.type = "button";
+      dot.className = "rp-dot";
+      dot.dataset.color = c;
+      dot.title = name;
+      dot.setAttribute("aria-label", tr(`Farve: ${name}`, `Colour: ${name}`));
+      dot.setAttribute("aria-pressed", String(p.color === c));
+      dot.addEventListener("click", () => {
+        const fresh = findParked(this.view.state.doc.toString()).find((x) => x.id === p.id);
+        if (!fresh) return;
+        const color = fresh.color === c ? undefined : c; // samme farve igen fjerner den
+        this.view.dispatch({
+          changes: { from: fresh.from, to: fresh.to, insert: parkedBlock(fresh.id, fresh.date, fresh.text, color) },
+          userEvent: "input.park",
+        });
+      });
+      colors.append(dot);
+    }
+
+    const back = document.createElement("button");
+    back.type = "button";
+    back.textContent = tr("Tilbage i teksten", "Back into the text");
+    back.addEventListener("click", () => this.restore(p));
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.textContent = tr("Slet", "Delete");
+    del.addEventListener("click", () => this.removeParked(p.id));
+
+    tools.append(colors, back, del);
+    card.append(text, tools);
     return card;
   }
 
@@ -218,7 +307,7 @@ export class RightPanel {
       const fresh = findParked(this.view.state.doc.toString()).find((x) => x.id === p.id);
       if (fresh && area.value.trim() !== fresh.text) {
         this.view.dispatch({
-          changes: { from: fresh.from, to: fresh.to, insert: parkedBlock(fresh.id, fresh.date, area.value) },
+          changes: { from: fresh.from, to: fresh.to, insert: parkedBlock(fresh.id, fresh.date, area.value, fresh.color) },
           userEvent: "input.park",
         });
       }
@@ -244,6 +333,26 @@ export class RightPanel {
   removeParked(id: string): void {
     const p = findParked(this.view.state.doc.toString()).find((x) => x.id === id);
     if (p) this.view.dispatch({ changes: { from: p.from, to: p.to, insert: "" }, userEvent: "delete.park" });
+  }
+
+  private reorderParked(draggedId: string, targetId: string, after: boolean): void {
+    const doc = this.view.state.doc.toString();
+    const parked = findParked(doc);
+    const dragged = parked.find((x) => x.id === draggedId);
+    const target = parked.find((x) => x.id === targetId);
+    if (!dragged || !target) return;
+
+    const draggedContent = doc.slice(dragged.from, dragged.to);
+    const insertPos = after ? target.to : target.from;
+    
+    this.view.dispatch({
+      changes: [
+        { from: dragged.from, to: dragged.to, insert: "" },
+        { from: insertPos, insert: draggedContent }
+      ],
+      userEvent: "input.park"
+    });
+    this.render();
   }
 
   /**

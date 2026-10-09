@@ -33,6 +33,7 @@ export const GROUPS: [string, [string, string][]][] = [
       ["Ctrl+Alt+X", tr("Flyt til fraklip", "Move to Clippings")],
       ["Ctrl+Alt+I", tr("Indsæt billede", "Insert image")],
       [tr("Ctrl+klik", "Ctrl+click"), tr("Åbn et link", "Open a link")],
+      ["Enter", tr("Nyt afsnit (på en overskrift: flytter hele overskriften ned)", "New paragraph (on a heading: moves the entire heading down)")],
       ["/", tr("Skabeloner og kommandoer (i starten af en linje eller efter et mellemrum)", "Templates and commands (at the start of a line or after a space)")],
       ["Ctrl+Shift+P", tr("Kommandoer på det markerede", "Commands on the selection")],
       ["Alt+↑ / Alt+↓", tr("Flyt afsnit (i en overskrift: hele sektionen)", "Move paragraph (in a heading: the whole section)")],

@@ -118,9 +118,9 @@ mod tests {
             );
         }
         // Fraklip-eksemplet nederst i vejledningen har samme mærke på begge sprog.
-        assert!(GUIDE_EN.contains(
-            "<!-- gt:parkeret id=p1 dato=2026-10-05
-"
-        ));
+        assert!(
+            GUIDE_EN.contains("<!-- gt:parkeret id=p1 dato=2026-10-05\n")
+                || GUIDE_EN.contains("<!-- gt:parkeret id=p1 dato=2026-10-05\r\n")
+        );
     }
 }

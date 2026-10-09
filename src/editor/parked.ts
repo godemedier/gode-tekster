@@ -13,9 +13,9 @@ import { resolvePending } from "./critic.ts";
 import { GOAL_LINE } from "./goal.ts";
 import { COLOR_LINE, STATUS_LINE, withoutTagLine } from "./textStatus.ts";
 
-export type Parked = { id: string; date: string; text: string; from: number; to: number };
+export type Parked = { id: string; date: string; color?: string; text: string; from: number; to: number };
 
-const BLOCK = /<!-- gt:parkeret id=(\S+) dato=(\S+)[^\n]*\n([\s\S]*?)\n?-->\n?/g;
+const BLOCK = /<!-- gt:parkeret id=(\S+) dato=(\S+)(?: farve=(\S+))?[^\n]*\n([\s\S]*?)\n?-->\n?/g;
 
 export function escapeParked(text: string): string {
   return text
@@ -37,7 +37,7 @@ export function findParked(doc: string): Parked[] {
   const out: Parked[] = [];
   for (const m of doc.matchAll(BLOCK)) {
     const from = m.index ?? 0;
-    out.push({ id: m[1], date: m[2], text: unescapeParked(m[3]), from, to: from + m[0].length });
+    out.push({ id: m[1], date: m[2], color: m[3], text: unescapeParked(m[4]), from, to: from + m[0].length });
   }
   return out;
 }
@@ -51,8 +51,9 @@ export function nextParkedId(doc: string): string {
   return `p${max + 1}`;
 }
 
-export function parkedBlock(id: string, date: string, text: string): string {
-  return `<!-- gt:parkeret id=${id} dato=${date}\n${escapeParked(text.trim())}\n-->\n`;
+export function parkedBlock(id: string, date: string, text: string, color?: string): string {
+  const c = color ? ` farve=${color}` : "";
+  return `<!-- gt:parkeret id=${id} dato=${date}${c}\n${escapeParked(text.trim())}\n-->\n`;
 }
 
 /** Hvor en ny blok skal stå: sidst i dokumentet, med en tom linje foran. */
