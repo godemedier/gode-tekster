@@ -7,7 +7,7 @@ import type { EditorView } from "@codemirror/view";
 
 import type { Text } from "@codemirror/state";
 import { count, formatCount, type Count } from "../editor/count.ts";
-import { daysLeft, findGoal, goalChange, progress, type Goal, type GoalKind, type GoalUnit } from "../editor/goal.ts";
+import { daysLeft, deadlineClock, findGoal, pastClock, goalChange, progress, type Goal, type GoalKind, type GoalUnit } from "../editor/goal.ts";
 import { currentLix } from "../editor/styleCheck.ts";
 import { locale, tr } from "../i18n.ts";
 import { rememberFocus } from "./focus.ts";
@@ -18,10 +18,16 @@ const nf1 = new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 });
 const KIND: Record<GoalKind, string> = { hoejst: tr("højst", "at most"), mindst: tr("mindst", "at least"), cirka: tr("cirka", "about") };
 const UNIT: Record<GoalUnit, string> = { anslag: tr("anslag", "characters"), ord: tr("ord", "words"), sider: tr("normalsider", "standard pages") };
 
-/** »3 dage til deadline«, »Deadline i dag«, »2 dage over deadline« (7/10: »deadline«, ikke »frist«). */
+/**
+ * »3 dage til deadline«, »Deadline i dag«, »2 dage over deadline« (7/10: »deadline«, ikke »frist«).
+ * Med klokkeslæt (9/10): »Deadline i dag kl. 14.00«, »Deadline i morgen kl. 14.00«, »Over deadline kl. 14.00«.
+ */
 function deadlineText(deadline: string): string {
   const d = daysLeft(deadline);
-  if (d === 0) return tr("Deadline i dag", "Due today");
+  const clock = deadlineClock(deadline);
+  if (d === 0 && clock && pastClock(deadline)) return tr(`Over deadline kl. ${clock}`, `Overdue since ${clock}`);
+  if (d === 0) return clock ? tr(`Deadline i dag kl. ${clock}`, `Due today at ${clock}`) : tr("Deadline i dag", "Due today");
+  if (d === 1 && clock) return tr(`Deadline i morgen kl. ${clock}`, `Due tomorrow at ${clock}`);
   if (d === 1) return tr("1 dag til deadline", "1 day left");
   if (d > 1) return tr(`${d} dage til deadline`, `${d} days left`);
   return d === -1 ? tr("1 dag over deadline", "1 day overdue") : tr(`${-d} dage over deadline`, `${-d} days overdue`);
@@ -179,8 +185,13 @@ export class CountCorner {
     dateText.textContent = "Deadline";
     const date = document.createElement("input");
     date.type = "date";
-    date.value = g.deadline ?? "";
-    dateRow.append(dateText, date);
+    date.value = g.deadline?.slice(0, 10) ?? "";
+    // Klokkeslæt er valgfrit (9/10): uden gælder fristen hele dagen.
+    const time = document.createElement("input");
+    time.type = "time";
+    time.value = g.deadline?.slice(11, 16) ?? "";
+    time.setAttribute("aria-label", tr("Klokkeslæt (valgfrit)", "Time (optional)"));
+    dateRow.append(dateText, date, time);
 
     const actions = document.createElement("div");
     actions.className = "goal-actions";
@@ -209,7 +220,8 @@ export class CountCorner {
         n.focus();
         return;
       }
-      this.saveGoal({ kind: g.kind, n: amount, unit: unit.value as GoalUnit, deadline: date.value || null });
+      const deadline = date.value ? (time.value ? `${date.value}T${time.value}` : date.value) : null;
+      this.saveGoal({ kind: g.kind, n: amount, unit: unit.value as GoalUnit, deadline });
     });
     pop.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {

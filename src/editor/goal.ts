@@ -24,7 +24,8 @@ export function findGoal(doc: string): (Goal & { from: number; to: number }) | n
     const unit = attrs.enhed as GoalUnit;
     const n = Number(attrs.antal);
     if (!["hoejst", "mindst", "cirka"].includes(kind) || !["anslag", "ord", "sider"].includes(unit) || !(n > 0)) continue;
-    const deadline = /^\d{4}-\d{2}-\d{2}$/.test(attrs.frist ?? "") ? attrs.frist : null;
+    // ÅÅÅÅ-MM-DD, eventuelt med klokkeslæt: ÅÅÅÅ-MM-DDTHH:MM (9/10).
+    const deadline = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(attrs.frist ?? "") ? attrs.frist : null;
     const from = m.index ?? 0;
     found = { kind, n, unit, deadline, from, to: from + m[0].length };
   }
@@ -61,8 +62,22 @@ export function progress(c: Count, g: Goal): { value: number; ratio: number; sta
 }
 
 /** Hele dage til fristen fra i dag (lokal tid). Negativ, når fristen er overskredet. */
+/** Klokkeslættet i fristen som »14.00«, eller null, når fristen kun er en dag. */
+export function deadlineClock(deadline: string): string | null {
+  const t = /T(\d{2}):(\d{2})$/.exec(deadline);
+  return t ? `${t[1]}.${t[2]}` : null;
+}
+
+/** Er fristen med klokkeslæt overskredet nu? En frist uden klokkeslæt gælder hele dagen. */
+export function pastClock(deadline: string, now = new Date()): boolean {
+  const t = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(deadline);
+  if (!t) return false;
+  const [y, m, d, h, min] = t.slice(1).map(Number);
+  return now.getTime() >= new Date(y, m - 1, d, h, min).getTime();
+}
+
 export function daysLeft(deadline: string, now = new Date()): number {
-  const [y, m, d] = deadline.split("-").map(Number);
+  const [y, m, d] = deadline.slice(0, 10).split("-").map(Number);
   const due = new Date(y, m - 1, d);
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((due.getTime() - today.getTime()) / 86_400_000);

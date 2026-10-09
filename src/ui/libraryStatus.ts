@@ -2,7 +2,7 @@
 // Farverne følger ADR-0037: vermilion betyder »her er du« og bruges ikke her. Den første status
 // (Idé) er en tom ring, resten er fyldte prikker i rolige farver. Den sidste status betyder færdig.
 
-import { daysLeft } from "../editor/goal.ts";
+import { daysLeft, deadlineClock, pastClock } from "../editor/goal.ts";
 import { tr } from "../i18n.ts";
 import { settings } from "../settings.ts";
 import type { MenuItem } from "./menu.ts";
@@ -64,11 +64,13 @@ export function statusItems(current: string | null | undefined, pick: (id: strin
   ];
 }
 
-/** »I dag«, »i morgen«, »3 dage« eller »2 dage over« til fristen. */
+/** »I dag«, »i morgen«, »3 dage« eller »2 dage over« til fristen, med klokkeslæt i dag og i morgen. */
 export function deadlineLabel(deadline: string): { text: string; late: boolean } {
   const d = daysLeft(deadline);
-  if (d === 0) return { text: tr("i dag", "today"), late: false };
-  if (d === 1) return { text: tr("i morgen", "tomorrow"), late: false };
+  const clock = deadlineClock(deadline);
+  if (d === 0 && clock && pastClock(deadline)) return { text: tr(`over kl. ${clock}`, `overdue ${clock}`), late: true };
+  if (d === 0) return { text: clock ? tr(`i dag kl. ${clock}`, `today ${clock}`) : tr("i dag", "today"), late: false };
+  if (d === 1) return { text: clock ? tr(`i morgen kl. ${clock}`, `tomorrow ${clock}`) : tr("i morgen", "tomorrow"), late: false };
   if (d > 1) return { text: tr(`${d} dage`, `${d} days`), late: false };
   return { text: d === -1 ? tr("1 dag over", "1 day late") : tr(`${-d} dage over`, `${-d} days late`), late: true };
 }

@@ -46,3 +46,20 @@ test("dage til fristen", () => {
   assert.equal(daysLeft("2026-10-07", new Date(2026, 9, 7, 8)), 0);
   assert.equal(daysLeft("2026-10-06", new Date(2026, 9, 7)), -1);
 });
+
+test("frist med klokkeslæt (9/10): læses, skrives og regnes i hele dage", async () => {
+  const { deadlineClock, pastClock } = await import("./goal.ts");
+  const g: Goal = { kind: "hoejst", n: 7400, unit: "anslag", deadline: "2026-10-10T14:00" };
+  const c = goalChange("Tekst.", g);
+  const doc = "Tekst.".slice(0, c.from) + c.insert + "Tekst.".slice(c.to);
+  assert.match(doc, /frist=2026-10-10T14:00 -->/);
+  assert.equal(findGoal(doc)?.deadline, "2026-10-10T14:00");
+  assert.equal(daysLeft("2026-10-10T14:00", new Date(2026, 9, 9, 23, 0)), 1);
+  assert.equal(deadlineClock("2026-10-10T14:00"), "14.00");
+  assert.equal(deadlineClock("2026-10-10"), null);
+  assert.equal(pastClock("2026-10-10T14:00", new Date(2026, 9, 10, 13, 59)), false);
+  assert.equal(pastClock("2026-10-10T14:00", new Date(2026, 9, 10, 14, 0)), true);
+  assert.equal(pastClock("2026-10-10", new Date(2026, 9, 10, 23, 0)), false);
+  // En ødelagt frist ignoreres.
+  assert.equal(findGoal("<!-- gt:maal type=hoejst antal=10 enhed=ord frist=2026-10-10T25 -->\n")?.deadline, null);
+});

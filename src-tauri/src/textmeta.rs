@@ -86,7 +86,8 @@ pub fn tags_of(tail: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Fristen fra længdemålet (ÅÅÅÅ-MM-DD). Står der flere mål, gælder det sidste.
+/// Fristen fra længdemålet (ÅÅÅÅ-MM-DD, eventuelt med klokkeslæt ÅÅÅÅ-MM-DDTHH:MM fra 9/10). Står der
+/// flere mål, gælder det sidste.
 pub fn deadline_of(tail: &str) -> Option<String> {
     tail.match_indices("<!-- gt:maal ")
         .filter_map(|(i, _)| {
@@ -94,13 +95,12 @@ pub fn deadline_of(tail: &str) -> Option<String> {
             let value = line
                 .split_whitespace()
                 .find_map(|w| w.strip_prefix("frist="))?;
-            let ok = value.len() == 10
-                && value.chars().enumerate().all(|(n, c)| {
-                    if n == 4 || n == 7 {
-                        c == '-'
-                    } else {
-                        c.is_ascii_digit()
-                    }
+            let ok = (value.len() == 10 || value.len() == 16)
+                && value.chars().enumerate().all(|(n, c)| match n {
+                    4 | 7 => c == '-',
+                    10 => c == 'T',
+                    13 => c == ':',
+                    _ => c.is_ascii_digit(),
                 });
             ok.then(|| value.to_owned())
         })
@@ -225,6 +225,16 @@ mod tests {
             None
         );
         assert_eq!(deadline_of("<!-- gt:maal frist=11-10-2026 -->"), None);
+        // Med klokkeslæt (9/10), og et ødelagt klokkeslæt afvises.
+        assert_eq!(
+            deadline_of("<!-- gt:maal type=hoejst antal=10 enhed=ord frist=2026-10-10T14:00 -->\n")
+                .as_deref(),
+            Some("2026-10-10T14:00")
+        );
+        assert_eq!(
+            deadline_of("<!-- gt:maal type=hoejst antal=10 enhed=ord frist=2026-10-10T14-00 -->\n"),
+            None
+        );
     }
 
     #[test]
