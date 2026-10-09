@@ -13,11 +13,12 @@ pub struct StatusDef {
     pub name: String,
 }
 
-/// Idé · I gang · Til gennemsyn · Færdig (7/10: bredt, ikke kun journalister).
+/// Idé · Kladde · Til gennemsyn · Færdig (8/10). Id'et `igang` er det gamle navn og bliver
+/// stående, fordi filerne gemmer id'et.
 fn default_statuses() -> Vec<StatusDef> {
     [
         ("ide", "Idé"),
-        ("igang", "I gang"),
+        ("igang", "Kladde"),
         ("gennemsyn", "Til gennemsyn"),
         ("faerdig", "Færdig"),
     ]
@@ -219,6 +220,7 @@ fn write(app: &AppHandle, settings: &Settings) -> Result<(), String> {
 #[tauri::command]
 pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     let stored = load(&app);
+    let stored_autostart = stored.start_with_windows;
     let settings = Settings {
         libraries: stored.libraries,
         commands_dir: stored.commands_dir,
@@ -228,7 +230,10 @@ pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     crate::i18n::apply(&settings.language);
     crate::refresh_tray(&app);
     write(&app, &settings)?;
-    crate::autostart::apply(settings.start_with_windows);
+    // Kun når valget er ændret: ellers tog hvert gem i en testkopi nøglen fra den installerede (8/10).
+    if settings.start_with_windows != stored_autostart {
+        crate::autostart::apply(settings.start_with_windows);
+    }
     // Stjerner eller sprog kan være ændret.
     crate::jumplist::refresh(&app);
     Ok(())

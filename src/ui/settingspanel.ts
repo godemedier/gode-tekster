@@ -278,9 +278,10 @@ export class SettingsPanel {
         ...(this.portable ? [] : [switchRow(tr("Start med Windows", "Start with Windows"), "", s.startWithWindows, (v) => set({ startWithWindows: v }))]),
         switchRow(tr("Automatiske opdateringer i baggrunden", "Automatic updates in the background"), "", s.checkUpdates, (v) => set({ checkUpdates: v })),
       ),
-      group(tr("Status i biblioteket", "Status in the library"), statusEditor(() => this.render())),
       aboutLine(),
     );
+    // Egen fane (8/10): statusserne er bibliotekets mærker, ikke en generel indstilling.
+    const tags = panel(group(tr("Status i biblioteket", "Status in the library"), statusEditor(() => this.render())));
 
     const extra = this.extra.map((t) => {
       const p = panel();
@@ -293,6 +294,7 @@ export class SettingsPanel {
         { id: "generelt", label: tr("Generelt", "General"), panel: general },
         { id: "tekst", label: tr("Tekst", "Text"), panel: text },
         { id: "ai", label: tr("AI-hjælp", "AI help"), panel: ai },
+        { id: "tags", label: "Tags", panel: tags },
         ...extra,
       ],
       this.tab,
@@ -301,7 +303,7 @@ export class SettingsPanel {
 
     const box = document.createElement("div");
     box.className = "settings-box st";
-    box.append(head, tabs, general, text, ai, ...extra.map((t) => t.panel));
+    box.append(head, tabs, general, text, ai, tags, ...extra.map((t) => t.panel));
     this.sheet.replaceChildren(box);
   }
 }

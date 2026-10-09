@@ -14,6 +14,7 @@ mod commands;
 mod contextmenu;
 mod convert;
 mod credentials;
+mod desktop;
 mod document;
 mod export;
 mod feedback;
@@ -330,6 +331,7 @@ pub fn run() -> tauri::Result<()> {
 
             // Noterne (ADR-0039): Win+Alt+N, og arkene fra sidst kommer igen.
             notes::hotkey(handle.clone());
+            desktop::watch(handle.clone());
             {
                 let app = handle.clone();
                 tauri::async_runtime::spawn(async move { notes::restore(&app) });
@@ -340,9 +342,6 @@ pub fn run() -> tauri::Result<()> {
             let hidden = autostart::started_hidden();
             if hidden {
                 webview_visible(&handle, false);
-            }
-            if settings::load(&handle).start_with_windows {
-                autostart::apply(true);
             }
             // Nødtimer: viser vinduet, selv hvis fladen aldrig melder klar.
             std::thread::spawn(move || {

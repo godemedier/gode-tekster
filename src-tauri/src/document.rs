@@ -493,7 +493,10 @@ pub async fn save_document(
             },
         );
     }
-    crate::session::remember(&app, &path, Some(req.cursor));
+    // En note er aldrig »den sidste tekst« (ADR-0039): ellers åbnede hovedvinduet den ved næste start.
+    if !crate::notes::is_note(window.label()) {
+        crate::session::remember(&app, &path, Some(req.cursor));
+    }
     if let Some(history) = app.try_state::<History>() {
         if let Err(e) = history.record_now(&path.to_string_lossy(), &req.text, authors, "app") {
             applog::write(&app, &format!("version kunne ikke gemmes: {e}"));

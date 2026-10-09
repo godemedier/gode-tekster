@@ -9,7 +9,9 @@ import type { MenuItem } from "./menu.ts";
 
 export type StatusDef = { id: string; name: string };
 
-const COLORS = ["var(--dæmpet)", "var(--advarsel)", "var(--link)", "var(--ok)", "var(--wc-d)", "var(--wc-n)", "var(--wc-v)", "var(--wc-c)"];
+// Egne tokens (styles.css), så Kladde og Til gennemsyn kan skelnes i alle tre udseender. Grøn er kun til
+// den sidste, så en femte status ikke ligner »færdig«.
+const COLORS = ["var(--dæmpet)", "var(--status-a)", "var(--status-b)", "var(--status-c)", "var(--status-d)"];
 
 export function statuses(): StatusDef[] {
   return settings().statuses ?? [];

@@ -808,10 +808,12 @@ eller »Skifter selv« skifter på et forkert tidspunkt uden for Danmark.
 - **Status** står som én skjult linje øverst i filen: `<!-- gt:status vaerdi=igang -->`. Øverst, så Rust
   læser den i de første 4 KB, som uddraget allerede læser. Skjult i editoren og beskyttet som de andre
   skjulte blokke (`hidden.ts`), ude af tal, eksport og AI (`withoutParked`).
-- **Statusserne** er Idé · I gang · Til gennemsyn · Færdig (id'er `ide`, `igang`, `gennemsyn`,
-  `faerdig`) og kan omdøbes og udvides i Indstillinger › Generelt (`statuses` i settings.json). Filen
-  gemmer id'et, så et nyt navn ikke mister teksterne. Den sidste betyder færdig. Farver: den første er en
-  tom ring, så `--advarsel`, `--link`, og den sidste `--ok`. Vermilion bruges ikke (ADR-0037).
+- **Statusserne** er Idé · Kladde · Til gennemsyn · Færdig (id'er `ide`, `igang`, `gennemsyn`,
+  `faerdig`; »Kladde« hed »I gang« til 8/10, id'et blev) og kan omdøbes og udvides i Indstillinger ›
+  Tags (`statuses` i settings.json). Filen gemmer id'et, så et nyt navn ikke mister teksterne. Den
+  sidste betyder færdig. Farver: den første er en tom ring i `--dæmpet`, så `--status-a` til `-d`, og den
+  sidste `--ok`. Egne tokens, fordi `--advarsel` og `--link` betyder noget andet og i aften næsten var
+  ens (ΔE 13). `tokens.test.ts` kræver 3:1 og ΔE 30 mellem de faste. Vermilion bruges ikke (ADR-0037).
 - **#tags** er tekstens sidste synlige linje, når den kun er hashtags (som i Ulysses). Linjen står i
   svag farve i editoren og tæller ikke med, kommer ikke med ud og sendes ikke til AI. Ingen tags-panel.
 - **Frist** er længdemålets (ADR-0034). Ingen ny frist.
@@ -842,7 +844,7 @@ og et layoutoplæg med tre varianter. Valgt: variant A »Ark«, navnet »noter«
   (`2026-10-08 14.32.md`) og aldrig omdøbt af programmet. `Dokumenter\Gode Tekster` bliver bibliotek,
   hvis det ikke er det. En tom note efterlader ingen fil, når den lukkes.
 - **Arket** er et rammeløst vindue (`note-1` …, siden `note.html`, `src/note.ts`) med samme editor og
-  autosave som teksterne (`document.rs`): ingen ramme, en top med tre prikker at trække i, knapper ved
+  autosave som teksterne (`document.rs`): ingen ramme, en top at trække i (prikkerne er fjernet 8/10), knapper ved
   musen (ny note, farve, hold øverst, mere), Windows 11's runde hjørner og skygge, uden for
   proceslinjen og Alt+Tab (`WS_EX_TOOLWINDOW`). Dobbeltklik på toppen ruller arket op til første linje.
 - **Farven** står som én skjult linje sidst i filen, `<!-- gt:farve vaerdi=gul -->`, og følger noten
@@ -862,3 +864,29 @@ og et layoutoplæg med tre varianter. Valgt: variant A »Ark«, navnet »noter«
 (fane) og C (kanten).
 **Revurdér hvis:** mange ark fremme bruger for meget hukommelse (så lav prioritet ved fokustab, ADR
 foreslået i spor 2), eller Win+Alt+N ofte er taget.
+
+### ADR-0040 — Noterne bliver fremme, når skrivebordet vises (8/10-2026)
+**Baggrund:** Win+D og hjørnet af proceslinjen løfter skrivebordet op over alle almindelige vinduer, så
+arkene forsvandt med resten (8/10). Det er Windows' opførsel, og Microsoft tilbyder ingen
+indstilling for det.
+**Beslutning:** Rainmeters opskrift (`Library/System.cpp`, kun fremgangsmåden): `desktop.rs` laver et
+skjult vindue, lægger det nederst og nægter andre at flytte det (`WM_WINDOWPOSCHANGING` med
+`SWP_NOZORDER`; egne kald går uden om med `SWP_NOSENDCHANGING`). Fire gange i sekundet ses efter, om
+det står under skrivebordets ikonvindue (fra Windows 11 24H2 Progman, før det en synlig WorkerW med
+`SHELLDLL_DefView`). Gør det, er skrivebordet vist: arkene, der er fremme, gendannes og lægges øverst
+(`HWND_TOPMOST`, uden at tage fokus). Går skrivebordet ned, lægges de løftede ark lige under det vindue,
+brugeren gik til. Et ark, der holdes øverst, røres ikke. Skjulte ark (»Skjul alle noter«) bliver skjult.
+Rettet efter den natlige test 9/10: »vist« kræver også, at forgrunden er skrivebordet, proceslinjen
+eller et ark (som Rainmeters krog), for har skrivebordsvinduet mistet sin plads nederst, står det over
+markøren hele tiden, og så blev arkene liggende øverst over alt. Og vindueskaldene er asynkrone
+(`SWP_ASYNCWINDOWPOS`, `ShowWindowAsync`) uden lås imens, så tråden aldrig venter på hovedtråden.
+**Ikke valgt:** at gøre arket til barn af skrivebordet (`SetParent` ind i WorkerW): arket kan så ikke
+komme frem over andre vinduer, og en WebView2 i et fremmed vindue er usikker grund. En WinEvent-krog på
+forgrundsvinduet alene: Win+D skifter ikke altid forgrundsvindue (set 8/10).
+**Genstart:** arkene kommer igen, fordi programmet starter skjult med Windows og `notes::restore` åbner
+dem. En nedlukning lukker programmet uden luk-hændelser (tao `WM_ENDSESSION` → `exit`), så »fremme«
+bliver stående. Rettet samtidig: et gem af indstillingerne skrev `Start med Windows`-nøglen om hver
+gang, også fra en testkopi i `target\release`, så den installerede ikke startede efter en genstart. Nu
+kun, når valget ændres.
+**Revurdér hvis:** en Windows-opdatering ændrer skrivebordets vinduer (Rainmeter følger med; se deres
+`GetDesktopIconsHostWindow`), eller arkene blinker synligt ved Win+D.

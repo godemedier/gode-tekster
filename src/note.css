@@ -1,5 +1,5 @@
 /* Noterne på skrivebordet (ADR-0039, variant A »Ark« fra layoutoplægget 8/10): ingen ramme, en
-   top med tre prikker at trække i, knapper, der kommer frem ved musen, og papirtoner, der følger
+   top at trække i, knapper, der kommer frem ved musen, og papirtoner, der følger
    lys, mørk og aften. Vermilion står kun i markøren (ADR-0037). */
 
 body.note {
@@ -25,10 +25,8 @@ body.note.dark[data-farve="rosa"] { --ark: #36242a; --ark-blæk: #efc9d1; --ark-
 body.note.dark[data-farve="papir"] { --ark: #24282c; --ark-blæk: #d5d9dd; --ark-svag: rgba(213, 217, 221, 0.4); }
 body.note.dark[data-farve="graa"] { --ark: #2a2d31; --ark-blæk: #d0d3d7; --ark-svag: rgba(208, 211, 215, 0.45); }
 
-/* Toppen: tre prikker at trække i. Knapperne kommer frem ved musen og ved Tab. */
+/* Toppen: træk i den for at flytte arket. Knapperne kommer frem ved musen og ved Tab. */
 .note-top { flex: none; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 11px; user-select: none; }
-.note-grip { display: flex; gap: 3px; }
-.note-grip i { width: 4px; height: 4px; border-radius: 2px; background: var(--ark-svag); }
 .note-title { flex: 1; min-width: 0; font: 600 13px/1 var(--skrift); color: var(--ark-blæk); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; visibility: hidden; }
 .note-tools { display: flex; gap: 2px; align-items: center; opacity: 0; transition: opacity 150ms ease; }
 body.note:hover .note-tools, .note-tools:focus-within, body.note.pinned .note-tools .note-pin { opacity: 1; }
@@ -45,7 +43,6 @@ body.note.pinned .note-pin svg { fill: currentColor; }
 
 /* Rullet op: kun toppen, med første linje som navn (dobbeltklik på toppen). */
 body.note.rolled #editor { display: none; }
-body.note.rolled .note-grip { display: none; }
 body.note.rolled .note-title { visibility: visible; }
 
 /* Farvevælgeren under toppen. */

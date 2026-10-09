@@ -40,6 +40,8 @@ pub struct NotesState {
     labels: Mutex<HashMap<String, PathBuf>>,
     /// Noter, der skal have fokus, når de er klar (nye), modsat dem, der kommer igen ved start.
     focus_on_ready: Mutex<HashSet<String>>,
+    /// Vindue → vindueshåndtag, så `desktop.rs` kan finde arkene uden at gå gennem hovedtråden.
+    hwnds: Mutex<HashMap<String, isize>>,
 }
 
 /// Et rullet ark er kun toppen: 36 px (logiske).
@@ -52,6 +54,18 @@ fn key(path: &Path) -> String {
 }
 
 fn store(app: &AppHandle) -> Option<PathBuf> {
+    // Testkørsler har deres egne placeringer: ellers lukkede testprotokollen brugerens ark og
+    // slettede en tom note (natlig test 9/10).
+    if std::env::var("GT_TEST").is_ok_and(|v| v == "1") {
+        if let Ok(dir) = std::env::var("GT_NOTER_DIR") {
+            return Some(PathBuf::from(dir).join("noter.json"));
+        }
+        return app
+            .path()
+            .app_local_data_dir()
+            .ok()
+            .map(|d| d.join("noter-test.json"));
+    }
     app.path()
         .app_local_data_dir()
         .ok()
@@ -212,6 +226,10 @@ fn open_window(app: &AppHandle, path: &Path, focus: bool) -> Result<(), String> 
         .build()
         .map_err(|e| e.to_string())?;
     hide_from_alt_tab(&w);
+    #[cfg(windows)]
+    if let (Ok(hwnd), Ok(mut h)) = (w.hwnd(), state.hwnds.lock()) {
+        h.insert(label.clone(), hwnd.0 as isize);
+    }
     match place.filter(|p| on_screen(&w, p.x, p.y)) {
         Some(p) => {
             let _ = w.set_position(PhysicalPosition::new(p.x, p.y));
@@ -323,6 +341,8 @@ pub fn ready(app: &AppHandle, label: &str) {
         .unwrap_or(false);
     if let Some(w) = app.get_webview_window(label) {
         let _ = w.show();
+        // Vist igen: tao sætter vinduets stil om, så arket kom med i Alt+Tab (natlig test 9/10).
+        hide_from_alt_tab(&w);
         if focus && !std::env::var("GT_TEST").is_ok_and(|v| v == "1") {
             let _ = w.set_focus();
         }
@@ -424,6 +444,11 @@ pub fn note_delete(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), S
 #[tauri::command]
 pub fn note_on_top(app: AppHandle, window: tauri::WebviewWindow, on: bool) {
     let _ = window.set_always_on_top(on);
+    hide_from_alt_tab(&window);
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() {
+        crate::desktop::keep(hwnd.0 as isize);
+    }
     if let Some(path) = path_of(&app, window.label()) {
         with_places(&app, |places| {
             if let Some(p) = places.get_mut(&key(&path)) {
@@ -496,17 +521,28 @@ pub async fn note_new(app: AppHandle) -> Result<(), String> {
 }
 
 fn forget(app: &AppHandle, label: &str) {
-    if let Ok(mut l) = app.state::<NotesState>().labels.lock() {
-        l.remove(label);
-    }
+    destroyed(app, label);
     crate::windows::forget(app, label);
 }
 
 /// Vindue lukket udefra (Destroyed): glem det, men lad »fremme« stå, så det kommer igen ved start.
 pub fn destroyed(app: &AppHandle, label: &str) {
-    if let Ok(mut l) = app.state::<NotesState>().labels.lock() {
+    let state = app.state::<NotesState>();
+    if let Ok(mut l) = state.labels.lock() {
         l.remove(label);
     }
+    if let Ok(mut h) = state.hwnds.lock() {
+        h.remove(label);
+    };
+}
+
+/// Vindueshåndtagene på arkene, der er åbne (`desktop.rs`).
+pub fn handles(app: &AppHandle) -> Vec<isize> {
+    app.state::<NotesState>()
+        .hwnds
+        .lock()
+        .map(|h| h.values().copied().collect())
+        .unwrap_or_default()
 }
 
 /// Menuen ved uret: hent alle noter frem, også dem, der var lukket ned, men stod fremme sidst.

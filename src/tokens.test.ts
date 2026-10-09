@@ -20,6 +20,18 @@ function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+/** Farveafstand i CIELAB (ΔE 1976). Under ca. 30 er to små prikker svære at skelne. */
+function deltaE(a: string, b: string): number {
+  const lab = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    const [x, y, z] = [(r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047, r * 0.2126 + g * 0.7152 + b * 0.0722, (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883].map(f);
+    return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+  };
+  const [p, q] = [lab(a), lab(b)];
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+}
+
 function contrast(a: string, b: string): number {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
@@ -50,5 +62,17 @@ for (const [mode, selectors] of [
     assert.ok(contrast(t.get("link-tekst")!, t.get("link")!) >= 4.5, "knap med link-farve");
     // Accenten er en streg og en markør: grafik, ikke tekst (WCAG 1.4.11, mindst 3:1).
     assert.ok(contrast(t.get("accent")!, t.get("flade")!) >= 3, `accent ${contrast(t.get("accent")!, t.get("flade")!).toFixed(2)}:1`);
+  });
+  // Statusprikkerne er grafik (mindst 3:1), og de fire faste skal kunne skelnes fra hinanden og fra
+  // vermilion. I aften var kladde og gennemsyn næsten ens (ΔE 13, 8/10).
+  test(`${mode}: statusprikkerne står 3:1 og kan skelnes`, () => {
+    const dots = ["status-a", "status-b", "status-c", "status-d", "ok"];
+    for (const fg of [...dots, "dæmpet"]) {
+      for (const bg of SURFACES) assert.ok(contrast(t.get(fg)!, t.get(bg)!) >= 3, `--${fg} på --${bg}`);
+    }
+    const firm = ["status-a", "status-b", "ok", "accent"];
+    for (const [i, a] of firm.entries()) {
+      for (const b of firm.slice(i + 1)) assert.ok(deltaE(t.get(a)!, t.get(b)!) >= 30, `--${a} og --${b}: ΔE ${deltaE(t.get(a)!, t.get(b)!).toFixed(0)}`);
+    }
   });
 }

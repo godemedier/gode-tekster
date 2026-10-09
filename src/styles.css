@@ -62,6 +62,12 @@ body.tema-skift { transition: --flade 1.4s ease, --panel 1.4s ease, --kort 1.4s 
   --wc-c: #26733a;
   /* Husets vermilion. Kun som streg og markør, aldrig som flade (3,7:1 på --flade). */
   --accent: #db5230;
+  /* Statusserne i biblioteket (ADR-0038): egne farver, så de ikke betyder advarsel eller link.
+     Den første er en ring i --dæmpet, den sidste (færdig) er --ok. */
+  --status-a: #9a6400;
+  --status-b: #2f5f8a;
+  --status-c: #7b4fa6;
+  --status-d: #1d7a78;
   --markering: #dce2e9;
   --skrift-vægt: 400;
   --skygge: 0 8px 24px rgba(16,24,32,0.12);
@@ -106,6 +112,10 @@ body.dark {
   --wc-d: #c98ad4;
   --wc-c: #6cc27a;
   --accent: #ef6a45;
+  --status-a: #e6c27a;
+  --status-b: #8db5d8;
+  --status-c: #c4a0e8;
+  --status-d: #6fc9c4;
   --markering: #2e3640;
   /* Lys tekst på mørk bund ser 16-24 procent federe ud (målt i Edge 8/10). */
   --skrift-vægt: 360;
@@ -142,6 +152,11 @@ body.dark.aften {
   --note-tekst: #ead39a;
   --fund-valgt: #6b5420;
   --accent: #f07a4a;
+  /* Gennemsyn står koldt i det varme lys: ellers smelter den sammen med kladde (8/10). */
+  --status-a: #e2b863;
+  --status-b: #9db8cc;
+  --status-c: #c9a3d6;
+  --status-d: #86c4b4;
   --markering: #3d3226;
 }
 
