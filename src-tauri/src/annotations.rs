@@ -372,7 +372,7 @@ fn hash_matches(before: &str, (start, len): (usize, usize), hex: &str, eol: Eol)
     if start > graphemes.len() {
         return false;
     }
-    let end = (start + len).min(graphemes.len());
+    let end = start.saturating_add(len).min(graphemes.len());
     let slice: String = graphemes[start..end].concat();
     // Også LF: git (autocrlf) laver LF om til CRLF ved checkout, så en fil iA hashede med LF står
     // med CRLF i et worktree. Indholdet er det samme. Set 2/10-2026 i tre worktrees.

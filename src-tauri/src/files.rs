@@ -441,6 +441,7 @@ fn replace_existing(target: &Path, tmp: &Path, guard: &dyn Fn() -> Result<()>) -
 
     let mut last = 0u32;
     for attempt in 0..5u32 {
+        guard()?;
         // SAFETY: begge stier er nul-terminerede UTF-16-buffere, der lever hele kaldet.
         let ok = unsafe {
             ReplaceFileW(
@@ -462,7 +463,6 @@ fn replace_existing(target: &Path, tmp: &Path, guard: &dyn Fn() -> Result<()>) -
             // 1175: åben uden lov til sletning. I alle tre tilfælde er begge filer urørte.
             ERROR_SHARING_VIOLATION | ERROR_ACCESS_DENIED | ERROR_UNABLE_TO_REMOVE_REPLACED => {
                 std::thread::sleep(Duration::from_millis(60 * u64::from(attempt + 1)));
-                guard()?;
             }
             ERROR_UNABLE_TO_MOVE_REPLACEMENT => {
                 // 1176: originalen er væk, kladden ligger under sit eget navn. Flyt den selv på plads.

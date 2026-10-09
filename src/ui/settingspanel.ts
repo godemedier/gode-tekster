@@ -434,7 +434,7 @@ function aiSection(): HTMLElement {
 
 /**
  * Statusserne i biblioteket (ADR-0038): navnene kan rettes, og der kan lægges flere til. Filerne gemmer
- * id'et, så et nyt navn ikke mister teksterne. Den sidste betyder færdig og bliver stående sidst.
+ * id'et, så et nyt navn ikke mister teksterne. Den sidste betyder færdig.
  */
 function statusEditor(refresh: () => void): HTMLElement {
   const box = document.createElement("div");
@@ -463,8 +463,8 @@ function statusEditor(refresh: () => void): HTMLElement {
   add.type = "button";
   add.className = "settings-link";
   add.textContent = tr("Tilføj status", "Add status");
-  // En ny status lægges før den sidste, så »færdig« bliver ved med at stå sidst.
-  add.addEventListener("click", () => save([...list.slice(0, -1), { id: `s${Date.now().toString(36)}`, name: tr("Ny status", "New status") }, ...list.slice(-1)]));
+  // En ny status lægges nederst i listen.
+  add.addEventListener("click", () => save([...list, { id: `s${Date.now().toString(36)}`, name: tr("Ny status", "New status") }]));
   const hint = document.createElement("p");
   hint.className = "st-hint";
   hint.textContent = tr("Den sidste betyder færdig. Klik på prikken ved en tekst i biblioteket for at give den en status.", "The last one means done. Click the dot next to a text in the library to give it a status.");
