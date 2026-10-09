@@ -623,7 +623,8 @@ export async function runScenario(name: string, view: EditorView, path: string |
     const sig = view.state.doc.length;
     view.dispatch({ changes: { from: sig, insert: "\n\nMed venlig hilsen\nKim" }, selection: { anchor: sig + 2, head: sig + 23 } });
     const byKey = (k: string) => document.querySelector<HTMLElement>(`#right [data-key="${k}"]`);
-    byKey("from-selection")?.click();
+    // Fra højreklik på markeringen (9/10, før et link i fanen).
+    window.dispatchEvent(new Event("gt-template-from-selection"));
     await pause(600);
     const proposalName = (byKey("proposal-name") as HTMLInputElement | null)?.value;
     await say(`kommandoer 8: forslag /${proposalName} · ${(document.querySelector(".settings .cmd-form")?.textContent ?? "").slice(0, 200)}`);

@@ -281,7 +281,7 @@ export class CommandsPanel {
 
   /**
    * Øverst i listen: beskriv en ny kommando med egne ord. Uden AI-hjælp står der, hvor den slås
-   * til. »Gem det markerede som skabelon« og »Byg selv« virker altid.
+   * til. »Byg selv« virker altid. En markering bliver en skabelon fra højreklik (9/10).
    */
   private newBox(): HTMLElement {
     const st = this.describe;
@@ -317,7 +317,6 @@ export class CommandsPanel {
     const more = document.createElement("div");
     more.className = "cmd-more";
     more.append(
-      link(tr("Gem det markerede som skabelon", "Save the selection as a template"), () => this.selectionAsTemplate(), "from-selection"),
       link(tr("Byg selv", "Build it yourself"), () => this.openForm(null, tr("Ny kommando", "New command")), "new"),
     );
     box.append(more);
@@ -940,7 +939,8 @@ export class CommandsPanel {
   }
 
   /** Det markerede bliver en skabelon, der sætter netop den tekst ind. Uden AI. */
-  private selectionAsTemplate(): void {
+  /** »Gem som skabelon …« i højreklik på en markering (9/10, før et link i fanen). */
+  selectionAsTemplate(): void {
     const { from, to } = this.view.state.selection.main;
     const text = this.view.state.sliceDoc(from, to).trim();
     if (!text) return this.hooks.notify(tr("Markér først den tekst, der skal blive en skabelon.", "First select the text that should become a template."));

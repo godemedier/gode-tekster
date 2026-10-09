@@ -143,7 +143,11 @@ export function installContextMenu(view: EditorView): void {
     if (!sel.empty && pos !== null && pos >= sel.from && pos <= sel.to) {
       const g = selectionGroups(view);
       out.groups.push({ label: tr("Formatér", "Format"), items: entries(g.format) }, { label: tr("AI-hjælp", "AI help"), items: entries(g.ai) });
-      out.plain.push(add(tr("Dæmp", "Dim"), () => void cmd.dim(view)), add(tr("Flyt til Fraklip", "Move to Clippings"), () => void cmd.park(view)));
+      out.plain.push(
+        add(tr("Dæmp", "Dim"), () => void cmd.dim(view)),
+        add(tr("Flyt til Fraklip", "Move to Clippings"), () => void cmd.park(view)),
+        add(tr("Gem som skabelon …", "Save as a template …"), () => window.dispatchEvent(new Event("gt-template-from-selection"))),
+      );
     }
 
     // Tilføj: det, man ellers kun når med genveje og /-kommandoer.

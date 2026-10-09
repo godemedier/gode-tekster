@@ -244,6 +244,11 @@ settingsPanel.addTab({
     commandsPanel.refresh();
   },
 });
+// Højreklik på en markering › »Gem som skabelon …«: fanen Kommandoer med forslaget klar (9/10).
+window.addEventListener("gt-template-from-selection", () => {
+  if (!settingsPanel.isOpen) settingsPanel.open("kommandoer");
+  commandsPanel.selectionAsTemplate();
+});
 // Fanen Input og beskeder om AI-hjælpen kan åbne indstillingerne, eventuelt på en bestemt fane.
 window.addEventListener("gt-open-settings", (e) => {
   if (!settingsPanel.isOpen) settingsPanel.open((e as CustomEvent<string | undefined>).detail ?? "generelt");
