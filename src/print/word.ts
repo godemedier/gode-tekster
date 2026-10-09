@@ -25,7 +25,6 @@ import {
   Table,
   TableCell,
   TableRow,
-  TabStopType,
   TextRun,
   WidthType,
   type IRunOptions,
@@ -34,7 +33,7 @@ import {
 import JSZip from "jszip";
 import type { Token } from "markdown-it";
 
-import { bodyFor, MARGINS, markdownIt, SPACE_MARK, surname, type Meta, type Template } from "./render.ts";
+import { bodyFor, countsLine, headLine, MARGINS, markdownIt, SPACE_MARK, type Meta, type Template } from "./render.ts";
 import { tr, isEnglish } from "../i18n.ts";
 
 const CM = 567; // twips pr. cm
@@ -131,6 +130,11 @@ function lookFor(template: Template, programFont: string, book: boolean): Look {
 
 export type WordOptions = {
   includeDimmed: boolean;
+  /** Som i print (render.ts PrintOptions, 9/10): forfatter og dato, tal, sidetal, billeder. */
+  byline?: boolean;
+  counts?: boolean;
+  pageNumbers?: boolean;
+  images?: boolean;
   /** Noter som kommentarer og forslag som sporede ændringer (7/10). Ellers en ren udgave. */
   markup?: boolean;
   template?: Template;
@@ -177,6 +181,8 @@ type Markup = {
 };
 /** Sat, mens et dokument bygges med noter og forslag. Bygningen er synkron, til Packer kaldes. */
 let markup: Markup | null = null;
+/** Billeder med (som pladser); fra med »Kun tekst« (9/10). Sat, mens et dokument bygges. */
+let withImages = true;
 
 type Marks = { bold?: boolean; italics?: boolean; underline?: boolean; strike?: boolean; code?: boolean };
 
@@ -267,7 +273,7 @@ function runs(children: Token[], notes: Map<number, number>, linesKept = false):
         break;
       }
       case "image":
-        text(t.content ? tr(`[Billede: ${t.content}]`, `[Image: ${t.content}]`) : tr("[Billede]", "[Image]"));
+        if (withImages) text(t.content ? tr(`[Billede: ${t.content}]`, `[Image: ${t.content}]`) : tr("[Billede]", "[Image]"));
         break;
     }
   }
@@ -415,30 +421,22 @@ function footnotes(tokens: Token[], notes: Map<number, number>, look: Look): Rec
 }
 
 /**
- * Sidehoved og sidefod som skabelonens `@page` (render.ts `pageCss`). Forsiden har ingen af dem.
- * Manuskript: navn og titel til venstre, dato til højre, »2 / 5« nederst. Læseudgave: titlen med
- * versaler øverst, sidetallet nederst.
+ * Sidehoved og sidefod som skabelonens `@page` (render.ts `pageCss`, 9/10): forfatter og dato øverst
+ * på hver side, anslag og ord nederst på første side, sidetal nederst fra side 2. Hver del kan vælges fra.
  */
-function pageParts(template: Template, meta: Meta, look: Look, textWidth: number): { header: Header; footer: Footer } {
-  const small = { size: half(look.head.pt), color: look.head.color };
-  const centered = (children: TextRun[]) => new Paragraph({ alignment: AlignmentType.CENTER, children });
-  if (template === "laeseudgave") {
-    return {
-      header: new Header({ children: [centered([new TextRun({ ...small, text: meta.title.toUpperCase(), characterSpacing: tw(look.head.pt * 0.08) })])] }),
-      footer: new Footer({ children: [centered([new TextRun({ ...small, size: half(9), children: [PageNumber.CURRENT] })])] }),
-    };
-  }
-  const left = [surname(meta.author), meta.title].filter(Boolean).join(" · ");
+function pageParts(look: Look, meta: Meta, opts: WordOptions) {
+  const small = { size: half(7.5), color: "8A8F94" };
+  const line = (children: (string | typeof PageNumber.CURRENT)[]) =>
+    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ ...small, font: look.font, children })] });
+  const head = headLine(opts, meta);
+  const counts = countsLine(opts, meta);
+  const header = head ? new Header({ children: [line([head])] }) : new Header({ children: [] });
   return {
-    header: new Header({
-      children: [
-        new Paragraph({
-          tabStops: [{ type: TabStopType.RIGHT, position: textWidth }],
-          children: [new TextRun({ ...small, text: left }), new TextRun({ ...small, children: ["\t", meta.date] })],
-        }),
-      ],
-    }),
-    footer: new Footer({ children: [centered([new TextRun({ ...small, children: [PageNumber.CURRENT, " / ", PageNumber.TOTAL_PAGES] })])] }),
+    headers: { default: header, first: header },
+    footers: {
+      default: new Footer({ children: opts.pageNumbers === false ? [] : [line([PageNumber.CURRENT])] }),
+      first: new Footer({ children: counts ? [line([counts])] : [] }),
+    },
   };
 }
 
@@ -447,17 +445,9 @@ function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).map((w) => w[0].toUpperCase()).join("").slice(0, 3) || "GT";
 }
 
-/** Titelblokken som i print (render.ts `articleHtml`). */
-function titleBlock(template: Template, meta: Meta): Paragraph[] {
-  const line = (pt: number, color: string, text: string, after: number, extra: IRunOptions = {}) =>
-    new Paragraph({ spacing: { after: tw(after) }, children: [new TextRun({ text, size: half(pt), color, ...extra })] });
-  const title = new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun({ text: meta.title })] });
-  if (template === "laeseudgave") return [title, line(9.5, "555555", [meta.author, meta.date, meta.words].filter(Boolean).join(" · "), 16)];
-  return [
-    ...(meta.author ? [line(9, "777777", meta.author, 6, { characterSpacing: tw(9 * 0.04) })] : []),
-    title,
-    line(8.5, "777777", meta.countLine, 26),
-  ];
+/** Titelblokken som i print (render.ts `articleHtml`): titlen kun fra teksten, linjen under kun det valgte. */
+function titleBlock(meta: Meta): Paragraph[] {
+  return meta.startsWithTitle ? [new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun({ text: meta.title })] })] : [];
 }
 
 export async function wordDocument(markdown: string, meta: Meta, opts: WordOptions): Promise<Uint8Array> {
@@ -466,7 +456,6 @@ export async function wordDocument(markdown: string, meta: Meta, opts: WordOptio
   const bullet = opts.bullet ?? "•";
   const look = lookFor(template, opts.font ?? "", book);
   const m = MARGINS[template];
-  const textWidth = A4_WIDTH - Math.round((m.left + m.right) * CM);
   // Noter og forslag med: kodes før parsningen, kommentarerne samles, mens løbene bygges.
   const encoded = opts.markup ? encodeMarkup(markdown) : null;
   const author = meta.author || "Gode Tekster";
@@ -487,7 +476,8 @@ export async function wordDocument(markdown: string, meta: Meta, opts: WordOptio
       }
     }
   }
-  const parts = pageParts(template, meta, look, textWidth);
+  const parts = pageParts(look, meta, opts);
+  withImages = opts.images !== false;
   const { font, color } = look;
   const atLeast = (line: number) => ({ line, lineRule: LineRuleType.AT_LEAST });
   const heading = ([pt, before, after, italics]: [number, number, number, boolean]) => ({
@@ -495,7 +485,7 @@ export async function wordDocument(markdown: string, meta: Meta, opts: WordOptio
     paragraph: { spacing: { before: tw(before), after: tw(after), ...atLeast(tw(pt * 1.3)) }, keepNext: true },
   });
   const noteParts = footnotes(tokens, notes, look);
-  const body = [...titleBlock(template, meta), ...blocks(tokens, { notes, listStack: [], listRefs: [], quote: 0, listInstance: 0, look, book, prevPlain: false })];
+  const body = [...titleBlock(meta), ...blocks(tokens, { notes, listStack: [], listRefs: [], quote: 0, listInstance: 0, look, book, prevPlain: false })];
   const comments = [...used].map(([n, id]) => ({ id, author, initials: initials(author), date: new Date(stamp), children: [new Paragraph({ children: [new TextRun(encoded?.notes[n] ?? "")] })] }));
   markup = null;
   const doc = new Document({
@@ -590,8 +580,7 @@ export async function wordDocument(markdown: string, meta: Meta, opts: WordOptio
             },
           },
         },
-        headers: { default: parts.header, first: new Header({ children: [] }) },
-        footers: { default: parts.footer, first: new Footer({ children: [] }) },
+        ...parts,
         children: body,
       },
     ],

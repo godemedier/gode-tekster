@@ -1,4 +1,4 @@
-// Forhåndsvisning (Ctrl+R), udskrift (Ctrl+P) og eksport til PDF og Word (ADR-0011, -0018).
+// Forhåndsvisning og udskrift (Ctrl+P, 9/10: én indgang) og eksport til PDF og Word (ADR-0011, -0018).
 // Print-DOM'en tegnes på ny før hver udskrift, så den altid viser teksten, som den er nu.
 
 import { invoke } from "@tauri-apps/api/core";
@@ -12,18 +12,28 @@ import { errorText, notify, showBanner } from "../ui/banner.ts";
 import { fontName } from "../ui/settingspanel.ts";
 import type { Meta, PrintOptions, Template } from "./render.ts";
 import { tr, currentLang } from "../i18n.ts";
+import { showMenu, type MenuItem } from "../ui/menu.ts";
 
 // Print-laget (markdown-it) hentes først, når der skal printes, så opstarten ikke betaler for det.
 const load = () => import("./render.ts");
 
-const KEY = "gt-print";
+// Ny nøgle 9/10: forfatter, dato og tal er nu med som standard, også for den, der havde valgt dem fra.
+const KEY = "gt-print-2";
 
 function storedOptions(): PrintOptions {
   try {
     const o = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<PrintOptions>;
-    return { template: o.template === "laeseudgave" ? "laeseudgave" : "manuskript", includeDimmed: o.includeDimmed === true, wordMarkup: o.wordMarkup !== false };
+    return {
+      template: o.template === "laeseudgave" ? "laeseudgave" : "manuskript",
+      includeDimmed: o.includeDimmed === true,
+      wordMarkup: o.wordMarkup !== false,
+      byline: o.byline !== false,
+      counts: o.counts !== false,
+      pageNumbers: o.pageNumbers !== false,
+      images: o.images !== false,
+    };
   } catch {
-    return { template: "manuskript", includeDimmed: false, wordMarkup: true };
+    return { template: "manuskript", includeDimmed: false, wordMarkup: true, byline: true, counts: true, pageNumbers: true, images: true };
   }
 }
 
@@ -105,11 +115,11 @@ export class PrintPreview {
 
   /** Tegn artiklen og `@page`-reglerne for den valgte skabelon. */
   private async render(): Promise<void> {
-    const { articleHtml, MARGINS, pageCss } = await load();
+    const { articleHtml, pageMargins, pageCss } = await load();
     const meta = await this.meta();
     const t = this.opts.template;
-    const m = MARGINS[t];
-    this.pageStyle.textContent = pageCss(t, meta);
+    const m = pageMargins(t);
+    this.pageStyle.textContent = pageCss(t, meta, this.opts);
     this.paper.style.padding = `${m.top}cm ${m.right}cm ${m.bottom}cm ${m.left}cm`;
     const article = document.createElement("article");
     // Orddeling i print og PDF følger sproget.
@@ -128,8 +138,8 @@ export class PrintPreview {
     seg.setAttribute("role", "radiogroup");
     seg.setAttribute("aria-label", tr("Skabelon", "Template"));
     const choices: [Template, string][] = [
-      ["manuskript", tr("Manuskript", "Manuscript")],
-      ["laeseudgave", tr("Læseudgave", "Reading copy")],
+      ["manuskript", tr("Som på skærmen", "As on screen")],
+      ["laeseudgave", tr("Som i et blad", "As in a magazine")],
     ];
     for (const [value, label] of choices) {
       const b = button(label, () => this.setOptions({ template: value }));
@@ -137,39 +147,51 @@ export class PrintPreview {
       b.setAttribute("aria-checked", String(this.opts.template === value));
       seg.append(b);
     }
-    const dim = document.createElement("label");
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    box.checked = this.opts.includeDimmed;
-    box.addEventListener("change", () => this.setOptions({ includeDimmed: box.checked }));
-    dim.append(box, document.createTextNode(tr("Dæmpet tekst med", "Include dimmed text")));
-    // Noter og forslag med ud i Word som kommentarer og sporede ændringer (7/10). Vises kun, når
-    // teksten har nogen, så linjen ikke fyldes for ingenting.
+    // Hvad der kommer med (9/10): ét valg med flueben i stedet for en række afkrydsningsfelter. Menuen
+    // åbner igen efter hvert valg, så flere kan slås til og fra i én omgang.
     const doc = this.view.state.doc.toString();
-    const marked = document.createElement("label");
-    marked.hidden = findNotes(doc).length === 0 && findRevisions(doc).length === 0;
-    const markBox = document.createElement("input");
-    markBox.type = "checkbox";
-    markBox.checked = this.opts.wordMarkup !== false;
-    markBox.addEventListener("change", () => this.setOptions({ wordMarkup: markBox.checked }));
-    marked.title = tr("Kommentarer og forslag til rettelser kommer med i Word som kommentarer og sporede ændringer", "Comments and suggested changes go to Word as comments and tracked changes");
-    marked.append(markBox, document.createTextNode(tr("Kommentarer og rettelser i Word", "Comments and changes in Word")));
+    const hasMarkup = findNotes(doc).length > 0 || findRevisions(doc).length > 0;
+    const content = button(tr("Indhold", "Content"), () => openContent());
+    content.className = "pv-menu";
+    content.setAttribute("aria-haspopup", "menu");
+    const openContent = () => {
+      const r = (this.bar.querySelector<HTMLElement>(".pv-menu") ?? content).getBoundingClientRect();
+      const item = (label: string, checked: boolean, patch: Partial<PrintOptions>): MenuItem => ({
+        label,
+        checked,
+        run: () => {
+          this.setOptions(patch);
+          // Linjen tegnes forfra, så knappen er ny: menuen åbner ved den nye (9/10: den hoppede væk).
+          window.setTimeout(openContent, 0);
+        },
+      });
+      const o = this.opts;
+      showMenu(r.left, r.bottom + 4, [
+        item(tr("Forfatter og dato", "Author and date"), o.byline === true, { byline: !o.byline }),
+        item(tr("Antal tegn og ord", "Characters and words"), o.counts === true, { counts: !o.counts }),
+        item(tr("Sidetal", "Page numbers"), o.pageNumbers !== false, { pageNumbers: o.pageNumbers === false }),
+        { separator: true },
+        item(tr("Billeder", "Images"), o.images !== false, { images: o.images === false }),
+        item(tr("Dæmpet tekst", "Dimmed text"), o.includeDimmed, { includeDimmed: !o.includeDimmed }),
+        // Noter og forslag med ud i Word som kommentarer og sporede ændringer (7/10). Kun når teksten har nogen.
+        ...(hasMarkup ? [item(tr("Kommentarer og rettelser i Word", "Comments and changes in Word"), o.wordMarkup !== false, { wordMarkup: o.wordMarkup === false })] : []),
+      ]);
+    };
     const gap = document.createElement("span");
     gap.className = "pv-gap";
     this.bar.replaceChildren(
       seg,
-      dim,
-      marked,
+      content,
       gap,
       button(tr("Udskriv", "Print"), () => void this.print()),
       Object.assign(button(tr("Gem som PDF", "Save as PDF"), () => void this.pdf()), { className: "pv-primary" }),
       button(tr("Gem som Word", "Save as Word"), () => void this.word()),
-      button(tr("Kopiér", "Copy"), () => void import("./copyRich.ts").then((m) => m.copyRich(this.view))),
+      button(tr("Kopiér tekst", "Copy text"), () => void import("./copyRich.ts").then((m) => m.copyRich(this.view))),
       Object.assign(button(tr("Luk", "Close"), () => this.close()), { className: "pv-quiet" }),
     );
   }
 
-  /** Ctrl+P: WebView2's egen forhåndsvisning af udskriften. */
+  /** »Udskriv« og Ctrl+P i forhåndsvisningen: WebView2's egen udskriftsdialog. */
   async print(): Promise<void> {
     if (!this.path()) return;
     await this.render();
@@ -180,13 +202,15 @@ export class PrintPreview {
   async pdf(): Promise<void> {
     const path = this.path();
     if (!path) return;
-    const target = await invoke<string | null>("pick_export_path", { source: path, kind: "pdf" });
+    // Navnet følger overskriften (9/10). Rust renser det og falder tilbage på filnavnet.
+    const meta = await this.meta();
+    const target = await invoke<string | null>("pick_export_path", { source: path, kind: "pdf", title: meta.fromHeading ? meta.title : null });
     if (!target) return;
     await this.render();
     await document.fonts.ready;
     try {
-      const { MARGINS } = await load();
-      const saved = await invoke<string>("export_pdf", { margins: MARGINS[this.opts.template] });
+      const { pageMargins } = await load();
+      const saved = await invoke<string>("export_pdf", { margins: pageMargins(this.opts.template) });
       const file = saved.slice(saved.lastIndexOf("\\") + 1);
       notify(tr(`PDF'en er gemt: ${file}`, `PDF saved: ${file}`));
     } catch (e) {
@@ -198,15 +222,21 @@ export class PrintPreview {
   async word(): Promise<void> {
     const path = this.path();
     if (!path) return;
-    const target = await invoke<string | null>("pick_export_path", { source: path, kind: "docx" });
+    // Navnet følger overskriften (9/10). Rust renser det og falder tilbage på filnavnet.
+    const meta = await this.meta();
+    const target = await invoke<string | null>("pick_export_path", { source: path, kind: "docx", title: meta.fromHeading ? meta.title : null });
     if (!target) return;
     try {
       const { wordDocument } = await import("./word.ts");
       // Word følger skabelonen og stilen fra Indstillinger, som PDF'en (ADR-0031).
       const s = settings();
-      const bytes = await wordDocument(this.view.state.doc.toString(), await this.meta(), {
+      const bytes = await wordDocument(this.view.state.doc.toString(), meta, {
         includeDimmed: this.opts.includeDimmed,
         markup: this.opts.wordMarkup !== false,
+        byline: this.opts.byline,
+        counts: this.opts.counts,
+        pageNumbers: this.opts.pageNumbers,
+        images: this.opts.images,
         template: this.opts.template,
         book: s.paragraphs === "indryk",
         bullet: bulletChar(s),

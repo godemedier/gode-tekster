@@ -26,6 +26,7 @@ import { LanguagePanel } from "./ui/languagePanel.ts";
 import { SettingsPanel, fontStack } from "./ui/settingspanel.ts";
 import { setLineLength } from "./ui/lineWidth.ts";
 import { followTheme } from "./ui/theme.ts";
+import { installContextMenu } from "./ui/contextMenu.ts";
 import { statusChange } from "./editor/textStatus.ts";
 import { CountCorner } from "./ui/countcorner.ts";
 import { setModes, setQuoteStyle } from "./editor/modes.ts";
@@ -56,6 +57,8 @@ document.getElementById("left")?.setAttribute("aria-label", tr("Bibliotek", "Lib
 document.getElementById("right")?.setAttribute("aria-label", tr("Fraklip og fodnoter", "Clippings and footnotes"));
 
 const view = new EditorView({ parent: document.getElementById("editor") as HTMLElement });
+// Højreklik: stilfund, tabel og »Tilføj« i WebView2's egen menu (contextmenu.rs, 9/10).
+installContextMenu(view);
 setFocusFallback(() => view.focus());
 installScrollbars();
 const empty = document.getElementById("empty") as HTMLElement;
@@ -709,16 +712,16 @@ window.addEventListener(
       // Ctrl+N: et nyt, tomt vindue (ét vindue pr. tekst, 3/10).
       stop();
       void invoke("new_window", { path: null });
-    } else if (key === "r" && !e.shiftKey) {
-      stop();
-      printing.toggle();
     } else if (key === "p" && e.shiftKey) {
       // Ctrl+Shift+P: kommandomenuen uden at skrive »/«, med markeringen i behold.
       stop();
       openCommandMenu(view);
     } else if (key === "p" && !e.shiftKey) {
+      // Ctrl+P åbner forhåndsvisningen, hvor man vælger udskrift, PDF eller Word (9/10: én indgang).
+      // Står den allerede åben, udskrives der, som i en browser.
       stop();
-      void printing.print();
+      if (printing.isOpen) void printing.print();
+      else void printing.open();
     } else if (key === "d" && !e.shiftKey) {
       stop();
       void updateSettings({ focusMode: !settings().focusMode });

@@ -44,18 +44,48 @@ test("HTML i teksten escapes, kun <u> slipper igennem, noter samles sidst", () =
   assert.equal((html.match(/<h1/g) ?? []).length, 1, "titlen står én gang");
 });
 
-test("metadata og sidehoved", () => {
+test("sidehoved og sidefod: forfatter og dato øverst, tal på første side, sidetal fra side 2 (9/10)", () => {
   const meta = metaFor(doc, "ARTIKEL.md", "Kim Skribent", new Date(2026, 9, 2));
   assert.equal(meta.title, "Sådan bruger du 120 milliarder");
   assert.equal(meta.date, "2. oktober 2026");
   assert.match(meta.countLine, /anslag inkl\. mellemrum \(.+ normalsider\) · .+ ord/);
-  assert.match(pageCss("manuskript", meta), /"Skribent · Sådan bruger du 120 milliarder"/);
+  const css = pageCss("manuskript", meta);
+  assert.match(css, /@top-center \{ content: "Kim Skribent · 2\. oktober 2026"/);
+  assert.match(css, /@bottom-center \{ content: counter\(page\)/);
+  assert.match(css, /@page :first \{ @bottom-center \{ content: ".*anslag/);
+  const bare = pageCss("manuskript", meta, { byline: false, counts: false, pageNumbers: false });
+  assert.doesNotMatch(bare, /@top-center|counter\(page\)|anslag/);
   assert.equal(danishDate(new Date(2026, 0, 31)), "31. januar 2026");
 });
 
-test("anførselstegn i titlen kan ikke bryde ud af CSS-strengen", () => {
-  const meta = metaFor('# Et "farligt" \\ navn', "x.md", "T K");
-  assert.match(pageCss("laeseudgave", meta), /content: "ET \\"FARLIGT\\" \\\\ NAVN"/);
+test("anførselstegn i forfatterens navn kan ikke bryde ud af CSS-strengen", () => {
+  const meta = metaFor("Tekst.", "x.md", 'Kim "farlig" \\ Skribent');
+  assert.match(pageCss("laeseudgave", meta), /content: "Kim \\"farlig\\" \\\\ Skribent · /);
+});
+
+test("titlen er tekstens egen overskrift, aldrig filnavnet, og ingen byline i teksten (9/10)", () => {
+  const meta = metaFor(doc, "ARTIKEL.md", "Kim Skribent", new Date(2026, 9, 2));
+  const html = articleHtml(doc, { template: "manuskript", includeDimmed: false }, meta);
+  assert.match(html, /<header class="pv-head"><h1 class="pv-title">Sådan bruger du 120 milliarder<\/h1><\/header>/);
+  assert.doesNotMatch(html, /Kim Skribent|anslag/);
+  assert.doesNotMatch(articleHtml("Bare tekst.", { template: "manuskript", includeDimmed: false }, metaFor("Bare tekst.", "noter.md", "")), /pv-title|noter/);
+});
+
+test("billeder: figur med billedtekst, relative stier tilladt, og »Kun tekst« udelader dem (9/10)", () => {
+  const md = "Før.\n\n![Havnen om morgenen](medier/havn.jpg)\n\nEfter.";
+  const meta = metaFor(md, "x.md", "");
+  const url = (src: string) => `asset://${src}`;
+  const med = articleHtml(md, { template: "manuskript", includeDimmed: false }, meta, url);
+  assert.match(med, /<figure class="pv-wide pv-fig"><img src="asset:\/\/medier\/havn\.jpg" alt="Havnen om morgenen"><em class="pv-cap">Havnen om morgenen<\/em><\/figure>/);
+  const uden = articleHtml(md, { template: "manuskript", includeDimmed: false, images: false }, meta, url);
+  assert.doesNotMatch(uden, /img|figure|<p><\/p>/);
+  // Links må stadig ikke pege på andet end nettet, mail eller dokumentet.
+  assert.doesNotMatch(articleHtml("[x](javascript:alert(1))", { template: "manuskript", includeDimmed: false }, meta), /href/);
+});
+
+test("tabeller står i en bred boks (9/10)", () => {
+  const md = "| a | b |\n|---|---|\n| 1 | 2 |";
+  assert.match(articleHtml(md, { template: "manuskript", includeDimmed: false }, metaFor(md, "x.md", "")), /<div class="pv-wide"><table>/);
 });
 
 test("en ekstra tom linje bliver et luft-afsnit i print, også ikke inde i kode", async () => {

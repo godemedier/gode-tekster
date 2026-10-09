@@ -20,6 +20,8 @@ body.dark.print-preview #print-root { background: color-mix(in srgb, var(--flade
 .pv-seg { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--kant); border-radius: 9px; background: var(--kort); }
 .pv-seg button { border: none; height: 28px; border-radius: 7px; background: transparent; }
 .pv-seg button[aria-checked="true"] { background: var(--hover); color: var(--blæk); font-weight: 600; }
+/* »Indhold«: hvad der kommer med, som en menu med flueben (9/10). */
+.pv-bar .pv-menu::after { content: ""; display: inline-block; width: 5px; height: 5px; margin: 0 0 3px 8px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
 .pv-bar .pv-primary { background: var(--blæk); border-color: var(--blæk); color: var(--flade); }
 .pv-bar .pv-quiet { border-color: transparent; background: transparent; }
 .pv-bar label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
@@ -27,40 +29,64 @@ body.dark.print-preview #print-root { background: color-mix(in srgb, var(--flade
 .pv-gap { width: 14px; }
 .pv-paper { box-sizing: border-box; width: 21cm; min-height: 29.7cm; margin: 8px auto 48px; background: #ffffff; color: #111111; box-shadow: 0 2px 18px rgba(0,0,0,0.12); }
 
-/* --- selve artiklen ---------------------------------------------------------------------- */
-.pv-article { color: #111111; }
+/* --- selve artiklen (9/10: roligere, i husets ånd) ---------------------------------------
+   Titlen er tekstens egen, forfatter, dato og tal står i sidehoved og sidefod (render.ts pageCss).
+   Ingen farver. Tabeller og billeder må gå 2 cm ud i margenen. */
+/* Polstringen er udfaldet: siden har en tilsvarende smallere margen (render.ts pageMargins). */
+.pv-article { color: #1d2125; --udfald: 2cm; --grotesk: "Schibsted Grotesk", "Segoe UI", sans-serif; padding: 0 var(--udfald); }
 .pv-article a { color: inherit; text-decoration: underline; text-decoration-thickness: 0.5pt; text-underline-offset: 2pt; }
-.pv-article sup.footnote-ref { font-size: 0.7em; line-height: 0; }
+.pv-article sup.footnote-ref { font-size: 0.68em; line-height: 0; }
 .pv-article sup.footnote-ref a { text-decoration: none; }
-.pv-article hr { border: none; text-align: center; margin: 1.2em 0; }
+
+/* Titelblokken. */
+.pv-head { margin: 0 0 20pt; break-after: avoid; }
+.pv-head .pv-title { margin: 0; }
+
+/* Skillelinje: tre stjerner, roligt grå. */
+.pv-article hr { border: none; height: auto; margin: 18pt 0; text-align: center; color: #8a8f94; }
 .pv-article hr::after { content: "*   *   *"; white-space: pre; }
 .pv-article hr.footnotes-sep { display: none; }
-.pv-article table { border-collapse: collapse; margin: 0.8em 0; font-size: 0.92em; break-inside: avoid; }
-.pv-article th, .pv-article td { border: 0.5pt solid #999999; padding: 3pt 6pt; text-align: left; vertical-align: top; }
-.pv-article pre, .pv-article code { font-family: Consolas, monospace; font-size: 0.88em; }
-.pv-article pre { white-space: pre-wrap; break-inside: avoid; }
-.pv-article ul, .pv-article ol { padding-left: 1.4em; }
-.pv-article .img-missing { color: #777777; font-style: italic; }
-.pv-article img { display: block; max-width: 100%; margin: 0.6em 0; break-inside: avoid; }
-.pv-article h1, .pv-article h2, .pv-article h3, .pv-article h4 { break-after: avoid; break-inside: avoid; }
-.pv-article .footnotes { margin-top: 2em; break-before: auto; }
-.pv-article .footnotes ol { padding-left: 1.6em; }
 
-/* Manuskript: som på skærmen (2/10: »lige så fedt som på skærmen«). Skriften fra editoren,
-   luftig linjeafstand, brede marginer, overskrifter og citater som i iA. Før: Times 12/1,5. */
-.tpl-manuskript { font-family: var(--skrift, "Recursive Halvmono"), "Recursive Halvmono", serif; font-size: 10.5pt; line-height: 1.75; letter-spacing: 0.01em; hyphens: manual; orphans: 2; widows: 2; color: #1f1f1f; }
+/* Tabeller som i en avis: vandrette linjer, ingen gitter, grotesk. Ord brydes aldrig midt
+   over (før: »Sandsy/nlighe/d«). */
+.pv-article .pv-wide { margin: 14pt calc(-1 * var(--udfald)); break-inside: avoid; }
+.pv-article table { border-collapse: collapse; width: auto; min-width: calc(100% - 2 * var(--udfald)); margin: 0 auto; font: 8.5pt/1.45 var(--grotesk);
+  border-top: 0.9pt solid #1d2125; border-bottom: 0.9pt solid #1d2125; hyphens: auto; overflow-wrap: normal; word-break: normal; }
+.pv-article th { font-weight: 600; text-align: left; vertical-align: bottom; padding: 5pt 12pt 4pt 0; border-bottom: 0.5pt solid #1d2125; }
+.pv-article td { text-align: left; vertical-align: top; padding: 4pt 12pt 4pt 0; border-bottom: 0.4pt solid #d7dce1; }
+.pv-article tr:last-child td { border-bottom: none; }
+.pv-article :is(th, td):last-child { padding-right: 0; }
+
+/* Billeder: et afsnit med kun et billede bliver en figur, der går ud i margenen, med billedteksten
+   under i grotesk. Et billede midt i et afsnit bliver i spalten. */
+.pv-article figure.pv-fig { margin: 16pt calc(-1 * var(--udfald)); }
+.pv-article .pv-fig { display: block; break-inside: avoid; text-align: center; }
+.pv-article .pv-fig img { display: block; max-width: 100%; max-height: 13cm; margin: 0 auto; }
+.pv-article .pv-cap { display: block; margin: 6pt auto 0; max-width: calc(100% - 2 * var(--udfald)); font: 8pt/1.4 var(--grotesk); font-style: normal; color: #5b636b; }
+.pv-article .img-missing { font: 8pt var(--grotesk); color: #8a8f94; }
+
+.pv-article pre, .pv-article code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 0.86em; }
+.pv-article pre { white-space: pre-wrap; break-inside: avoid; background: #f3f4f5; padding: 8pt 10pt; border-radius: 3pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.pv-article ul, .pv-article ol { padding-left: 1.3em; }
+.pv-article li + li { margin-top: 2pt; }
+.pv-article h1, .pv-article h2, .pv-article h3, .pv-article h4 { break-after: avoid; break-inside: avoid; }
+
+/* Noter: en kort streg og en lille grotesk overskrift, ingen versaler. */
+.pv-article .footnotes { margin-top: 26pt; break-before: auto; }
+.pv-article .footnotes::before { content: ""; display: block; width: 3cm; border-top: 0.5pt solid #b4bac1; margin-bottom: 10pt; }
+.pv-article .notes-title { margin: 0 0 6pt; font: 600 8pt var(--grotesk); color: #1d2125; }
+.pv-article .footnotes ol { padding-left: 1.4em; margin: 0; }
+
+/* Manuskript: skriften fra editoren, luftig linjeafstand, brede marginer. */
+.tpl-manuskript { font-family: var(--skrift, "Recursive Halvmono"), "Recursive Halvmono", serif; font-size: 10.5pt; line-height: 1.75; letter-spacing: 0.01em; hyphens: manual; orphans: 2; widows: 2; }
 .tpl-manuskript p { margin: 0 0 9pt; }
-.tpl-manuskript h1 { font-size: 15pt; line-height: 1.3; margin: 20pt 0 8pt; }
-.tpl-manuskript h2 { font-size: 12.5pt; margin: 18pt 0 6pt; }
-.tpl-manuskript h3 { font-size: 10.5pt; margin: 14pt 0 4pt; }
-.tpl-manuskript h4 { font-size: 11pt; font-weight: 400; color: #555555; margin: 0 0 12pt; line-height: 1.6; }
-.tpl-manuskript blockquote { margin: 10pt 0; padding-left: 12pt; border-left: 2pt solid #1f1f1f; font-style: italic; break-inside: avoid; }
-.tpl-manuskript .ms-head { margin-bottom: 26pt; }
-.tpl-manuskript .ms-author { margin: 0 0 6pt; font-size: 9pt; color: #777777; letter-spacing: 0.04em; }
-.tpl-manuskript .ms-title { font-size: 18pt; line-height: 1.25; margin: 0 0 6pt; }
-.tpl-manuskript .ms-count { font-size: 8.5pt; color: #777777; margin: 0; }
-.tpl-manuskript .notes-title { font-size: 9pt; color: #777777; letter-spacing: 0.06em; text-transform: uppercase; }
-.tpl-manuskript .footnotes { font-size: 9pt; line-height: 1.55; color: #333333; }
+.tpl-manuskript .pv-title, .tpl-manuskript h1 { font-size: 19pt; line-height: 1.22; font-weight: 650; letter-spacing: -0.005em; }
+.tpl-manuskript h1 { margin: 22pt 0 8pt; }
+.tpl-manuskript h2 { font-size: 12pt; font-weight: 650; margin: 20pt 0 6pt; }
+.tpl-manuskript h3 { font-size: 10.5pt; font-weight: 650; margin: 14pt 0 4pt; }
+.tpl-manuskript h4 { font-size: 11.5pt; font-weight: 400; color: #454c53; margin: 0 0 14pt; line-height: 1.6; }
+.tpl-manuskript blockquote { margin: 12pt 0; padding-left: 14pt; border-left: 1pt solid #b4bac1; font-style: oblique 8deg; color: #333a40; break-inside: avoid; }
+.tpl-manuskript .footnotes { font-size: 8.5pt; line-height: 1.55; color: #333a40; }
 
 /* Læseudgave: som en side i et blad. Newsreader 12/1,45, orddeling, indrykkede afsnit (ADR-0037:
    Newsreaders lille x-højde gjorde 11 pt til ca. 9,5 pt Literata). Optisk størrelse sættes i punkter,
@@ -69,15 +95,13 @@ body.dark.print-preview #print-root { background: color-mix(in srgb, var(--flade
   font-optical-sizing: none; font-variation-settings: "opsz" 12; font-variant-numeric: proportional-nums; hyphens: auto; hyphenate-limit-chars: 6 3 3; text-wrap: pretty; orphans: 3; widows: 3; }
 .tpl-laeseudgave p { margin: 0; }
 .tpl-laeseudgave p + p { text-indent: 1em; }
-.tpl-laeseudgave h1 { font-size: 24pt; line-height: 1.15; margin: 0 0 8pt; font-weight: 650; hyphens: manual; font-variation-settings: "opsz" 48; letter-spacing: -0.01em; }
-.tpl-laeseudgave h2 { font-size: 14pt; margin: 16pt 0 4pt; font-variation-settings: "opsz" 24; }
-.tpl-laeseudgave h3 { font-size: 11pt; font-style: italic; margin: 12pt 0 2pt; }
-.tpl-laeseudgave h4 { font-size: 13pt; font-style: italic; font-weight: 400; margin: 0 0 12pt; line-height: 1.35; font-variation-settings: "opsz" 16; }
-.tpl-laeseudgave .lu-head { margin-bottom: 16pt; }
-.tpl-laeseudgave .lu-byline { font-size: 9.5pt; color: #555555; margin: 0; text-indent: 0; font-variation-settings: "opsz" 9; }
-.tpl-laeseudgave blockquote { margin: 10pt 0; padding-left: 12pt; border-left: 1.5pt solid #111111; font-size: 1.12em; font-style: italic; break-inside: avoid; }
+.tpl-laeseudgave .pv-title, .tpl-laeseudgave h1 { font-size: 26pt; line-height: 1.1; font-weight: 600; hyphens: manual; font-variation-settings: "opsz" 48; letter-spacing: -0.015em; text-wrap: balance; }
+.tpl-laeseudgave h1 { margin: 22pt 0 8pt; }
+.tpl-laeseudgave h2 { font-size: 14pt; font-weight: 600; margin: 18pt 0 4pt; font-variation-settings: "opsz" 24; }
+.tpl-laeseudgave h3 { font-size: 11.5pt; font-style: italic; font-weight: 500; margin: 12pt 0 2pt; }
+.tpl-laeseudgave h4 { font-size: 14pt; font-style: italic; font-weight: 400; margin: 0 0 14pt; line-height: 1.35; color: #333a40; font-variation-settings: "opsz" 18; }
+.tpl-laeseudgave blockquote { margin: 12pt 1.5em; font-style: italic; break-inside: avoid; }
 .tpl-laeseudgave blockquote p { text-indent: 0; }
-.tpl-laeseudgave .notes-title { font-size: 9pt; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
 .tpl-laeseudgave .footnotes { font-size: 9pt; line-height: 1.35; font-variation-settings: "opsz" 9; }
 
 /* --- papir: kun artiklen kommer med --------------------------------------------------- */

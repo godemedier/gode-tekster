@@ -23,6 +23,7 @@ pub async fn pick_export_path(
     state: State<'_, ExportState>,
     source: String,
     kind: String,
+    title: Option<String>,
 ) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
     let (label, ext) = match kind.as_str() {
@@ -31,9 +32,11 @@ pub async fn pick_export_path(
         _ => return Err(t!("Ukendt filtype.", "Unknown file type.").to_owned()),
     };
     let src = PathBuf::from(&source);
-    let stem = src
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
+    // Navnet følger tekstens overskrift (9/10), ellers .md-filens navn.
+    let stem = title
+        .as_deref()
+        .and_then(file_name_from_title)
+        .or_else(|| src.file_stem().map(|s| s.to_string_lossy().into_owned()))
         .unwrap_or_else(|| t!("Tekst", "Text").to_owned());
     let mut dialog = app
         .dialog()
@@ -48,6 +51,33 @@ pub async fn pick_export_path(
         *t = picked.clone();
     }
     Ok(picked.map(|p| p.to_string_lossy().into_owned()))
+}
+
+/// Et filnavn af en overskrift: tegn, Windows ikke tillader, og kontroltegn væk, mellemrum samlet,
+/// intet punktum eller mellemrum sidst, højst 120 tegn, og aldrig et af Windows' reserverede navne.
+/// `None`, når intet brugbart er tilbage.
+pub fn file_name_from_title(title: &str) -> Option<String> {
+    let cleaned: String = title
+        .chars()
+        .map(|c| {
+            if c.is_control() || "<>:\"/\\|?*".contains(c) {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect();
+    let mut name = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    if name.chars().count() > 120 {
+        name = name.chars().take(120).collect();
+    }
+    let name = name.trim_end_matches(['.', ' ']).trim().to_owned();
+    let base = name.split('.').next().unwrap_or("").to_ascii_uppercase();
+    let reserved = matches!(base.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((base.starts_with("COM") || base.starts_with("LPT"))
+            && base.len() == 4
+            && base.as_bytes()[3].is_ascii_digit());
+    (!name.is_empty() && !reserved).then_some(name)
 }
 
 fn take_target(state: &ExportState) -> Result<PathBuf, String> {
@@ -191,4 +221,32 @@ fn print_to_pdf(
             .map_err(err)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::file_name_from_title;
+
+    #[test]
+    fn filnavn_af_overskrift() {
+        assert_eq!(
+            file_name_from_title("Byrådet vil lukke havnebadet før tid").as_deref(),
+            Some("Byrådet vil lukke havnebadet før tid")
+        );
+        assert_eq!(
+            file_name_from_title("Hvad koster det? 50/50: »ja« eller \"nej\"").as_deref(),
+            Some("Hvad koster det 50 50 »ja« eller nej")
+        );
+        assert_eq!(
+            file_name_from_title("Slut med punktum.").as_deref(),
+            Some("Slut med punktum")
+        );
+        assert_eq!(file_name_from_title("  ***  "), None);
+        assert_eq!(file_name_from_title("CON"), None);
+        assert_eq!(file_name_from_title("?:*"), None);
+        assert_eq!(
+            file_name_from_title(&"a".repeat(300)).map(|n| n.chars().count()),
+            Some(120)
+        );
+    }
 }
