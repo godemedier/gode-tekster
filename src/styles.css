@@ -475,6 +475,8 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .st-ai-name input { margin: 0; accent-color: var(--blæk); }
 .st-ai-name input:disabled, .st-ai-name input:disabled + span { cursor: default; opacity: 0.55; }
 .st-ai-action { display: flex; align-items: center; gap: 10px; flex-shrink: 0; white-space: nowrap; }
+/* Linket til at hente en nøgle har fast bredde, så nøglefelterne flugter (9/10). */
+.st-ai-action .st-get { min-width: 7.5em; text-align: left; }
 .st-note { margin: 10px 0 0; font-size: 12px; color: var(--svag); line-height: 1.45; }
 .st-note .settings-link { font-size: 12px; }
 .st-about { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--streg); font-size: 12px; color: var(--svag); }

@@ -340,7 +340,8 @@ let lastAi: AiState | null = null;
 const GET: Record<string, { label: string; url: string }> = {
   claude: { label: tr("Hent Claude", "Get Claude"), url: "https://claude.ai/download" },
   codex: { label: tr("Hent Codex", "Get Codex"), url: "https://developers.openai.com/codex" },
-  gemini: { label: tr("Hent en gratis nøgle", "Get a free key"), url: "https://aistudio.google.com/apikey" },
+  // Samme tekst som Mistral, så nøglefelterne flugter (9/10). Hjælpeteksten siger, at den er gratis.
+  gemini: { label: tr("Hent en nøgle", "Get a key"), url: "https://aistudio.google.com/apikey" },
   mistral: { label: tr("Hent en nøgle", "Get a key"), url: "https://console.mistral.ai/api-keys" },
 };
 /** Udbydere med en nøgle, som brugeren selv indsætter (gemini.rs, mistral.rs). */
@@ -403,7 +404,7 @@ function aiSection(): HTMLElement {
       } else if (KEYED.includes(p.id)) {
         control.append(linkButton(tr("Fjern nøglen", "Remove the key"), () => void invoke(`${p.id}_clear_key`).then(() => load(true))));
       }
-      if (get && !p.ready) control.append(linkButton(get.label, () => void invoke("open_url", { url: get.url })));
+      if (get && !p.ready) control.append(Object.assign(linkButton(get.label, () => void invoke("open_url", { url: get.url })), { className: "settings-link st-get" }));
       return row(left, control, { hint: p.detail });
     });
     const note = document.createElement("p");
