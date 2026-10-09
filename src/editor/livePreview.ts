@@ -181,8 +181,14 @@ function build(view: EditorView): DecorationSet {
         if (heading) {
           out.push(line(`gt-h${heading[1]}`).range(state.doc.lineAt(n.from).from));
           const markNode = n.node.firstChild;
-          if (markNode?.name === "HeaderMark" && !onLines(state, n.from, n.to)) {
-            hideWithSpace(state, markNode.from, markNode.to, out);
+          if (markNode?.name === "HeaderMark") {
+            if (!onLines(state, n.from, n.to)) {
+              hideWithSpace(state, markNode.from, markNode.to, out);
+            } else {
+              const next = state.doc.sliceString(markNode.to, markNode.to + 1);
+              const to = next === " " ? markNode.to + 1 : markNode.to;
+              out.push(mark("gt-hmark").range(markNode.from, to));
+            }
           }
           return;
         }
@@ -414,6 +420,14 @@ export const livePreview = ViewPlugin.fromClass(
 );
 
 export const livePreviewTheme = EditorView.theme({
+  ".gt-h1, .gt-h2, .gt-h3, .gt-h4, .gt-h5, .gt-h6": { position: "relative" },
+  ".gt-hmark": { 
+    position: "absolute", 
+    right: "100%", 
+    color: "var(--dæmpet)",
+    fontWeight: "normal",
+    whiteSpace: "pre"
+  },
   ".gt-h1": { fontSize: "1.75em", lineHeight: "1.3", fontWeight: "700", paddingTop: "0.5em" },
   ".gt-h2": { fontSize: "1.35em", lineHeight: "1.35", fontWeight: "700", paddingTop: "0.9em" },
   ".gt-h3": { fontSize: "1.12em", fontWeight: "700", paddingTop: "0.8em" },
