@@ -354,8 +354,8 @@ body.left-open:not(.left-pinned) .panel-left, body.right-open:not(.right-pinned)
 .outline-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
 .outline-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 
-/* Menuer (højreklik, sortering). */
-.menu { position: fixed; z-index: 30; min-width: 190px; background: var(--kort); border: 1px solid var(--kant); border-radius: 10px; box-shadow: var(--skygge); padding: 6px; font-family: var(--ui); font-size: 13px; }
+/* Menuer (højreklik, sortering) ligger øverst, også over forhåndsvisningen (9/10: »Indhold« lå bag printet). */
+.menu { position: fixed; z-index: 60; min-width: 190px; background: var(--kort); border: 1px solid var(--kant); border-radius: 10px; box-shadow: var(--skygge); padding: 6px; font-family: var(--ui); font-size: 13px; }
 .menu button { display: flex; width: 100%; align-items: center; gap: 8px; text-align: left; font: inherit; color: var(--blæk); background: none; border: none; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
 .menu button:hover { background: var(--hover); }
 .menu button:focus-visible { background: var(--valgt); box-shadow: inset 3px 0 0 var(--accent); outline: none; }

@@ -10,6 +10,8 @@ export const ICON = {
   folder: svg('<path d="M3 6h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>'),
   file: svg('<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"></path><path d="M14 3v5h5"></path>'),
   chevronDown: svg('<path d="M6 9l6 6 6-6"></path>'),
+  /** AI-hjælpen ved en markering (9/10): en redaktørs pen, ikke gnister. */
+  pen: svg('<path d="M4 20h4L19 9l-4-4L4 16z"></path><path d="M13 7l4 4"></path>'),
   pin: svg('<path d="M9 4h6l-1 6 3 3H7l3-3z"></path><path d="M12 13v7"></path>'),
   close: svg('<path d="M6 6l12 12M18 6L6 18"></path>'),
   // Taleboble fra Lucide (»message-circle«, ISC): feedback til Gode Medier.

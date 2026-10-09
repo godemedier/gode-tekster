@@ -252,13 +252,22 @@ function removeColumn(m: TableModel, at: number): TableModel {
   return { header: del(m.header), align: del(m.align), rows: m.rows.map(del) };
 }
 
-function cellMenu(view: EditorView, wrap: HTMLElement, cell: HTMLElement, x: number, y: number): void {
+/** Et punkt i højrekliksmenuen (ui/contextMenu.ts bygger WebView2's egen menu af dem). */
+export type TableMenuItem = { label: string; run: () => void; checked?: boolean } | { separator: true };
+
+/**
+ * Tabellens punkter til højreklik i en celle (9/10). Før havde tabellen sin egen menu, som skjulte
+ * stavekontrollens forslag. Nu er de en undermenu i WebView2's egen menu.
+ */
+export function tableMenuAt(view: EditorView, target: Element): TableMenuItem[] | null {
+  const cell = target.closest<HTMLElement>(".gt-tablebox th, .gt-tablebox td");
+  const wrap = cell?.closest<HTMLElement>(".gt-tablebox");
+  if (!cell || !wrap || !view.contentDOM.contains(wrap)) return null;
   const r = Number(cell.dataset.row);
   const c = Number(cell.dataset.col);
   const m = domModel(wrap);
   const setAlign = (a: Align) => commitAll(view, wrap, { ...m, align: m.align.map((v, i) => (i === c ? a : v)) }, { row: r, col: c });
-  // Menuen hentes først her: den rører vinduet, når den indlæses, og tabellerne testes uden et.
-  void import("../ui/menu.ts").then(({ showMenu }) => showMenu(x, y, [
+  return [
     { label: tr("Ny række over", "New row above"), run: () => commitAll(view, wrap, addRow(m, Math.max(0, r - 1)), { row: Math.max(1, r), col: c }) },
     { label: tr("Ny række under", "New row below"), run: () => commitAll(view, wrap, addRow(m, r), { row: r + 1, col: c }) },
     { label: tr("Ny kolonne til venstre", "New column to the left"), run: () => commitAll(view, wrap, addColumn(m, c), { row: r, col: c }) },
@@ -270,7 +279,7 @@ function cellMenu(view: EditorView, wrap: HTMLElement, cell: HTMLElement, x: num
     { label: tr("Venstrestil", "Align left"), run: () => setAlign("left"), checked: m.align[c] === "left" },
     { label: tr("Centrér", "Center"), run: () => setAlign("center"), checked: m.align[c] === "center" },
     { label: tr("Højrestil", "Align right"), run: () => setAlign("right"), checked: m.align[c] === "right" },
-  ]));
+  ];
 }
 
 /** Lytterne sidder på tabellens yderste element og læser alt fra DOM'en, når de kaldes. */
@@ -286,12 +295,6 @@ function wire(wrap: HTMLElement, view: EditorView): void {
     e.preventDefault();
     const text = (e.clipboardData?.getData("text/plain") ?? "").replace(/\s*[\r\n\t]+\s*/g, " ");
     document.execCommand("insertText", false, text);
-  });
-  wrap.addEventListener("contextmenu", (e) => {
-    const cell = cellOf(e);
-    if (!cell) return;
-    e.preventDefault();
-    cellMenu(view, wrap, cell, e.clientX, e.clientY);
   });
   wrap.addEventListener("keydown", (e) => {
     const cell = cellOf(e);
@@ -481,13 +484,15 @@ const arrowInto = ViewPlugin.fromClass(
 export const tableTheme = [
   arrowInto,
   EditorView.theme({
-    ".gt-tablebox": { position: "relative", padding: "0.5em 0 1.2em", overflowX: "auto", cursor: "text" },
-    ".gt-tablebox table": { borderCollapse: "collapse", width: "100%", fontSize: "0.9em", lineHeight: "1.5" },
+    // Bredere end spalten, når der er plads (9/10, --udfald i setup.ts): kolonnerne får luft, og ord
+    // brydes aldrig midt over (før: »Sandsy/nlighe/d«). Er tabellen stadig for bred, ruller den.
+    ".gt-tablebox": { position: "relative", padding: "0.5em 0 1.2em", marginInline: "calc(-1 * var(--udfald, 0px))", overflowX: "auto", cursor: "text" },
+    ".gt-tablebox table": { borderCollapse: "collapse", width: "auto", minWidth: "calc(100% - 2 * var(--udfald, 0px))", margin: "0 auto", fontSize: "0.9em", lineHeight: "1.5" },
     ".gt-tablebox th": { fontWeight: "600", borderBottom: "1px solid var(--svag)", padding: "0.3em 1em 0.4em 0.3em", verticalAlign: "bottom" },
     ".gt-tablebox td": { borderBottom: "1px solid var(--streg)", padding: "0.5em 1em 0.5em 0.3em", verticalAlign: "top" },
     ".gt-tablebox th:last-child, .gt-tablebox td:last-child": { paddingRight: "0.3em" },
     ".gt-tablebox tr:last-child td": { borderBottom: "none" },
-    ".gt-tablebox th, .gt-tablebox td": { outline: "none", minWidth: "3em", borderRadius: "3px" },
+    ".gt-tablebox th, .gt-tablebox td": { outline: "none", minWidth: "3em", borderRadius: "3px", overflowWrap: "normal", wordBreak: "normal", hyphens: "auto" },
     ".gt-tablebox th:focus, .gt-tablebox td:focus": { backgroundColor: "var(--hover)" },
     ".gt-tablebox th:empty::before": { content: "attr(data-placeholder)", color: "var(--dæmpet)", fontWeight: "400" },
     ".gt-table-add": {

@@ -1,15 +1,69 @@
-// Menuen ved markering (design runde 2, »Detaljer«): B, I, U, S, lister, H1-H4 og »···« med Lav til
-// tabel, Citat, Link, Dæmp, Flyt til fraklip, Fodnote, Skær lidt og Faktatjek (fanen Input), Markér
-// som mit eller AI, og Fjern formatering. Vises kun efter en
-// markering med musen, så den aldrig dukker op, mens brugeren skriver eller markerer med tastaturet.
+// Menuen ved markering (9/10, enklere): B, I, U, S, lister, »Overskrift ▾« (brødtekst, H1-H3, manchet),
+// AI-hjælpen bag en pen (faktatjek, renskriv, skær) og »···« med resten. Samme punkter står i
+// højrekliksmenuen (ui/contextMenu.ts), så de to aldrig kommer ud af trit (`selectionGroups`). Vises
+// kun efter en markering med musen, så den aldrig dukker op, mens brugeren skriver.
 
 import { StateEffect, StateField, type EditorState } from "@codemirror/state";
 import { EditorView, showTooltip, type Tooltip } from "@codemirror/view";
 
 import { cmd, type Command } from "./shortcuts.ts";
 import { pickImage } from "./insertImage.ts";
-import { showMenu } from "../ui/menu.ts";
+import { showMenu, type MenuItem } from "../ui/menu.ts";
+import { ICON } from "../ui/icons.ts";
 import { tr } from "../i18n.ts";
+
+/** AI-hjælpen på markeringen (fanen Input tager over). */
+const ai = (detail: string) => () => window.dispatchEvent(new CustomEvent("gt-claude", { detail }));
+
+/**
+ * Punkterne for en markering, i grupper. Værktøjslinjen viser dem som knapper og menuer,
+ * højreklik som undermenuer.
+ */
+export function selectionGroups(view: EditorView): { headings: MenuItem[]; format: MenuItem[]; ai: MenuItem[]; more: MenuItem[] } {
+  const run = (c: Command) => () => void c(view);
+  const headings: MenuItem[] = [
+    { label: tr("Brødtekst (Ctrl+0)", "Body text (Ctrl+0)"), run: run(cmd.heading(0)) },
+    { label: tr("Overskrift 1 (Ctrl+1)", "Heading 1 (Ctrl+1)"), run: run(cmd.heading(1)) },
+    { label: tr("Overskrift 2 (Ctrl+2)", "Heading 2 (Ctrl+2)"), run: run(cmd.heading(2)) },
+    { label: tr("Overskrift 3 (Ctrl+3)", "Heading 3 (Ctrl+3)"), run: run(cmd.heading(3)) },
+    { label: tr("Manchet (Ctrl+4)", "Standfirst (Ctrl+4)"), run: run(cmd.heading(4)) },
+  ];
+  return {
+    headings,
+    format: [
+      { label: tr("Fed", "Bold"), run: run(cmd.bold) },
+      { label: tr("Kursiv", "Italic"), run: run(cmd.italic) },
+      { label: tr("Understreget", "Underline"), run: run(cmd.underline) },
+      { label: tr("Gennemstreget", "Strikethrough"), run: run(cmd.strike) },
+      { separator: true },
+      ...headings,
+      { separator: true },
+      { label: tr("Punktliste", "Bulleted list"), run: run(cmd.bullets) },
+      { label: tr("Nummereret liste", "Numbered list"), run: run(cmd.numbered) },
+      { label: tr("Citat", "Quote"), run: run(cmd.quote) },
+      { label: tr("Lav til tabel", "Make a table"), run: run(cmd.table) },
+      { separator: true },
+      { label: tr("Fjern formatering", "Clear formatting"), run: run(cmd.clear) },
+    ],
+    ai: [
+      { label: tr("Faktatjek", "Fact-check"), run: ai("factcheck") },
+      { label: tr("Renskriv som interview", "Clean up as an interview"), run: ai("clean") },
+      { label: tr("Skær lidt", "Trim a little"), run: ai("cut") },
+    ],
+    more: [
+      { label: "Link", run: run(cmd.link) },
+      { label: tr("Dæmp", "Dim"), run: run(cmd.dim) },
+      { label: tr("Flyt til Fraklip", "Move to Clippings"), run: run(cmd.park) },
+      { label: tr("Fodnote", "Footnote"), run: run(cmd.footnote) },
+      { label: tr("Kommentar til mig selv", "Comment to myself"), run: run(cmd.note) },
+      { label: tr("Indsæt billede …", "Insert image …"), run: () => void pickImage(view) },
+      { separator: true },
+      { label: tr("Citat", "Quote"), run: run(cmd.quote) },
+      { label: tr("Lav til tabel", "Make a table"), run: run(cmd.table) },
+      { label: tr("Fjern formatering", "Clear formatting"), run: run(cmd.clear) },
+    ],
+  };
+}
 
 const setMouseSelected = StateEffect.define<boolean>();
 
@@ -38,6 +92,30 @@ function button(label: string, title: string, run: Command, view: EditorView, st
   return b;
 }
 
+/** En knap med en lille menu. `icon`: teksten er et af ICON's faste SVG'er. */
+function menuButton(content: string, title: string, items: MenuItem[], view: EditorView, icon = false): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "sel-btn sel-menu";
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  b.setAttribute("aria-haspopup", "menu");
+  if (icon) b.innerHTML = content;
+  else b.textContent = content;
+  // En lille pil viser, at knappen åbner en menu (ikke på »···«, der siger det selv).
+  if (content !== "···") b.classList.add("sel-drop");
+  // Åbnes efter klikket: menuens egen lytter lukker ved mousedown udenfor. Markeringen bliver.
+  b.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    window.setTimeout(() => {
+      const r = b.getBoundingClientRect();
+      showMenu(r.left, r.bottom + 4, items);
+      view.focus();
+    }, 0);
+  });
+  return b;
+}
+
 function sep(): HTMLElement {
   const s = document.createElement("span");
   s.className = "sel-sep";
@@ -56,6 +134,7 @@ function toolbar(state: EditorState): Tooltip | null {
       dom.className = "sel-bar";
       dom.setAttribute("role", "toolbar");
       dom.setAttribute("aria-label", tr("Formatering", "Formatting"));
+      const groups = selectionGroups(view);
       dom.append(
         button("B", tr("Fed (Ctrl+B)", "Bold (Ctrl+B)"), cmd.bold, view, "font-weight:700"),
         button("I", tr("Kursiv (Ctrl+I)", "Italic (Ctrl+I)"), cmd.italic, view, "font-style:italic"),
@@ -65,35 +144,11 @@ function toolbar(state: EditorState): Tooltip | null {
         button("•", tr("Punktliste (Ctrl+Shift+8)", "Bulleted list (Ctrl+Shift+8)"), cmd.bullets, view),
         button("1.", tr("Nummereret liste (Ctrl+Shift+7)", "Numbered list (Ctrl+Shift+7)"), cmd.numbered, view),
         sep(),
-        button("H1", tr("Overskrift 1 (Ctrl+1)", "Heading 1 (Ctrl+1)"), cmd.heading(1), view),
-        button("H2", tr("Overskrift 2 (Ctrl+2)", "Heading 2 (Ctrl+2)"), cmd.heading(2), view),
-        button("H3", tr("Overskrift 3 (Ctrl+3)", "Heading 3 (Ctrl+3)"), cmd.heading(3), view),
-        button("H4", tr("Manchet (Ctrl+4)", "Standfirst (Ctrl+4)"), cmd.heading(4), view),
+        menuButton(tr("Overskrift", "Heading"), tr("Overskrift og manchet", "Heading and standfirst"), groups.headings, view),
+        menuButton(ICON.pen, tr("AI-hjælp: faktatjek, renskriv, skær", "AI help: fact-check, clean up, trim"), groups.ai, view, true),
         sep(),
       );
-      const more = button("···", tr("Mere", "More"), () => true, view);
-      // Åbnes efter klikket: menuens egen lytter lukker ved mousedown udenfor.
-      more.addEventListener("mousedown", () => window.setTimeout(() => {
-        const r = more.getBoundingClientRect();
-        showMenu(r.left, r.bottom + 4, [
-          { label: tr("Lav til tabel", "Make a table"), run: () => cmd.table(view) },
-          { label: tr("Citat", "Quote"), run: () => cmd.quote(view) },
-          { label: "Link", run: () => cmd.link(view) },
-          { label: tr("Dæmp", "Dim"), run: () => cmd.dim(view) },
-          { label: tr("Flyt til fraklip", "Move to Clippings"), run: () => cmd.park(view) },
-          { label: tr("Fodnote", "Footnote"), run: () => cmd.footnote(view) },
-          { label: tr("Kommentar til mig selv", "Comment to yourself"), run: () => cmd.note(view) },
-          { label: tr("Indsæt billede …", "Insert image …"), run: () => pickImage(view) },
-          { separator: true },
-          { label: tr("Skær lidt i markeringen", "Trim the selection a little"), run: () => window.dispatchEvent(new CustomEvent("gt-claude", { detail: "cut" })) },
-          { label: tr("Faktatjek markeringen", "Fact-check the selection"), run: () => window.dispatchEvent(new CustomEvent("gt-claude", { detail: "factcheck" })) },
-          { label: tr("Renskriv markeringen som interview", "Clean up the selection as an interview"), run: () => window.dispatchEvent(new CustomEvent("gt-claude", { detail: "clean" })) },
-          // »Markér som mit/AI/andres« er taget ud (4/10), til vi ved, hvad det skal være
-          // (docs/IDEER.md). Mærkerne i filen bevares stadig ved gem.
-          { separator: true },
-          { label: tr("Fjern formatering", "Clear formatting"), run: () => cmd.clear(view) },
-        ]);
-      }, 0));
+      const more = menuButton("···", tr("Mere", "More"), groups.more, view);
       dom.append(more);
       return { dom };
     },
@@ -148,5 +203,8 @@ export const selectionToolbarTheme = EditorView.theme({
   },
   ".sel-btn:hover": { background: "var(--hover)" },
   ".sel-sep": { width: "1px", height: "20px", background: "var(--streg)", margin: "0 4px" },
+  ".sel-menu": { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "4px", padding: "0 8px" },
+  ".sel-menu svg": { display: "block" },
+  ".sel-drop::after": { content: '""', width: "4px", height: "4px", margin: "0 0 3px 2px", border: "solid currentColor", borderWidth: "0 1.5px 1.5px 0", transform: "rotate(45deg)", opacity: "0.7" },
   ".cm-tooltip": { border: "none", background: "transparent" },
 });

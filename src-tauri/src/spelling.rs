@@ -119,6 +119,52 @@ mod imp {
         out
     }
 
+    /// Står ordet i Windows' ordbog (eller er det et gyldigt sammensat ord)?
+    fn is_correct(c: &ISpellChecker, word: &str) -> bool {
+        // SAFETY: Check returnerer en enumerator; ingen fejl betyder, at ordet er rigtigt.
+        unsafe {
+            let Ok(errors) = c.Check(&HSTRING::from(word)) else {
+                return false;
+            };
+            let mut e: Option<ISpellingError> = None;
+            errors.Next(&mut e).is_ok() && e.is_none()
+        }
+    }
+
+    /// Forslag til et forkert ord (9/10): ordet med ét bogstav for meget eller to bogstaver byttet om
+    /// (`edits`), som Windows godkender, og derefter Windows' egne forslag.
+    /// Windows kender ikke alle sammensatte ord (»skriveprogram«): en rigtig dansk ordbog er næste
+    /// skridt (TODO-teknisk).
+    pub fn suggest(word: &str) -> Result<Vec<String>, String> {
+        let c = checker()?;
+        // Én tastefejl er det mest sandsynlige, så de rettelser, Windows godkender, står først
+        // (højst tre). Windows' egne forslag fylder op (»havnebaddet« gav »havnevandet« og fire
+        // andre, men ikke »havnebadet«).
+        let mut out: Vec<String> = super::edits(word)
+            .into_iter()
+            .filter(|cand| is_correct(&c, cand))
+            .take(3)
+            .collect();
+        for s in suggestions(&c, word) {
+            if out.len() >= 5 {
+                break;
+            }
+            if !out.contains(&s) {
+                out.push(s);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Højreklik (9/10): `None`, når ordet er rigtigt, ellers forslagene.
+    pub fn word_status(word: &str) -> Option<Vec<String>> {
+        let c = checker().ok()?;
+        if is_correct(&c, word) {
+            return None;
+        }
+        suggest(word).ok()
+    }
+
     pub fn check(text: &str) -> Result<Vec<SpellError>, String> {
         let c = checker()?;
         let units: Vec<u16> = text.encode_utf16().collect();
@@ -180,12 +226,67 @@ mod imp {
 #[cfg(not(windows))]
 mod imp {
     use super::SpellError;
+    pub fn suggest(_word: &str) -> Result<Vec<String>, String> {
+        Ok(Vec::new())
+    }
+    pub fn word_status(_word: &str) -> Option<Vec<String>> {
+        None
+    }
     pub fn check(_text: &str) -> Result<Vec<SpellError>, String> {
         Err(t!("Kun på Windows.", "Windows only.").to_owned())
     }
     pub fn add(_word: &str) -> Result<(), String> {
         Err(t!("Kun på Windows.", "Windows only.").to_owned())
     }
+}
+
+pub use imp::word_status;
+
+/// »Tilføj til ordbog« fra højreklik (contextmenu.rs).
+pub fn add_word(word: &str) -> Result<(), String> {
+    imp::add(word.trim())
+}
+
+/// Ordet med én rettelse af de to sikreste slags tastefejl: et bogstav for meget og to bogstaver
+/// byttet om. Ikke udskiftede eller indsatte bogstaver: Windows godkender sammensætninger som
+/// »skrivedrogram«, så de gav sludder (målt 9/10). Stort begyndelsesbogstav bevares.
+pub fn edits(word: &str) -> Vec<String> {
+    let lower: Vec<char> = word.to_lowercase().chars().collect();
+    let cap = word.chars().next().is_some_and(char::is_uppercase);
+    let n = lower.len();
+    let mut out: Vec<String> = Vec::new();
+    let mut push = |v: Vec<char>| {
+        let mut s: String = v.into_iter().collect();
+        if cap {
+            let mut c = s.chars();
+            s = c
+                .next()
+                .map(|f| f.to_uppercase().collect::<String>() + c.as_str())
+                .unwrap_or_default();
+        }
+        if !s.is_empty() && s != word && !out.contains(&s) {
+            out.push(s);
+        }
+    };
+    for i in 0..n {
+        let mut v = lower.clone();
+        v.remove(i);
+        push(v);
+    }
+    for i in 0..n.saturating_sub(1) {
+        let mut v = lower.clone();
+        v.swap(i, i + 1);
+        push(v);
+    }
+    out
+}
+
+/// Flere forslag til ét ord (fanen Sprog, når Windows' egne er få).
+#[tauri::command]
+pub async fn spell_suggest(word: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || imp::suggest(word.trim()))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Stavefejlene i teksten (fladen har blanket markdown-tegn og skjulte blokke ud først).
@@ -204,9 +305,37 @@ pub async fn spell_add(word: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
 }
 
+#[cfg(test)]
+mod edit_tests {
+    use super::edits;
+
+    #[test]
+    fn rettelser_af_et_ord() {
+        let e = edits("skriveprsogram");
+        // Et bogstav for meget kommer først, så to byttet om.
+        assert!(e
+            .iter()
+            .position(|w| w == "skriveprogram")
+            .is_some_and(|i| i < 14));
+        assert!(e.contains(&"skrievprsogram".to_owned()));
+        assert!(!e.contains(&"skriveprsogram".to_owned()));
+        assert!(edits("Tektst").contains(&"Tekst".to_owned()));
+    }
+}
+
 #[cfg(all(test, windows))]
 mod tests {
     use super::*;
+
+    /// Kræver dansk stavekontrol i Windows. Springes over, hvis den mangler.
+    #[test]
+    fn forslag_ved_ekstra_bogstav() {
+        let Ok(list) = imp::suggest("havnebaddet") else {
+            return;
+        };
+        assert!(list.iter().any(|w| w == "havnebadet"), "{list:?}");
+        assert_eq!(imp::word_status("havnebadet"), None);
+    }
 
     /// Kræver dansk stavekontrol i Windows. Springes over, hvis den mangler.
     #[test]

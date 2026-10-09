@@ -44,17 +44,25 @@ export function mask(doc: string): string {
 /** Ordlisterne til grammatikken (grammar.ts). Uden dem springes grammatikken over. */
 export type GrammarWords = { verbs: ReadonlySet<string>; nouns: ReadonlySet<string>; adjectives: ReadonlySet<string>; adverbs: ReadonlySet<string>; agree: Agreement };
 
+/**
+ * Forklaringerne uden tankestreger (9/10, SKRIVESTIL): »Svagt anslag – start hellere …« bliver
+ * »Svagt anslag: start hellere …«. Reglerne er Gode Ords, så rettelsen hører også hjemme dér.
+ */
+export function plainMessage(message: string): string {
+  return message.replace(/\s+[–—]\s+/, ": ").replace(/\s+[–—]\s+/g, ", ");
+}
+
 export function analyze(doc: string, words?: GrammarWords, comma?: string): { flags: Flag[]; lix: number; lixLabel: string } {
   const text = mask(doc);
   const clarity = analyzeClarity(text);
   const flags: Flag[] = [];
   for (const f of clarity.flags) {
     if (f.inQuote || !CATEGORY[f.kind]) continue;
-    flags.push({ from: f.offset, to: f.offset + f.length, kind: f.kind, message: f.message, replacement: (f as { replacement?: string }).replacement });
+    flags.push({ from: f.offset, to: f.offset + f.length, kind: f.kind, message: plainMessage(f.message), replacement: (f as { replacement?: string }).replacement });
   }
   for (const f of analyzeAiTells(text).flags) {
     if (f.inQuote) continue;
-    flags.push({ from: f.offset, to: f.offset + f.length, kind: `hus:${f.kind}`, message: f.message, replacement: f.replacement });
+    flags.push({ from: f.offset, to: f.offset + f.length, kind: `hus:${f.kind}`, message: plainMessage(f.message), replacement: f.replacement });
   }
   if (words) flags.push(...grammarFlags(text, words.verbs, words.agree, words.adjectives, words.nouns, comma, words.adverbs));
   return { flags, lix: clarity.lix, lixLabel: clarity.lixLabel };

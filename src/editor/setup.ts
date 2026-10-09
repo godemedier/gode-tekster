@@ -3,7 +3,7 @@
 
 import { currentLang } from "../i18n.ts";
 import { EditorState, type Extension } from "@codemirror/state";
-import { EditorView, ViewPlugin, drawSelection, dropCursor, keymap } from "@codemirror/view";
+import { EditorView, ViewPlugin, drawSelection, dropCursor, keymap, tooltips } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
@@ -68,6 +68,8 @@ const iaTheme = EditorView.theme({
     fontWeight: "var(--skrift-vægt, 400)",
     lineHeight: "1.85",
     letterSpacing: "0.01em",
+    // Tabeller og billeder må gå ud over spalten (9/10): de regner pladsen ud fra rulleområdets bredde.
+    containerType: "inline-size",
   },
   ".cm-content": {
     // Bredden måles i den valgte skrift (ui/lineWidth.ts), så 72 tegn er 72 tegn i alle skrifter.
@@ -78,6 +80,8 @@ const iaTheme = EditorView.theme({
     margin: "0 auto",
     padding: "72px 24px 45vh",
     caretColor: "var(--accent)",
+    // Udfaldet: den tomme plads ved siden af spalten (plus polstringen), minus 16 px luft, højst 10 em.
+    "--udfald": "clamp(0px, (100cqw - min(100cqw, var(--linjelaengde, 72ch) + 48px)) / 2 + 8px, 10em)",
   },
   ".cm-line": { padding: "0" },
   // CodeMirrors egen animation helt væk; timeren nedenfor blinker.
@@ -174,6 +178,9 @@ export function baseExtensions(onChange: OnChange): Extension[] {
     tagLineTheme,
     selectionToolbar,
     selectionToolbarTheme,
+    // Bobler og værktøjslinjen holdes inden for skrivefladen (9/10): CodeMirror regner ellers med hele
+    // vinduet, og linjen ved en markering havnede under et fastgjort sidepanel.
+    tooltips({ tooltipSpace: (view) => view.scrollDOM.getBoundingClientRect() }),
     parkedDrop,
     authorshipView,
     authorshipTheme,

@@ -254,11 +254,12 @@ export async function measureLook(): Promise<void> {
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   (document.querySelector(".settings [aria-label^='Luk']") as HTMLElement | null)?.click();
   await wait(400);
-  key("r");
+  key("p");
   await wait(1500);
   await invoke("log_line", { text: "udseende: print nu" });
   await wait(2500);
-  key("r");
+  // Ctrl+P igen ville udskrive (9/10): forhåndsvisningen lukkes med »Luk«.
+  document.querySelector<HTMLElement>(".pv-bar .pv-quiet")?.click();
   await invoke("log_line", { text: "udseende: færdig" });
 }
 
@@ -442,11 +443,11 @@ export async function runScenario(name: string, view: EditorView, path: string |
     await pause(1500);
     Object.assign(settings(), { wordClasses: false, hiddenWordClasses: [] });
     await setWordClasses(view, false);
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "r", code: "KeyR", ctrlKey: true, bubbles: true, cancelable: true }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", code: "KeyP", ctrlKey: true, bubbles: true, cancelable: true }));
     await pause(2500);
     await say("print: vist");
     await pause(2000);
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "r", code: "KeyR", ctrlKey: true, bubbles: true, cancelable: true }));
+    document.querySelector<HTMLElement>(".pv-bar .pv-quiet")?.click();
     await pause(800);
     window.dispatchEvent(new Event("gt-open-settings"));
     await pause(1500);
@@ -1303,6 +1304,92 @@ export async function runScenario(name: string, view: EditorView, path: string |
     await pause(800);
     await say(`skærmbillede indstillinger-tekst · ${tab ? "fanen fundet" : "FANEN IKKE FUNDET"}`);
     await pause(6000);
+  } else if (name === "tabel-skriv") {
+    // 9/10: »da jeg skrev i den sidste celle, hoppede synsfeltet hver gang«. Rul tabellen ind, skriv
+    // 40 tegn i sidste celle ét ad gangen, og log rullepositionen efter hvert. Ingen hop: samme tal.
+    const scroller = view.scrollDOM;
+    const boxes = [...view.contentDOM.querySelectorAll<HTMLElement>(".gt-tablebox")];
+    const box = boxes[boxes.length - 1];
+    if (!box) {
+      await say("tabel-skriv: ingen tabel");
+    } else {
+      box.scrollIntoView({ block: "center" });
+      await pause(600);
+      const cells = box.querySelectorAll<HTMLElement>("td");
+      const cell = cells[cells.length - 1];
+      cell.focus();
+      const sel = window.getSelection();
+      sel?.selectAllChildren(cell);
+      sel?.collapseToEnd();
+      await pause(300);
+      const tops: number[] = [Math.round(scroller.scrollTop)];
+      for (const ch of " og opdateres løbende hver eneste nat.") {
+        document.execCommand("insertText", false, ch);
+        await pause(90);
+        tops.push(Math.round(scroller.scrollTop));
+      }
+      const jumps = tops.slice(1).filter((t, i) => Math.abs(t - tops[i]) > 2).length;
+      await say(`tabel-skriv: ${jumps} hop på ${tops.length - 1} tegn; rullepositioner ${[...new Set(tops)].join(", ")}`);
+      await say("skærmbillede tabel-skriv");
+      await pause(2500);
+    }
+  } else if (name === "vaerktoej") {
+    // 9/10: værktøjslinjen ved en markering havnede under et fastgjort sidepanel. Højre panel
+    // fastgøres (kun i DOM'en), slutningen af en lang linje markeres, og linjen måles mod fladen.
+    document.body.classList.add("right-pinned");
+    await pause(600);
+    const line = [...view.contentDOM.querySelectorAll<HTMLElement>(".cm-line")].find((l) => (l.textContent ?? "").length > 60);
+    if (line) {
+      const from = view.posAtDOM(line, 0);
+      const to = from + (line.textContent ?? "").length;
+      line.scrollIntoView({ block: "center" });
+      view.dispatch({ selection: { anchor: Math.max(from, to - 12), head: to } });
+      view.contentDOM.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+      await pause(700);
+      const bar = document.querySelector<HTMLElement>(".sel-bar")?.getBoundingClientRect();
+      const area = view.scrollDOM.getBoundingClientRect();
+      await say(bar ? `vaerktoej: linjen ${Math.round(bar.left)}-${Math.round(bar.right)}, fladen ${Math.round(area.left)}-${Math.round(area.right)}, inden for: ${bar.left >= area.left - 1 && bar.right <= area.right + 1 ? "ja" : "NEJ"}` : "vaerktoej: ingen værktøjslinje");
+      await say("skærmbillede vaerktoej");
+      await pause(2500);
+    }
+  } else if (name === "hoejreklik") {
+    // 9/10: højreklik viser stilfundets rettelse, tabellens punkter og »Tilføj«. Fladens svar logges
+    // for et fund og en celle, og koordinaterne skrives, så et script kan højreklikke rigtigt.
+    const { setStyleCheck } = await import("./editor/styleCheck.ts");
+    setStyleCheck(view, true);
+    await pause(2500);
+    const ctx = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 6, clientY: r.top + r.height / 2 }));
+      return window.__gtMenu?.context() ?? "(ingen bro)";
+    };
+    const flagged = view.contentDOM.querySelector(".gt-style");
+    const cells = view.contentDOM.querySelectorAll(".gt-tablebox td");
+    const cell = cells[cells.length - 1];
+    if (flagged) await say(`hoejreklik: fund »${flagged.textContent}« → ${ctx(flagged).slice(0, 250)}`);
+    if (cell) await say(`hoejreklik: celle → ${ctx(cell).slice(0, 250)}`);
+    const para = [...view.contentDOM.querySelectorAll(".cm-line")].find((l) => !l.querySelector(".gt-style") && (l.textContent ?? "").length > 40);
+    if (para) await say(`hoejreklik: tekst → ${ctx(para).slice(0, 250)}`);
+    // Koordinaterne i CSS-pixel inde i vinduet, til et rigtigt højreklik udefra.
+    for (const [navn, el] of [["fund", flagged], ["celle", cell]] as const) {
+      if (!el) continue;
+      el.scrollIntoView({ block: "center" });
+      await pause(300);
+      const r = el.getBoundingClientRect();
+      await say(`hoejreklik-punkt ${navn} ${Math.round(r.left + 8)} ${Math.round(r.top + r.height / 2)} ${window.devicePixelRatio}`);
+      await pause(6000);
+    }
+  } else if (name === "print9") {
+    // 9/10: det nye print og menuen »Indhold«.
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", ctrlKey: true, bubbles: true }));
+    await pause(1800);
+    await say("skærmbillede print9");
+    await pause(2500);
+    document.querySelector<HTMLElement>(".pv-menu")?.click();
+    await pause(700);
+    await say(`print9: menuen ${document.querySelector(".menu") ? "åben" : "IKKE åben"}`);
+    await say("skærmbillede print9-indhold");
+    await pause(2500);
   } else if (name === "anslag") {
     const { count } = await import("./editor/count.ts");
     const c = count(view.state.doc.toString());

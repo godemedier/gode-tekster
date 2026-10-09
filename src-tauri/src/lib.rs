@@ -188,6 +188,7 @@ pub fn run() -> tauri::Result<()> {
             about::open_licenses,
             spelling::spell_check,
             spelling::spell_add,
+            spelling::spell_suggest,
             updater::update_ready,
             i18n::ui_language,
             windows::set_titlebar,

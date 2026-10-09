@@ -44,7 +44,7 @@ const field = StateField.define<DecorationSet>({
         for (const f of e.value) {
           if (f.to <= f.from || f.to > tr.state.doc.length) continue;
           const title = f.replacement ? `${f.message} ${SUGGESTION}: »${f.replacement}«` : f.message;
-          out.push(Decoration.mark({ class: `gt-style gt-style-${categoryOf(f.kind)}`, attributes: { title } }).range(f.from, f.to));
+          out.push(Decoration.mark({ class: `gt-style gt-style-${categoryOf(f.kind)}`, attributes: { title }, flag: f }).range(f.from, f.to));
         }
         return Decoration.set(out, true);
       }
@@ -53,6 +53,20 @@ const field = StateField.define<DecorationSet>({
   },
   provide: (f) => EditorView.decorations.from(f),
 });
+
+/**
+ * Fundet ved `pos`, med dets plads nu (flyttet med teksten siden analysen), til højreklik (9/10).
+ */
+export function flagAt(state: EditorState, pos: number): { from: number; to: number; message: string; replacement?: string } | null {
+  let hit: { from: number; to: number; message: string; replacement?: string } | null = null;
+  state.field(field, false)?.between(pos, pos, (from, to, deco) => {
+    const f = (deco.spec as { flag?: Flag }).flag;
+    if (!f || pos < from || pos > to) return;
+    hit = { from, to, message: f.message, replacement: f.replacement ?? undefined };
+    return false;
+  });
+  return hit;
+}
 
 /** Teksten med »andres tekst« blanket ud: stiltjekket retter ikke i citater og kilders ord. */
 function withoutOthers(state: EditorState): string {

@@ -62,6 +62,8 @@ export class LanguagePanel {
   private spellBusy = false;
   private spellMessage = "";
   private skipped = new Set<string>();
+  /** Ord, der allerede har fået de udvidede forslag (spell_suggest, 9/10). */
+  private extended = new Set<string>();
 
   private spelling(): HTMLElement {
     const sec = document.createElement("section");
@@ -80,6 +82,18 @@ export class LanguagePanel {
     head.append(title, run);
     sec.append(head);
     const current = this.spellErrors?.[0];
+    // Windows' egne forslag er få for sammensatte ord: hent flere én gang, og tegn kortet igen.
+    if (current && current.suggestions.length < 3 && !this.extended.has(current.word)) {
+      this.extended.add(current.word);
+      void invoke<string[]>("spell_suggest", { word: current.word })
+        .then((more) => {
+          const missing = more.filter((w) => !current.suggestions.includes(w));
+          if (!missing.length) return;
+          current.suggestions = [...current.suggestions, ...missing].slice(0, 5);
+          this.showCurrent();
+        })
+        .catch(() => {});
+    }
     if (current) {
       const box = document.createElement("div");
       box.className = "lp-spell";

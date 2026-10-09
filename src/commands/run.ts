@@ -321,6 +321,14 @@ function planEmptyTable(state: EditorState, replace: Span | undefined): Plan {
   };
 }
 
+/** »Tilføj › Tabel« i højreklik (9/10): en tom tabel ved markøren, med fokus i første celle. */
+export function insertEmptyTable(view: EditorView): void {
+  const plan = planEmptyTable(view.state, undefined);
+  if (!plan.spec) return;
+  view.dispatch(plan.spec);
+  if (plan.table !== undefined) focusTable(view, plan.table);
+}
+
 function planTransform(state: EditorState, command: Command, replace: Span | undefined): Plan {
   const { steps, errors } = parseChain(command.body);
   if (errors.length) return { ran: false, notice: cannotRun(command, errors[0].message) };

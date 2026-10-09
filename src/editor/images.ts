@@ -134,7 +134,8 @@ export const images = StateField.define<{ deco: DecorationSet; active: number }>
 });
 
 export const imagesTheme = EditorView.theme({
-  ".gt-img": { padding: "0.4em 0 1em" },
-  ".gt-img img": { display: "block", maxWidth: "100%", maxHeight: "60vh", borderRadius: "4px" },
+  // Billeder må gå ud over spalten (9/10, --udfald i setup.ts) og står midt i den.
+  ".gt-img": { padding: "0.4em 0 1em", marginInline: "calc(-1 * var(--udfald, 0px))" },
+  ".gt-img img": { display: "block", maxWidth: "100%", maxHeight: "60vh", margin: "0 auto", borderRadius: "4px" },
   ".gt-img-missing": { fontFamily: "var(--ui)", fontSize: "13px", color: "var(--svag)" },
 });
