@@ -71,7 +71,10 @@ pub fn file_name_from_title(title: &str) -> Option<String> {
     if name.chars().count() > 120 {
         name = name.chars().take(120).collect();
     }
-    let name = name.trim_end_matches(['.', ' ']).trim().to_owned();
+    let name = name
+        .trim_end_matches(|c: char| !c.is_alphanumeric() && c != ')' && c != ']')
+        .trim()
+        .to_owned();
     let base = name.split('.').next().unwrap_or("").to_ascii_uppercase();
     let reserved = matches!(base.as_str(), "CON" | "PRN" | "AUX" | "NUL")
         || ((base.starts_with("COM") || base.starts_with("LPT"))

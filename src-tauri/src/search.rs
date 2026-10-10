@@ -296,3 +296,20 @@ mod tests {
         }
     }
 }
+
+#[test]
+fn test_trigram() {
+    let c = rusqlite::Connection::open_in_memory().unwrap();
+    c.execute(
+        "CREATE VIRTUAL TABLE t USING fts5(text, tokenize='trigram')",
+        [],
+    )
+    .unwrap();
+    c.execute("INSERT INTO t(text) VALUES ('læssemaskiner')", [])
+        .unwrap();
+    let mut stmt = c
+        .prepare("SELECT text FROM t WHERE text MATCH 'maskine'")
+        .unwrap();
+    let mut rows = stmt.query([]).unwrap();
+    assert!(rows.next().unwrap().is_some());
+}

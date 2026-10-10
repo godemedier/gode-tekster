@@ -435,7 +435,20 @@ fn replace_existing(target: &Path, tmp: &Path, guard: &dyn Fn() -> Result<()>) -
         REPLACEFILE_IGNORE_ACL_ERRORS, REPLACEFILE_IGNORE_MERGE_ERRORS,
     };
 
-    let wide = |p: &Path| -> Vec<u16> { p.as_os_str().encode_wide().chain(Some(0)).collect() };
+    let wide = |p: &Path| -> Vec<u16> {
+        let mut s = p.as_os_str().to_string_lossy().into_owned();
+        if p.is_absolute() && !s.starts_with(r"\\?\") && s.len() >= 240 {
+            if s.starts_with(r"\\") {
+                s = format!(r"\\?\UNC\{}", &s[2..]);
+            } else {
+                s = format!(r"\\?\{}", s);
+            }
+        }
+        std::ffi::OsString::from(s)
+            .encode_wide()
+            .chain(Some(0))
+            .collect()
+    };
     let target_w = wide(target);
     let tmp_w = wide(tmp);
 

@@ -477,7 +477,30 @@ pub async fn save_document(
     } else {
         Some(&meta.stamp)
     };
-    let stamp = files::save(&path, &full, &meta, expected, req.allow_eol_normalize)?;
+    let stamp = match files::save(&path, &full, &meta, expected, req.allow_eol_normalize) {
+        Ok(s) => s,
+        Err(e) => {
+            let mut save_err = SaveError::from(e);
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "fil".to_owned());
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis();
+            let dest = backup_dir.join(format!("{now}-emergency-{name}"));
+            std::fs::create_dir_all(&backup_dir).ok();
+            if let Ok(()) = std::fs::write(&dest, &full) {
+                let msg = t!(
+                    " Nødkopi er lagt i mappen Gode Tekster/backup.",
+                    " An emergency copy was saved in the Gode Tekster/backup folder."
+                );
+                save_err.message.push_str(msg);
+            }
+            return Err(save_err);
+        }
+    };
 
     meta.stamp = stamp;
     if req.allow_eol_normalize {

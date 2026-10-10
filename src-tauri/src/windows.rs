@@ -30,11 +30,17 @@ fn same(a: &Path, b: &Path) -> bool {
 /// Vinduet, der viser teksten, hvis nogen gør.
 pub fn window_with(app: &AppHandle, path: &Path) -> Option<String> {
     let state = app.state::<WindowState>();
-    let shows = state.shows.lock().ok()?;
-    shows
-        .iter()
-        .find(|(_, p)| same(p, path))
-        .map(|(l, _)| l.clone())
+    if let Ok(shows) = state.shows.lock() {
+        if let Some((l, _)) = shows.iter().find(|(_, p)| same(p, path)) {
+            return Some(l.clone());
+        }
+    }
+    if let Ok(pending) = state.pending.lock() {
+        if let Some((l, _)) = pending.iter().find(|(_, p)| same(p, path)) {
+            return Some(l.clone());
+        }
+    }
+    None
 }
 
 /// Vinduet har åbnet en tekst (document.rs `open_path`).
@@ -136,7 +142,6 @@ pub async fn new_window(app: AppHandle, path: Option<String>) -> Result<(), Stri
             focus(&app, &label);
             return Ok(());
         }
-        crate::document::choose(&app, p);
     }
     open_window(&app, path)
 }
