@@ -8,6 +8,9 @@ import footnote from "markdown-it-footnote";
 import { fancyLists } from "./fancyListsMd.ts";
 
 import { withoutParked } from "../editor/parked.ts";
+import { headings } from "../editor/outline.ts";
+import { outsideCode } from "../editor/textSyntax.ts";
+import { resolveDimmed } from "../editor/inline.ts";
 import { count, formatCount } from "../editor/count.ts";
 import { danishDate, longDate } from "../editor/dates.ts";
 import { tr, isEnglish } from "../i18n.ts";
@@ -58,13 +61,8 @@ export const SPACE_MARK = "\u2063";
 /** Teksten, som den skal trykkes: uden fraklip og (som standard) uden dæmpet tekst. */
 export function prepare(markdown: string, includeDimmed: boolean): string {
   let md = withoutParked(markdown);
-  md = includeDimmed ? md.replace(/\{--([\s\S]*?)--\}/g, "$1") : md.replace(/[ \t]?\{--[\s\S]*?--\}/g, "");
-  return md
-    .split(/(^```[\s\S]*?^```\s*$)/m)
-    .map((part, i) => (i % 2 === 1 ? part : typography(part).replace(/\n(?:[ \t]*\n){2,}(?=\S)/g, `\n\n${SPACE_MARK}\n\n`)))
-    .join("")
-    .replace(/\n{3,}/g, "\n\n")
-    .trimEnd();
+  md = resolveDimmed(md, includeDimmed);
+  return outsideCode(md, (part) => typography(part).replace(/\n(?:[ \t]*\n){2,}(?=\S)/g, `\n\n${SPACE_MARK}\n\n`).replace(/\n{3,}/g, "\n\n")).trimEnd();
 }
 
 /** Hårde mellemrum og tankestreg, som en sætter ville gøre (ADR-0012). Intervaller røres ikke. */
@@ -98,8 +96,8 @@ export function markdownIt(imageUrl?: ImageUrl, withImages = true): MarkdownIt {
   // billeder udefra, ingen styles i print-DOM'en).
   const allowed = /^<\/?u>$/i;
   md.renderer.rules.html_inline = (tokens, idx) =>
-    /^<!--/.test(tokens[idx].content) ? "" : allowed.test(tokens[idx].content) ? tokens[idx].content.toLowerCase() : md.utils.escapeHtml(tokens[idx].content);
-  md.renderer.rules.html_block = (tokens, idx) => (/^<!--/.test(tokens[idx].content) ? "" : `<p>${md.utils.escapeHtml(tokens[idx].content)}</p>`);
+    /^<!--[\s\S]*-->\s*$/.test(tokens[idx].content) ? "" : allowed.test(tokens[idx].content) ? tokens[idx].content.toLowerCase() : md.utils.escapeHtml(tokens[idx].content);
+  md.renderer.rules.html_block = (tokens, idx) => (/^<!--[\s\S]*-->\s*$/.test(tokens[idx].content) ? "" : `<p>${md.utils.escapeHtml(tokens[idx].content)}</p>`);
   // Fodnotetal uden klammer, som i en bog: ¹ ikke [1].
   md.renderer.rules.footnote_caption = (tokens, idx) => String(Number((tokens[idx].meta as { id: number }).id) + 1);
   // Lokale billeder via asset-protokollen (editor/images.ts), med alt-teksten som billedtekst. Uden
@@ -137,18 +135,19 @@ export type Meta = {
 };
 
 export function metaFor(markdown: string, fileName: string, author: string, now = new Date()): Meta {
-  const h1 = /^#\s+(.+?)\s*#*\s*$/m.exec(withoutParked(markdown));
-  const first = withoutParked(markdown).trimStart();
+  const visible = withoutParked(markdown);
+  const h1 = headings(visible).find((h) => h.level === 1);
+  const first = visible.trimStart();
   const c = count(markdown);
   const f = formatCount(c);
   return {
-    title: h1 ? h1[1].replace(/[*_`]/g, "") : fileName.replace(/\.(md|markdown|txt)$/i, ""),
+    title: h1 ? h1.text.replace(/[*_`]/g, "") : fileName.replace(/\.(md|markdown|txt)$/i, ""),
     author,
     date: longDate(now),
     countLine: tr(`${f.long[1]} inkl. mellemrum (${f.long[2]}) · ${f.long[0]}`, `${f.long[1]} incl. spaces (${f.long[2]}) · ${f.long[0]}`),
     words: f.long[0],
     startsWithTitle: /^#\s/.test(first),
-    fromHeading: h1 !== null,
+    fromHeading: h1 !== undefined,
   };
 }
 

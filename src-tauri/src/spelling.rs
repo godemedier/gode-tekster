@@ -245,6 +245,9 @@ pub use imp::word_status;
 /// Importerer Troels' egen ordbog fra iA Writer (ADR-0012) og føjer ordene til Windows' ordbog.
 /// Kaldes én gang ved startup. Fejl ignoreres (fx hvis filen ikke findes).
 pub fn import_ia_dictionary(app: &tauri::AppHandle) {
+    if std::env::var("GT_TEST").is_ok() {
+        return;
+    }
     #[cfg(windows)]
     {
         use tauri::Manager;

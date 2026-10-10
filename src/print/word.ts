@@ -3,6 +3,7 @@
 // linjeafstand, brede margener og citater med streg. Læseudgave er en side i et blad. Dansk sprog
 // (ellers staver Word på engelsk) og ægte fodnoter i begge.
 
+import { findNotes, findRevisions } from "../editor/critic.ts";
 import {
   AlignmentType,
   BorderStyle,
@@ -162,22 +163,33 @@ function wordPageFont(font: PageFont, programFont: string): string {
  * læser teksten, så de overlever parsningen og kan findes igen i løbene (`runs`):
  *   \uE000 n \uE001: note nr. n · \uE002 … \uE003: indsat · \uE004 gammel \uE005 ny \uE006: erstattet
  */
-const NOTE_ANY = /(?:<!--(?!\s*gt:)([\s\S]*?)-->|\{>>([\s\S]*?)<<\})/;
-const NOTE_ALONE = new RegExp(String.raw`[ \t]*\n[ \t]*(?:\n[ \t]*)?` + NOTE_ANY.source + String.raw`[ \t]*(?=\n|$)`, "g");
-const NOTE_INLINE = new RegExp(String.raw`[ \t]?` + NOTE_ANY.source, "g");
 
 export function encodeMarkup(md: string): { md: string; notes: string[] } {
   const notes: string[] = [];
-  const note = (a?: string, b?: string) => {
-    notes.push((a ?? b ?? "").trim());
-    return `\uE000${notes.length - 1}\uE001`;
+  const encode = (text: string): string => {
+    const changes = [
+      ...findRevisions(text).map((r) => ({ ...r, note: null })),
+      ...findNotes(text).map((n) => ({ ...n, kind: "note" as const, old: "", next: "", note: n.text })),
+    ];
+    const out: string[] = [];
+    let from = 0;
+    for (const c of changes.sort((a, b) => a.from - b.from)) {
+      if (c.from < from) continue;
+      let start = c.from;
+      let insert: string;
+      if (c.note !== null) {
+        while (start > from && /[ \t\n]/.test(text[start - 1])) start--;
+        insert = `\uE000${notes.push(c.note) - 1}\uE001`;
+      } else {
+        insert = c.kind === "ins" ? `\uE002${encode(c.next)}\uE003` : `\uE004${encode(c.old)}\uE005${encode(c.next)}\uE006`;
+      }
+      out.push(text.slice(from, start), insert);
+      from = c.to;
+    }
+    out.push(text.slice(from));
+    return out.join("");
   };
-  // En note på sin egen linje hæftes på slutningen af teksten før, ellers står den som et tomt afsnit.
-  let out = md.replace(NOTE_ALONE, (_, a, b) => note(a, b));
-  out = out.replace(NOTE_INLINE, (_, a, b) => note(a, b));
-  out = out.replace(/\{~~([\s\S]*?)~>([\s\S]*?)~~\}/g, (_, o: string, n: string) => `\uE004${o}\uE005${n}\uE006`);
-  out = out.replace(/\{\+\+([\s\S]*?)\+\+\}/g, (_, n: string) => `\uE002${n}\uE003`);
-  return { md: out, notes };
+  return { md: encode(md), notes };
 }
 
 const REV_SWITCH: Record<string, "ins" | "del" | null> = { "\uE002": "ins", "\uE003": null, "\uE004": "del", "\uE005": "ins", "\uE006": null };

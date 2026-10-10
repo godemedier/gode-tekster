@@ -1,8 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { headings, movePlan, relocatePlan } from "./outline.ts";
+import { bodyHeadings, headings, movePlan, relocatePlan } from "./outline.ts";
 
 const apply = (doc: string, p: { from: number; to: number; insert: string }) => doc.slice(0, p.from) + p.insert + doc.slice(p.to);
+
+test("status øverst skjuler ikke dispositionen og spærrer ikke afsnitsflytning", () => {
+  const doc = "<!-- gt:status vaerdi=igang -->\n# Titel\n\nEt.\n\nTo.";
+  assert.deepEqual(bodyHeadings(doc).map((h) => h.text), ["Titel"]);
+  const plan = movePlan(doc, doc.indexOf("To."), -1);
+  assert.ok(plan);
+  assert.equal(apply(doc, plan), doc.replace("Et.\n\nTo.", "To.\n\nEt."));
+});
+
+test("lange mellemrum i overskrifter behandles uden regex-hængning", { timeout: 1000 }, () => {
+  const spaces = " ".repeat(100_000);
+  assert.deepEqual(headings(`# Titel${spaces}##${spaces}`).map((h) => h.text), ["Titel"]);
+  assert.deepEqual(headings(`#${spaces}`), []);
+});
 
 test("afsnit flyttes forbi naboen, markøren følger med", () => {
   const doc = "Et.\n\nTo to.\n\nTre.\n";

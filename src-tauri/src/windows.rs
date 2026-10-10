@@ -1,13 +1,12 @@
 //! Ét vindue pr. tekst (3/10), som i Word og iA Writer på Windows. Hovedvinduet »main« findes
 //! altid og skjules ved luk (ADR-0014). Ekstra vinduer hedder »tekst-1«, »tekst-2« … og lukker helt,
 //! når teksten er gemt. Samme tekst åbnes aldrig i to vinduer: det vindue, der har den, hentes frem.
-//! Ctrl+Q og »Afslut« venter, til alle vinduer har gemt (højst 3 s).
+//! Ctrl+Q og »Afslut« venter, til alle vinduer har gemt eller lagt en nødkopi.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -22,9 +21,20 @@ pub struct WindowState {
     quitting: Mutex<Option<HashSet<String>>>,
 }
 
-fn same(a: &Path, b: &Path) -> bool {
+pub(crate) fn same(a: &Path, b: &Path) -> bool {
+    let a = std::fs::canonicalize(a).unwrap_or_else(|_| a.to_path_buf());
+    let b = std::fs::canonicalize(b).unwrap_or_else(|_| b.to_path_buf());
     a.to_string_lossy()
         .eq_ignore_ascii_case(&b.to_string_lossy())
+}
+
+pub fn path_for(app: &AppHandle, label: &str) -> Option<PathBuf> {
+    app.state::<WindowState>()
+        .shows
+        .lock()
+        .ok()?
+        .get(label)
+        .cloned()
 }
 
 /// Vinduet, der viser teksten, hvis nogen gør.
@@ -95,6 +105,9 @@ pub fn open_window(app: &AppHandle, path: Option<PathBuf>) -> Result<(), String>
         .disable_drag_drop_handler()
         .build()
         .map_err(|e| {
+            if let Ok(mut pending) = state.pending.lock() {
+                pending.remove(&label);
+            }
             t!(
                 format!("Vinduet kunne ikke åbnes: {e}"),
                 format!("The window could not be opened: {e}")
@@ -128,6 +141,10 @@ pub fn forget(app: &AppHandle, label: &str) {
     if let Ok(mut shows) = app.state::<WindowState>().shows.lock() {
         shows.remove(label);
     }
+    if let Ok(mut pending) = app.state::<WindowState>().pending.lock() {
+        pending.remove(label);
+    }
+    crate::document::forget_window(app, label);
     crate::watcher::forget_window(app, label);
 }
 
@@ -138,6 +155,8 @@ pub fn forget(app: &AppHandle, label: &str) {
 pub async fn new_window(app: AppHandle, path: Option<String>) -> Result<(), String> {
     let path = path.map(PathBuf::from);
     if let Some(p) = &path {
+        crate::document::may_open(&app, &app.state::<crate::document::AppState>(), p)
+            .map_err(|e| e.message)?;
         if let Some(label) = window_with(&app, p) {
             focus(&app, &label);
             return Ok(());
@@ -170,8 +189,8 @@ pub async fn close_window(app: AppHandle, window: tauri::WebviewWindow) {
     let _ = window.destroy();
 }
 
-/// Ctrl+Q og »Afslut«: alle vinduer gemmer og melder tilbage (`quit_app`). Efter 3 s lukkes der
-/// alligevel; teksten ligger da i backup fra sidste gem.
+/// Ctrl+Q og »Afslut«: alle vinduer gemmer og melder tilbage (`quit_app`). En gemfejl må ikke
+/// afslutte processen, mens et vindue stadig har ugemte rettelser.
 #[tauri::command]
 pub fn request_quit(app: AppHandle) {
     let labels: HashSet<String> = app.webview_windows().keys().cloned().collect();
@@ -179,11 +198,6 @@ pub fn request_quit(app: AppHandle) {
         *q = Some(labels);
     }
     let _ = app.emit("quit-requested", ());
-    let h = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_secs(3));
-        h.exit(0);
-    });
 }
 
 /// Et vindue har gemt under Ctrl+Q. Når det sidste har, lukkes programmet.
@@ -195,13 +209,22 @@ pub fn quit_app(app: AppHandle, window: tauri::Window) {
                 left.remove(window.label());
                 left.is_empty()
             }
-            None => true,
+            None => false,
         },
-        Err(_) => true,
+        Err(_) => false,
     };
     if done {
         app.exit(0);
     }
+}
+
+/// En gemfejl afbryder afslutningen i alle vinduer.
+#[tauri::command]
+pub fn cancel_quit(app: AppHandle) {
+    if let Ok(mut q) = app.state::<WindowState>().quitting.lock() {
+        *q = None;
+    }
+    let _ = app.emit("quit-cancelled", ());
 }
 
 /// Titellinjen i programmets egen farve (visuel gennemgang 5/10): samme flade og tekstfarve som

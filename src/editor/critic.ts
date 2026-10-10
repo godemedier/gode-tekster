@@ -10,6 +10,8 @@
 // Word og det, der sendes til Claude. Rene funktioner, testet med node --test.
 
 /** En note. `open`/`close` er mærkernes længde: 3 og 3 for {>> <<}, 4 og 3 for <!-- -->. */
+import { codeSpans, commentSpans, maskSpans } from "./textSyntax.ts";
+
 export type Note = { from: number; to: number; text: string; open: number; close: number };
 export type Revision = {
   kind: "ins" | "sub";
@@ -25,38 +27,56 @@ export type Revision = {
 };
 export type Change = { from: number; to?: number; insert: string };
 
-const NOTE = /\{>>([\s\S]*?)<<\}/g;
 /**
  * Noter skrives som HTML-kommentarer fra 5/10: den mest udbredte måde, skjult i alle
  * markdown-programmer, på nettet, i iA Writer, print og Word. `{>> … <<}` læses stadig. Programmets
  * egne skjulte blokke (`<!-- gt:… -->`) er ikke noter.
  */
-const HTML_NOTE = /<!--(?!\s*gt:)([\s\S]*?)-->/g;
-const INS = /\{\+\+([\s\S]*?)\+\+\}/g;
-const SUB = /\{~~([\s\S]*?)~>([\s\S]*?)~~\}/g;
+function marks(doc: string): { from: number; to: number; kind: string; separator: number }[] {
+  const text = maskSpans(doc, [...codeSpans(doc), ...commentSpans(doc)]);
+  const out: ReturnType<typeof marks> = [];
+  let pending: { from: number; kind: string; separator: number } | null = null;
+  for (const m of text.matchAll(/\{\+\+|\{~~|\{>>|\+\+\}|~~\}|<<\}|~>/g)) {
+    const token = m[0];
+    if (token.startsWith("{")) pending = { from: m.index, kind: token, separator: -1 };
+    else if (token === "~>" && pending?.kind === "{~~" && pending.separator === -1) pending.separator = m.index;
+    else if (pending && ((pending.kind === "{++" && token === "++}") || (pending.kind === "{>>" && token === "<<}") || (pending.kind === "{~~" && token === "~~}"))) {
+      if (pending.kind !== "{~~" || pending.separator !== -1) out.push({ ...pending, to: m.index + 3 });
+      pending = null;
+    }
+  }
+  return out;
+}
 
 export function findNotes(doc: string): Note[] {
-  const critic = [...doc.matchAll(NOTE)].map((m) => ({ from: m.index ?? 0, to: (m.index ?? 0) + m[0].length, text: m[1].trim(), open: 3, close: 3 }));
-  const html = [...doc.matchAll(HTML_NOTE)].map((m) => ({ from: m.index ?? 0, to: (m.index ?? 0) + m[0].length, text: m[1].trim(), open: 4, close: 3 }));
+  const critic = marks(doc).filter((m) => m.kind === "{>>").map((m) => ({ from: m.from, to: m.to, text: doc.slice(m.from + 3, m.to - 3).trim(), open: 3, close: 3 }));
+  const html = commentSpans(doc).filter((m) => !/^\s*gt:/.test(doc.slice(m.from + 4, m.to - 3))).map((m) => ({ ...m, text: doc.slice(m.from + 4, m.to - 3).trim(), open: 4, close: 3 }));
   return [...critic, ...html].sort((a, b) => a.from - b.from);
 }
 
 export function findRevisions(doc: string): Revision[] {
   const out: Revision[] = [];
-  for (const m of doc.matchAll(INS)) {
-    const from = m.index ?? 0;
-    out.push({ kind: "ins", from, to: from + m[0].length, old: "", next: m[1], oldFrom: from + 3, nextFrom: from + 3 });
-  }
-  for (const m of doc.matchAll(SUB)) {
-    const from = m.index ?? 0;
-    out.push({ kind: "sub", from, to: from + m[0].length, old: m[1], next: m[2], oldFrom: from + 3, nextFrom: from + 3 + m[1].length + 2 });
+  for (const m of marks(doc)) {
+    const { from, to } = m;
+    if (m.kind === "{++") out.push({ kind: "ins", from, to, old: "", next: doc.slice(from + 3, to - 3), oldFrom: from + 3, nextFrom: from + 3 });
+    if (m.kind === "{~~") out.push({ kind: "sub", from, to, old: doc.slice(from + 3, m.separator), next: doc.slice(m.separator + 2, to - 3), oldFrom: from + 3, nextFrom: m.separator + 2 });
   }
   return out.sort((a, b) => a.from - b.from);
 }
 
 /** Teksten, som den står, før rettelserne er godtaget, og uden noter. */
 export function resolvePending(md: string): string {
-  return md.replace(SUB, "$1").replace(INS, "").replace(/[ \t]?\{>>[\s\S]*?<<\}/g, "").replace(/[ \t]?<!--(?!\s*gt:)[\s\S]*?-->/g, "");
+  const changes = findRevisions(md).map((r) => ({ from: r.from, to: r.to, insert: resolvePending(r.old) }));
+  changes.push(...findNotes(md).map((n) => ({ from: n.from > 0 && /[ \t]/.test(md[n.from - 1]) ? n.from - 1 : n.from, to: n.to, insert: "" })));
+  const out: string[] = [];
+  let from = 0;
+  for (const change of changes.sort((a, b) => a.from - b.from)) {
+    if (change.from < from) continue;
+    out.push(md.slice(from, change.from), change.insert);
+    from = change.to;
+  }
+  out.push(md.slice(from));
+  return out.join("");
 }
 
 /** Godtag: kun mærkerne fjernes, så den nye teksts forfatterskab bliver stående. */

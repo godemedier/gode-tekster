@@ -29,6 +29,7 @@ const view = new EditorView({ parent: document.getElementById("editor")! });
 
 function applySettings(): void {
   const s = settings();
+  document.documentElement.lang = s.textLanguage || document.documentElement.lang;
   document.documentElement.style.setProperty("--skrift", fontStack(s.font));
   followTheme(s.theme ?? (s.dark ? "moerk" : "lys"));
 }
@@ -69,6 +70,7 @@ const dto = await invoke<DocumentDto | null>("initial_document").catch((e) => {
   return null;
 });
 let session: DocumentSession | null = null;
+let lookTimer: number | undefined;
 if (dto) session = DocumentSession.load(view, dto, () => changed());
 
 /** Det, noten siger, uden den skjulte farvelinje. */
@@ -76,7 +78,8 @@ const words = () => withoutParked(view.state.doc.toString()).trim();
 
 function changed(): void {
   session?.changed();
-  showLook();
+  window.clearTimeout(lookTimer);
+  lookTimer = window.setTimeout(showLook, 150);
 }
 
 /** Farven og navnet i toppen (vises, når arket er rullet op). */
@@ -149,8 +152,25 @@ top.addEventListener("dblclick", (e) => {
 // --- luk, slet, åbn som tekst ------------------------------------------------------------------
 
 async function closeNote(): Promise<void> {
-  await session?.close();
-  await invoke("note_close", { empty: words() === "" });
+  document.body.inert = true;
+  try {
+    await session?.close();
+    await invoke("note_close", { empty: words() === "" });
+  } catch (e) {
+    document.body.inert = false;
+    showBanner(errorText(e));
+  }
+}
+
+async function openAsText(): Promise<void> {
+  document.body.inert = true;
+  try {
+    await session?.saveForHandoff();
+    await invoke("note_as_text");
+  } catch (e) {
+    document.body.inert = false;
+    showBanner(errorText(e));
+  }
 }
 
 async function deleteNote(): Promise<void> {
@@ -162,7 +182,7 @@ const more = button(SVG.more, tr("Mere", "More"), (b) => {
   const r = b.getBoundingClientRect();
   showMenu(Math.max(4, r.right - 200), r.bottom + 4, [
     { label: tr("Ny note (Ctrl+N)", "New note (Ctrl+N)"), run: () => void invoke("note_new") },
-    { label: tr("Åbn som tekst", "Open as text"), run: () => void session?.flush().then(() => invoke("note_as_text")) },
+    { label: tr("Åbn som tekst", "Open as text"), run: () => void openAsText() },
     { separator: true },
     { label: tr("Rul op (dobbeltklik på toppen)", "Roll up (double-click the top)"), run: () => void setRolled(!rolled) },
     { label: tr("Luk (Ctrl+W)", "Close (Ctrl+W)"), run: () => void closeNote() },
@@ -175,6 +195,10 @@ tools.append(button(SVG.plus, tr("Ny note (Ctrl+N)", "New note (Ctrl+N)"), () =>
 window.addEventListener("keydown", (e) => {
   if (!e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
+  if (k === "r") {
+    e.preventDefault();
+    return;
+  }
   if (k === "n") void invoke("note_new");
   else if (k === "w") void closeNote();
   else if (k === "d") void deleteNote();
@@ -183,6 +207,7 @@ window.addEventListener("keydown", (e) => {
   e.stopPropagation();
 });
 window.addEventListener("keydown", (e) => {
+  if (e.key === "F5") e.preventDefault();
   if (e.key === "Escape" && !palette.hidden) palette.hidden = true;
 });
 window.addEventListener("blur", () => void session?.flush());
@@ -190,7 +215,20 @@ window.addEventListener("blur", () => void session?.flush());
 // Kun hændelser til dette ark (emit_to): `listen` alene hører alle vinduers.
 const here = getCurrentWebviewWindow();
 await here.listen("close-requested", () => void closeNote());
-await listen("quit-requested", () => void session?.close().then(() => invoke("quit_app")));
+await listen("quit-requested", () => {
+  document.body.inert = true;
+  void (async () => {
+    try {
+      await session?.prepareExit();
+      await invoke("quit_app");
+    } catch (e) {
+      document.body.inert = false;
+      await invoke("cancel_quit");
+      showBanner(errorText(e));
+    }
+  })();
+});
+await listen("quit-cancelled", () => { document.body.inert = false; });
 await listen<string>("file-changed", (e) => {
   if (session && session.path.toLowerCase() === e.payload.toLowerCase()) void session.externalChange().then(showLook);
 });
@@ -198,7 +236,7 @@ await listen("settings-changed", () => void reloadSettings().then(applySettings)
 
 // Testkørsler (measure.ts, scenariet »noter«): hovedvinduet skriver i noten, sætter farve, holder
 // den øverst, ruller den op eller lukker den. Kun når programmet kører et scenarie.
-type TestStep = { text?: string; color?: NoteColor; pin?: boolean; roll?: boolean; close?: boolean };
+type TestStep = { text?: string; color?: NoteColor; pin?: boolean; roll?: boolean; close?: boolean; audit?: boolean };
 if ((await invoke<{ scenario: string | null }>("test_mode").catch(() => ({ scenario: null }))).scenario) {
   await getCurrentWebviewWindow().listen<TestStep>("gt-test-note", async (e) => {
     const s = e.payload;
@@ -206,6 +244,13 @@ if ((await invoke<{ scenario: string | null }>("test_mode").catch(() => ({ scena
     if (s.color) view.dispatch({ changes: colorChange(view.state.doc.toString(), s.color), userEvent: "input.color" });
     if (s.pin) await setPinned(true);
     if (s.roll) await setRolled(true);
+    if (s.audit) {
+      const padding = parseFloat(getComputedStyle(document.getElementById("editor")!).paddingBottom);
+      const gap = window.innerHeight - view.dom.getBoundingClientRect().bottom;
+      await invoke("log_line", { text: `scenarie: audit ${padding >= 12 && gap >= 11 ? "OK" : "FAIL"} note bundmargen ${padding}/${gap}` });
+      await session?.saveForHandoff();
+      await invoke("log_line", { text: "scenarie: audit OK note gemt" });
+    }
     if (s.close) await closeNote();
   });
 }

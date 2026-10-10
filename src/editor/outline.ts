@@ -9,6 +9,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { codeFolding, foldCode, unfoldCode } from "@codemirror/language";
 
 import { tr } from "../i18n.ts";
+import { codeSpans, commentSpans, maskSpans } from "./textSyntax.ts";
 
 export type Heading = { level: number; text: string; from: number };
 type Unit = { from: number; to: number };
@@ -16,11 +17,12 @@ type Unit = { from: number; to: number };
 export function headings(doc: string): Heading[] {
   const out: Heading[] = [];
   let pos = 0;
-  let fence = false;
-  for (const line of doc.split("\n")) {
-    if (/^\s*```/.test(line)) fence = !fence;
-    const m = !fence && /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
-    if (m) out.push({ level: m[1].length, text: m[2], from: pos });
+  for (const line of maskSpans(doc, [...codeSpans(doc).filter((s) => doc.slice(s.from, s.to).includes("\n")), ...commentSpans(doc)]).split("\n")) {
+    const m = /^(#{1,6})\s+(\S.*)$/.exec(line);
+    if (m) {
+      const text = m[2].trimEnd().replace(/#+$/, "").trimEnd();
+      if (text) out.push({ level: m[1].length, text, from: pos });
+    }
     pos += line.length + 1;
   }
   return out;
@@ -34,7 +36,7 @@ export function bodyHeadings(doc: string): Heading[] {
 
 /** Hvor teksten slutter, før de skjulte blokke (fodnotedefinitioner, fraklip, Claude). */
 function bodyEnd(doc: string): number {
-  const m = /^(\[\^[^\]\s]+\]:|<!-- gt:)/m.exec(doc);
+  const m = /^(\[\^[^\]\s]+\]:|<!-- gt:(?:parkeret|claude|maal|farve)\b)/m.exec(doc);
   return m ? m.index : doc.length;
 }
 

@@ -20,6 +20,7 @@ use crate::history::History;
 struct OpenDoc {
     meta: FileMeta,
     block: Option<BlockInfo>,
+    owner: String,
 }
 
 pub struct AppState {
@@ -67,7 +68,7 @@ pub struct DocumentDto {
 pub struct SaveError {
     /// `changed-on-disk`, `mixed-eol`, `unencodable`, `gone`, `not-open` eller `io`.
     kind: &'static str,
-    message: String,
+    pub(crate) message: String,
 }
 
 impl From<FileError> for SaveError {
@@ -234,9 +235,25 @@ pub fn open_paths(app: &AppHandle) -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
+pub(crate) fn forget_window(app: &AppHandle, label: &str) {
+    if let Ok(mut docs) = app.state::<AppState>().docs.lock() {
+        docs.retain(|_, doc| doc.owner != label);
+    }
+}
+
+#[tauri::command]
+pub fn release_document(app: AppHandle, window: tauri::Window, path: String) {
+    if let Ok(mut docs) = app.state::<AppState>().docs.lock() {
+        let path = PathBuf::from(path);
+        if docs.get(&path).is_some_and(|d| d.owner == window.label()) {
+            docs.remove(&path);
+        }
+    }
+}
+
 /// Kun tekstfiler, og kun fra et bibliotek, fra brugerens eget valg eller allerede åbne. Fladen
 /// kan ellers bede om at åbne (og siden gemme over) enhver fil på pc'en (sikkerhedsreview 2/10).
-fn may_open(app: &AppHandle, state: &AppState, path: &Path) -> Result<(), SaveError> {
+pub(crate) fn may_open(app: &AppHandle, state: &AppState, path: &Path) -> Result<(), SaveError> {
     let ext = path
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
@@ -276,6 +293,28 @@ fn open_path(
     path: &Path,
 ) -> Result<DocumentDto, SaveError> {
     may_open(app, state, path)?;
+    // Reservation og indlæsning sker under samme lås som gem. To vinduer må ikke dele et stempel.
+    let mut docs = state.docs.lock().map_err(|_| SaveError {
+        kind: "io",
+        message: t!(
+            "Intern fejl: dokumentlisten er låst.",
+            "Internal error: the document list is locked."
+        )
+        .to_owned(),
+    })?;
+    if docs
+        .iter()
+        .any(|(p, d)| crate::windows::same(p, path) && d.owner != window)
+    {
+        return Err(SaveError {
+            kind: "already-open",
+            message: t!(
+                "Teksten er allerede åben i et andet vindue.",
+                "The text is already open in another window."
+            )
+            .to_owned(),
+        });
+    }
     let opened = files::open(path)?;
     let parsed = annotations::parse(&opened.text, opened.meta.eol);
     let (authors, external) = with_history(app, path, &parsed);
@@ -295,15 +334,15 @@ fn open_path(
         cursor: crate::session::cursor_for(app, path),
         has_block: parsed.block.is_some(),
     };
-    if let Ok(mut docs) = state.docs.lock() {
-        docs.insert(
-            path.to_path_buf(),
-            OpenDoc {
-                meta: opened.meta,
-                block: parsed.block,
-            },
-        );
-    }
+    docs.insert(
+        path.to_path_buf(),
+        OpenDoc {
+            meta: opened.meta,
+            block: parsed.block,
+            owner: window.to_owned(),
+        },
+    );
+    drop(docs);
     // En note er ikke »den sidste tekst«: hovedvinduet skal ikke åbne på en note (ADR-0039).
     if !crate::notes::is_note(window) {
         crate::session::remember(app, path, None);
@@ -339,7 +378,9 @@ pub async fn initial_document(
 ) -> Result<Option<DocumentDto>, SaveError> {
     // Et ekstra vindue viser den tekst, det blev åbnet med, eller er tomt (Ctrl+N).
     if window.label() != "main" {
-        return match crate::windows::take_pending(&app, window.label()) {
+        return match crate::windows::take_pending(&app, window.label())
+            .or_else(|| crate::windows::path_for(&app, window.label()))
+        {
             Some(p) if p.exists() => open_path(&app, &state, window.label(), &p).map(Some),
             _ => Ok(None),
         };
@@ -350,7 +391,8 @@ pub async fn initial_document(
         .find(|a| !a.starts_with("--"))
         .map(|a| arg_path(&a, &cwd));
     let last = crate::session::last_path(&app);
-    let candidate = from_args
+    let candidate = crate::windows::path_for(&app, window.label())
+        .or(from_args)
         .or_else(|| last.clone())
         .or_else(|| crate::welcome::prepare(&app))
         .filter(|p| p.exists())
@@ -413,19 +455,29 @@ pub async fn save_document(
     req: SaveRequest,
 ) -> Result<(), SaveError> {
     let path = PathBuf::from(&req.path);
+    let mut docs = state.docs.lock().map_err(|_| SaveError {
+        kind: "io",
+        message: t!(
+            "Intern fejl: dokumentlisten er låst.",
+            "Internal error: the document list is locked."
+        )
+        .to_owned(),
+    })?;
     let (mut meta, block) = {
-        let docs = state.docs.lock().map_err(|_| SaveError {
-            kind: "io",
-            message: t!(
-                "Intern fejl: dokumentlisten er låst.",
-                "Internal error: the document list is locked."
-            )
-            .to_owned(),
-        })?;
         let doc = docs.get(&path).ok_or(SaveError {
             kind: "not-open",
             message: t!("Filen er ikke åben.", "The file is not open.").to_owned(),
         })?;
+        if doc.owner != window.label() {
+            return Err(SaveError {
+                kind: "not-open",
+                message: t!(
+                    "Filen er ikke åben i dette vindue.",
+                    "The file is not open in this window."
+                )
+                .to_owned(),
+            });
+        }
         (doc.meta.clone(), doc.block.clone())
     };
     if req.force_utf8 && meta.encoding == Encoding::Windows1252 {
@@ -442,20 +494,22 @@ pub async fn save_document(
     let first = state
         .backed_up
         .lock()
-        .map(|mut set| set.insert(path.clone()))
+        .map(|set| !set.contains(&path))
         .unwrap_or(false);
     if (first || req.overwrite_external) && path.exists() {
         files::backup(&path, &backup_dir)?;
+        if let Ok(mut set) = state.backed_up.lock() {
+            set.insert(path.clone());
+        }
     }
 
     // Omdøbt eller flyttet i mappen udefra: følg filen i stedet for at genskabe den på det gamle navn.
     if !req.overwrite_external && !path.exists() {
         if let Some(moved) = files::find_moved(&path, &meta.stamp) {
-            if let Ok(mut docs) = state.docs.lock() {
-                if let Some(doc) = docs.remove(&path) {
-                    docs.insert(moved.clone(), doc);
-                }
+            if let Some(doc) = docs.remove(&path) {
+                docs.insert(moved.clone(), doc);
             }
+            drop(docs);
             choose(&app, &moved);
             if let (Some(w), Some(name)) =
                 (app.get_webview_window(window.label()), moved.file_name())
@@ -491,7 +545,7 @@ pub async fn save_document(
                 .as_millis();
             let dest = backup_dir.join(format!("{now}-emergency-{name}"));
             std::fs::create_dir_all(&backup_dir).ok();
-            if let Ok(()) = std::fs::write(&dest, &full) {
+            if files::write_atomic(&dest, full.as_bytes()).is_ok() {
                 let msg = t!(
                     " Nødkopi er lagt i mappen Gode Tekster/backup.",
                     " An emergency copy was saved in the Gode Tekster/backup folder."
@@ -507,15 +561,15 @@ pub async fn save_document(
         meta.mixed_eol = false;
     }
     let new_block = annotations::parse(&full, meta.eol).block;
-    if let Ok(mut docs) = state.docs.lock() {
-        docs.insert(
-            path.clone(),
-            OpenDoc {
-                meta,
-                block: new_block,
-            },
-        );
-    }
+    docs.insert(
+        path.clone(),
+        OpenDoc {
+            meta,
+            block: new_block,
+            owner: window.label().to_owned(),
+        },
+    );
+    drop(docs);
     // En note er aldrig »den sidste tekst« (ADR-0039): ellers åbnede hovedvinduet den ved næste start.
     if !crate::notes::is_note(window.label()) {
         crate::session::remember(&app, &path, Some(req.cursor));
@@ -640,8 +694,11 @@ pub async fn backup_text(app: AppHandle, path: String, text: String) -> Result<(
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "tekst.md".to_owned());
     let stamp = crate::history::now_ms();
-    std::fs::write(dir.join(format!("{stamp}-ikke-gemt-{name}")), text)
-        .map_err(|e| SaveError::from(FileError::Io(e)))
+    files::write_atomic(
+        &dir.join(format!("{stamp}-ikke-gemt-{name}")),
+        text.as_bytes(),
+    )
+    .map_err(SaveError::from)
 }
 
 #[derive(Serialize)]

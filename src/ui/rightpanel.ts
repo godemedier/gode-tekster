@@ -8,7 +8,7 @@ import type { EditorView } from "@codemirror/view";
 
 import { dimmedInBody, parkDimmedChanges } from "../editor/dimming.ts";
 import { findParked, parkChanges, parkedBlock, splitClippings, type Parked } from "../editor/parked.ts";
-import { FOOTNOTE_DEF, footnoteDefinition, footnoteNumbers, footnoteRef } from "../editor/inline.ts";
+import { footnoteDefinition, footnoteNumbers, footnoteRef } from "../editor/inline.ts";
 import { cmd } from "../editor/shortcuts.ts";
 import { findNotes } from "../editor/critic.ts";
 import { expandParkRange, type Span } from "../editor/parkRange.ts";
@@ -394,13 +394,7 @@ export class RightPanel {
   private renderNotes(body: HTMLElement): void {
     const doc = this.view.state.doc.toString();
     const numbers = footnoteNumbers(doc);
-    const defs = new Map<string, { text: string; from: number; to: number }>();
-    let pos = 0;
-    for (const line of doc.split("\n")) {
-      const m = FOOTNOTE_DEF.exec(line);
-      if (m) defs.set(m[1], { text: m[2], from: pos, to: pos + line.length });
-      pos += line.length + 1;
-    }
+    const defs = new Map([...numbers.keys()].map((label) => [label, footnoteDefinition(doc, label)]));
     const items = [...numbers.entries()].map(([label, n]) => {
       const row = document.createElement("div");
       row.className = "rp-note";

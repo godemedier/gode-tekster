@@ -3,6 +3,20 @@ import assert from "node:assert/strict";
 import { articleHtml, danishDate, metaFor, pageCss, prepare, typography } from "./render.ts";
 import { setLangForTest } from "../i18n.ts";
 
+test("kodeeksempler bevares ved eksport, og deres overskrifter bliver ikke titel", () => {
+  const code = "~~~~\n# falsk\n{++literal++}\n<!-- literal -->\n{--literal--}\n~~~~";
+  const doc = `${code}\n\n# Rigtig titel\n\n\u0060{++inline++}\u0060`;
+  assert.ok(prepare(doc, false).includes(code));
+  assert.ok(prepare(doc, false).includes("`{++inline++}`"));
+  assert.equal(metaFor(doc, "test.md", "").title, "Rigtig titel");
+});
+
+test("en uafsluttet HTML-kommentar skjuler ikke resten af printet", () => {
+  const doc = "Før\n\n<!-- ufærdig\n\nVigtig slutning.";
+  const html = articleHtml(doc, { template: "manuskript", includeDimmed: false }, metaFor(doc, "x.md", ""));
+  assert.ok(html.includes("Vigtig slutning."));
+});
+
 const doc = `# Sådan bruger du 120 milliarder
 
 Statsministeren talte {--meget længe--} kl. 10 om 5 mia. kr.[^1]

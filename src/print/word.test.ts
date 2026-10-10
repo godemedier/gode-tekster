@@ -1,9 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import JSZip from "jszip";
-import { wordDocument, wordFont, type WordOptions } from "./word.ts";
+import { encodeMarkup, wordDocument, wordFont, type WordOptions } from "./word.ts";
 import { metaFor } from "./render.ts";
 import { defaultLayout } from "./layout.ts";
+
+test("Word bevarer kommentarer inde i begge sider af et forslag", () => {
+  const result = encodeMarkup("Start {~~gammel <!-- før -->~>ny <!-- efter -->~~} slut");
+  assert.deepEqual(result.notes, ["før", "efter"]);
+  assert.equal(result.md, "Start \uE004gammel\uE0000\uE001\uE005ny\uE0001\uE001\uE006 slut");
+  assert.equal(encodeMarkup("{++ny <!-- note -->++}").md, "\uE002ny\uE0000\uE001\uE003");
+});
 
 const zipOf = async (md: string, opts: Partial<WordOptions> = {}) =>
   JSZip.loadAsync(await wordDocument(md, metaFor(md, "x.md", ""), { includeDimmed: false, ...opts }));

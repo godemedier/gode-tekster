@@ -495,11 +495,19 @@ pub fn note_state(app: AppHandle, window: tauri::WebviewWindow) -> (bool, bool) 
 
 /// »Åbn som tekst«: arket lukkes, og noten åbnes i et almindeligt vindue.
 #[tauri::command]
-pub async fn note_as_text(app: AppHandle, window: tauri::WebviewWindow) {
+pub async fn note_as_text(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), String> {
     let label = window.label().to_owned();
     let Some(path) = path_of(&app, &label) else {
-        return;
+        return Err(t!("Noten er ikke længere åben.", "The note is no longer open.").into());
     };
+    // Opret destinationen først: fejler vinduet, bliver noten stående.
+    if crate::windows::main_is_busy(&app) {
+        crate::windows::open_window(&app, Some(path.clone()))?;
+    } else {
+        app.emit_to("main", "open-path", path.to_string_lossy().into_owned())
+            .map_err(|e| e.to_string())?;
+        crate::show_main(&app);
+    }
     with_places(&app, |places| {
         if let Some(p) = places.get_mut(&key(&path)) {
             p.open = false;
@@ -507,12 +515,7 @@ pub async fn note_as_text(app: AppHandle, window: tauri::WebviewWindow) {
     });
     forget(&app, &label);
     let _ = window.destroy();
-    if crate::windows::main_is_busy(&app) {
-        let _ = crate::windows::open_window(&app, Some(path));
-    } else {
-        let _ = app.emit_to("main", "open-path", path.to_string_lossy().into_owned());
-        crate::show_main(&app);
-    }
+    Ok(())
 }
 
 #[tauri::command]

@@ -243,7 +243,7 @@ fn find_block(full: &str) -> Option<Found> {
     while let Some(i) = full[..search_end].rfind("\n---\n") {
         let first_line = full[i + 5..dots_at].lines().next().unwrap_or("");
         if let Some((_, value)) = split_key(first_line) {
-            if parse_hash_value(&value).is_some() {
+            if parse_hash_value(&value).is_some() && valid_entries(&full[i + 5..dots_at]) {
                 return Some(Found {
                     dashes_at: i + 1,
                     dots_at,
@@ -253,6 +253,22 @@ fn find_block(full: &str) -> Option<Found> {
         search_end = i;
     }
     None
+}
+
+fn valid_entries(body: &str) -> bool {
+    body.lines().skip(1).all(|line| {
+        if line.trim().is_empty() {
+            return true;
+        }
+        let value = if line.starts_with("  ") {
+            Some(line.trim().to_owned())
+        } else {
+            split_key(line).map(|(_, v)| v)
+        };
+        value.is_some_and(|v| {
+            !v.is_empty() && v.split_whitespace().all(|t| parse_range(t).is_some())
+        })
+    })
 }
 
 /// Gamle blokke midt i teksten: `---`, en hash-linje og frem til næste `...`-linje.
@@ -267,6 +283,14 @@ fn find_stale_blocks(text: &str) -> Vec<Span> {
         if line_start && is_hash {
             if let Some(end_rel) = text[at..].find("\n...") {
                 let mut end = at + end_rel + 4;
+                if !text[end..].starts_with('\n') && end != text.len() {
+                    from = at + 4;
+                    continue;
+                }
+                if !valid_entries(&text[at + 4..end - 4]) {
+                    from = at + 4;
+                    continue;
+                }
                 if text[end..].starts_with('\n') {
                     end += 1;
                 }
@@ -562,6 +586,15 @@ mod tests {
         assert_eq!(p.stale_blocks.len(), 1);
         // Den gamle blok står lige før adskilleren, så dens sidste linjeskift hører til den.
         assert_eq!(slice(&p.text, &p.stale_blocks[0]), inner.trim_end());
+    }
+
+    #[test]
+    fn gammel_blok_maa_ikke_opsluge_artikel_frem_til_prikkelinje() {
+        let full = "Tekst.\n\n---\nAnnotations: 0,5 SHA-256 0123456789abcdef0123\n@: 0,5\n\nVigtig artikeltekst.\n...\n";
+        let parsed = parse(full, Eol::Lf);
+        assert!(parsed.block.is_none());
+        assert!(parsed.stale_blocks.is_empty());
+        assert_eq!(parsed.text, full);
     }
 
     #[test]

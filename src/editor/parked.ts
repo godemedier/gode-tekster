@@ -10,12 +10,12 @@
 
 import { todayIso } from "./dates.ts";
 import { resolvePending } from "./critic.ts";
-import { GOAL_LINE } from "./goal.ts";
-import { COLOR_LINE, STATUS_LINE, withoutTagLine } from "./textStatus.ts";
+import { STATUS_LINE, withoutTagLine } from "./textStatus.ts";
+import { commentSpans } from "./textSyntax.ts";
 
 export type Parked = { id: string; date: string; color?: string; text: string; from: number; to: number };
 
-const BLOCK = /<!-- gt:parkeret id=(\S+) dato=(\S+)(?: farve=(\S+))?[^\n]*\n([\s\S]*?)\n?-->\n?/g;
+const BLOCK = /^<!-- gt:parkeret id=(\S+) dato=(\S+)(?: farve=(\S+))?[^\n]*\n([\s\S]*?)\n?-->$/;
 
 export function escapeParked(text: string): string {
   return text
@@ -35,9 +35,10 @@ export function unescapeParked(text: string): string {
 
 export function findParked(doc: string): Parked[] {
   const out: Parked[] = [];
-  for (const m of doc.matchAll(BLOCK)) {
-    const from = m.index ?? 0;
-    out.push({ id: m[1], date: m[2], color: m[3], text: unescapeParked(m[4]), from, to: from + m[0].length });
+  for (const span of commentSpans(doc)) {
+    const m = BLOCK.exec(doc.slice(span.from, span.to));
+    if (!m) continue;
+    out.push({ id: m[1], date: m[2], color: m[3], text: unescapeParked(m[4]), from: span.from, to: span.to + (doc[span.to] === "\n" ? 1 : 0) });
   }
   return out;
 }
@@ -93,12 +94,18 @@ export function parkChanges(
  */
 export function withoutParked(doc: string): string {
   // Status øverst og #tags sidst er etiketter, ikke tekst (ADR-0038).
-  const rest = withoutTagLine(doc.replace(STATUS_LINE, "$1").replace(BLOCK, "").replace(CLAUDE, "").replace(GOAL_LINE, "").replace(COLOR_LINE, ""));
+  const spans = commentSpans(doc).filter((s) => /^<!-- gt:(?:parkeret|claude|maal|farve)\b/.test(doc.slice(s.from, s.to)));
+  const pieces: string[] = [];
+  let from = 0;
+  for (const span of spans) {
+    pieces.push(doc.slice(from, span.from));
+    from = span.to + (doc[span.to] === "\n" ? 1 : 0);
+  }
+  pieces.push(doc.slice(from));
+  const rest = withoutTagLine(pieces.join("").replace(STATUS_LINE, "$1"));
   return resolvePending(rest).replace(/\n{3,}$/, "\n");
 }
 
-/** Samme mønster som CLAUDE_BLOCK i claudeBlocks.ts (gentaget her for ikke at importere i ring). */
-const CLAUDE = /<!-- gt:claude id=\S+ type=\S+ dato=\S+[^\n]*\n[\s\S]*?\n?-->\n?/g;
 
 /** En fraklipsfil (FRAKLIP.md) delt i stykker ved tomme linjer. Tomme stykker springes over. */
 export function splitClippings(text: string): string[] {

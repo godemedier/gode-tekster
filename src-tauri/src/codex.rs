@@ -5,11 +5,12 @@
 //! så kaldet går på abonnementet.
 //!
 //! Ikke prøvet mod et rigtigt ChatGPT-login endnu (Codex var ikke installeret 3/10). Flagene er fra
-//! OpenAIs dokumentation for `codex exec`; kender programmet ikke `--search`, prøves igen uden.
+//! OpenAIs dokumentation for `codex exec`. Brugerens konfiguration og shell-værktøjer er slået fra.
 
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
@@ -17,6 +18,27 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 
 use crate::claude::{in_path, Progress};
+
+struct WorkDir(PathBuf);
+impl WorkDir {
+    fn new(root: &std::path::Path) -> std::io::Result<Self> {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        std::fs::create_dir_all(root)?;
+        let path = root.join(format!(
+            "{}-{}-{}",
+            std::process::id(),
+            crate::history::now_ms(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&path)?;
+        Ok(Self(path))
+    }
+}
+impl Drop for WorkDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 /// codex.exe, hvor OpenAIs installationer lægger den. Aldrig en .cmd (ADR-0010).
 pub fn codex_exe() -> Result<PathBuf, String> {
@@ -26,6 +48,9 @@ pub fn codex_exe() -> Result<PathBuf, String> {
         env("LOCALAPPDATA").map(|l| l.join(r"Microsoft\WinGet\Links\codex.exe")),
         env("APPDATA").map(|a| {
             a.join(r"npm\node_modules\@openai\codex\vendor\x86_64-pc-windows-msvc\codex\codex.exe")
+        }),
+        env("APPDATA").map(|a| {
+            a.join(r"npm\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe")
         }),
         env("USERPROFILE").map(|h| h.join(r".local\bin\codex.exe")),
     ];
@@ -73,13 +98,13 @@ pub fn run(
             )
         })?
         .join("ai-codex");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).map_err(|e| {
+    let work = WorkDir::new(&dir).map_err(|e| {
         t!(
             format!("Arbejdsmappen kunne ikke laves: {e}"),
             format!("The working folder could not be created: {e}")
         )
     })?;
+    let dir = &work.0;
     let schema_file = dir.join("skema.json");
     let out_file = dir.join("svar.json");
     std::fs::write(&schema_file, schema.to_string()).map_err(|e| {
@@ -104,20 +129,30 @@ pub fn run(
         let mut cmd = base(exe.clone());
         cmd.args([
             "exec",
+            "--ignore-user-config",
             "--skip-git-repo-check",
             "--sandbox",
             "read-only",
             "--ephemeral",
+            "-c",
+            "features.shell_tool=false",
+            "-c",
+            "features.unified_exec=false",
         ])
         .arg("--output-schema")
         .arg(&schema_file)
         .arg("-o")
         .arg(&out_file);
-        if search {
-            cmd.arg("--search");
-        }
+        cmd.args([
+            "-c",
+            if search {
+                "web_search=\"live\""
+            } else {
+                "web_search=\"disabled\""
+            },
+        ]);
         cmd.arg("-")
-            .current_dir(&dir)
+            .current_dir(dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::piped());
@@ -138,14 +173,26 @@ pub fn run(
                 let _ = stdin.write_all(text.as_bytes());
             });
         }
+        // Tøm røret under kørslen. Ellers kan en lang fejl blokere processen før dens exit.
+        let stderr = child.stderr.take().map(|mut pipe| {
+            std::thread::spawn(move || {
+                let mut saved = Vec::new();
+                let mut buffer = [0u8; 4096];
+                while let Ok(n) = pipe.read(&mut buffer) {
+                    if n == 0 {
+                        break;
+                    }
+                    let room = 16_384usize.saturating_sub(saved.len());
+                    saved.extend_from_slice(&buffer[..n.min(room)]);
+                }
+                String::from_utf8_lossy(&saved).into_owned()
+            })
+        });
         let start = Instant::now();
         loop {
             match child.try_wait() {
                 Ok(Some(status)) => {
-                    let mut err = String::new();
-                    if let Some(mut e) = child.stderr.take() {
-                        let _ = e.read_to_string(&mut err);
-                    }
+                    let err = stderr.and_then(|t| t.join().ok()).unwrap_or_default();
                     if status.success() {
                         return std::fs::read_to_string(&out_file).map_err(|_| {
                             t!("ChatGPT gav intet svar.", "ChatGPT gave no answer.").to_owned()
@@ -158,6 +205,7 @@ pub fn run(
                 }
                 _ => {
                     let _ = child.kill();
+                    let _ = child.wait();
                     return Err(too_slow.to_owned());
                 }
             }
@@ -166,8 +214,6 @@ pub fn run(
 
     let text = match attempt(web) {
         Ok(t) => t,
-        // Et ældre Codex kender ikke --search: prøv igen uden websøgning.
-        Err(e) if web && e.contains("--search") => attempt(false)?,
         Err(e) if e == too_slow => return Err(e),
         Err(e) => {
             let first = e
@@ -184,6 +230,27 @@ pub fn run(
             ));
         }
     };
-    let _ = std::fs::remove_dir_all(&dir);
     crate::ai::parse_json(&text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn parallelle_kald_har_hver_sin_mappe() {
+        let root = tempfile::tempdir().unwrap();
+        let first = WorkDir::new(root.path()).unwrap();
+        let second = WorkDir::new(root.path()).unwrap();
+        std::fs::write(first.0.join("svar.json"), b"first").unwrap();
+        std::fs::write(second.0.join("svar.json"), b"second").unwrap();
+        assert_ne!(first.0, second.0);
+        drop(first);
+        assert_eq!(
+            std::fs::read(second.0.join("svar.json")).unwrap(),
+            b"second"
+        );
+        let path = second.0.clone();
+        drop(second);
+        assert!(!path.exists());
+    }
 }

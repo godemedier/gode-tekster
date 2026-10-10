@@ -7,8 +7,9 @@
 // tæller med, kommer med ud eller sendes til AI (parked.ts withoutParked). Rust har samme regler i
 // textmeta.rs.
 
-import { StateField, type EditorState } from "@codemirror/state";
-import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
+import { StateField, StateEffect, type EditorState } from "@codemirror/state";
+import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { codeSpans, commentSpans, maskSpans } from "./textSyntax.ts";
 
 export const STATUS_LINE = /^(﻿?)<!-- gt:status vaerdi=([^\s>]+) -->\n?/;
 
@@ -37,7 +38,7 @@ export function tagsOf(line: string): string[] | null {
 
 /** Skjulte blokke (`<!-- … -->`) erstattet af mellemrum, så linjernes placering bevares. */
 function masked(doc: string): string {
-  return doc.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, " "));
+  return maskSpans(doc, [...commentSpans(doc), ...codeSpans(doc)]);
 }
 
 /** Tekstens sidste synlige linje, hvis den kun er hashtags. */
@@ -49,7 +50,8 @@ export function findTagLine(doc: string): { from: number; to: number; tags: stri
     const line = text.slice(start, end);
     if (line.trim()) {
       const tags = tagsOf(line);
-      return tags ? { from: start, to: end, tags } : null;
+      // En kommentar på samme linje er brugerens tekst og må ikke slettes med etiketterne.
+      return tags && tagsOf(doc.slice(start, end)) ? { from: start, to: end, tags } : null;
     }
     end = start - 1;
   }
@@ -68,12 +70,40 @@ function build(state: EditorState): DecorationSet {
   return Decoration.set([Decoration.line({ class: "gt-tagline" }).range(state.doc.lineAt(t.from).from)]);
 }
 
-/** Tag-linjen i svag farve, så den læses som etiketter og ikke som tekst. */
-export const tagLineStyle = StateField.define<DecorationSet>({
+const setTagLine = StateEffect.define<DecorationSet>();
+
+const tagLineField = StateField.define<DecorationSet>({
   create: build,
-  update: (deco, tr) => (tr.docChanged ? build(tr.state) : deco),
+  update: (deco, tr) => {
+    let next = deco;
+    if (tr.docChanged) next = next.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(setTagLine)) next = e.value;
+    }
+    return next;
+  },
   provide: (f) => EditorView.decorations.from(f),
 });
+
+const tagLineUpdater = ViewPlugin.fromClass(
+  class {
+    timer = -1;
+    update(u: ViewUpdate) {
+      if (u.docChanged) {
+        window.clearTimeout(this.timer);
+        this.timer = window.setTimeout(() => {
+          u.view.dispatch({ effects: setTagLine.of(build(u.view.state)) });
+        }, 500);
+      }
+    }
+    destroy() {
+      window.clearTimeout(this.timer);
+    }
+  }
+);
+
+/** Tag-linjen i svag farve, så den læses som etiketter og ikke som tekst. */
+export const tagLineStyle = [tagLineField, tagLineUpdater];
 
 export const tagLineTheme = EditorView.theme({
   ".gt-tagline, .gt-tagline *": { color: "var(--svag)" },

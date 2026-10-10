@@ -274,7 +274,45 @@ const append = (view: EditorView, text: string) => view.dispatch({ changes: { fr
 
 export async function runScenario(name: string, view: EditorView, path: string | null = null): Promise<void> {
   await say(`start ${name}, ${view.state.doc.length} tegn`);
-  if (name === "skriv") {
+  if (name === "audit") {
+    try {
+      const check = async (ok: boolean, label: string) => {
+        if (!ok) throw new Error(label);
+        await say(`audit OK ${label}`);
+      };
+      const { findRevisions, resolvePending } = await import("./editor/critic.ts");
+      const { insertFootnote } = await import("./editor/editing.ts");
+      const { headings } = await import("./editor/outline.ts");
+      const { findTagLine } = await import("./editor/textStatus.ts");
+      const original = view.state.doc.toString();
+      append(view, "\n\nAUDIT-GEMT");
+      window.dispatchEvent(new Event("gt-save-now"));
+      await pause(2000);
+      const saved = await invoke<{ text: string }>("open_document", { path });
+      await check(saved.text.includes("AUDIT-GEMT"), "gemning på disk");
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "<!-- gt:status kladde -->\n# Titel\n\nTekst\n\n#tag" } });
+      await check(headings(view.state.doc.toString()).length === 1, "overskrift efter status");
+      const plan = insertFootnote(view.state.doc.toString(), view.state.doc.toString().indexOf("Tekst") + 5);
+      view.dispatch({ changes: plan.changes, selection: { anchor: plan.cursor } });
+      const doc = view.state.doc.toString();
+      await check(doc.indexOf("[^1]:") < (findTagLine(doc)?.from ?? -1), "fodnote før tags");
+      await check(findRevisions("```\n{++kode++}\n```\n{++forslag++}").length === 1, "kode er data");
+      await check(resolvePending("{~~gammel <!-- note -->~>ny~~}") === "gammel", "kommentar i rettelse");
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: original + "\n\nAUDIT-GEMT" } });
+      window.dispatchEvent(new Event("gt-save-now"));
+      await pause(2000);
+      const { emitTo } = await import("@tauri-apps/api/event");
+      await invoke("note_new");
+      await pause(2000);
+      await emitTo("note-1", "gt-test-note", { text: "AUDIT-NOTE\n\n" + "Lang note til rulning.\n".repeat(80), audit: true });
+      await pause(1500);
+      await emitTo("note-1", "gt-test-note", { close: true });
+      await pause(500);
+      await say("audit PASS");
+    } catch (e) {
+      await say(`audit FAIL ${String(e)}`);
+    }
+  } else if (name === "skriv") {
     append(view, "\n\nSCENARIE-SKREVET midt i en sætning");
     await say("skrevet");
   } else if (name === "skriv-ekstern") {

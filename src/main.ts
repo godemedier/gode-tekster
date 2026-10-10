@@ -397,6 +397,7 @@ window.addEventListener("gt-note", (e) => {
 // --- dokumentet -------------------------------------------------------------------------------
 
 function show(dto: DocumentDto | null): void {
+  clearTextBanners();
   if (!dto) {
     session = null;
     empty.hidden = false;
@@ -418,7 +419,6 @@ function show(dto: DocumentDto | null): void {
   session = current;
   // setState nulstiller tilstandene, så de sættes igen for den nye tekst.
   applySettings(settings());
-  clearTextBanners();
   claude.docOpened(dto.path);
   outline.docChanged();
   rightPanel.render();
@@ -520,7 +520,14 @@ async function importDocx(path: string, bytes: ArrayBuffer, tracked: boolean): P
  * Skift tekst. Al åbning går herigennem: en gammel version og Claudes resultater hører til den
  * forrige tekst, og den forrige gemmes (eller lægges i backup), før den nye vises.
  */
-async function switchTo(load: () => Promise<DocumentDto | null>): Promise<void> {
+let switching: Promise<void> = Promise.resolve();
+function switchTo(load: () => Promise<DocumentDto | null>): Promise<void> {
+  const next = switching.then(() => performSwitch(load));
+  switching = next.catch(() => {});
+  return next;
+}
+
+async function performSwitch(load: () => Promise<DocumentDto | null>): Promise<void> {
   // Trykprøven 3/10: et tastetryk, mens den nye tekst blev indlæst, endte i den gamle tekst, efter
   // at den var gemt, og forsvandt. Nu læses den nye tekst først (der skrives videre i den gamle, som
   // så gemmes med), og skrivefladen tager ikke imod tastetryk i de millisekunder, selve skiftet tager.
@@ -533,6 +540,10 @@ async function switchTo(load: () => Promise<DocumentDto | null>): Promise<void> 
     await versions.back();
     const dto = await load();
     if (!dto) return;
+    if (session?.path.toLowerCase() === dto.path.toLowerCase()) {
+      await session.externalChange();
+      return;
+    }
     kinds.forEach((k) => view.dom.addEventListener(k, block, true));
     claude.reset();
     await session?.close();
@@ -549,7 +560,7 @@ async function openPath(path: string): Promise<void> {
   if (session && session.path.toLowerCase() === path.toLowerCase()) return;
   // Ét vindue pr. tekst: er den åben i et andet vindue, hentes det frem i stedet.
   if (await invoke<boolean>("focus_if_open", { path })) return;
-  await switchTo(() => invoke<DocumentDto>("open_document", { path }));
+  await switchTo(() => session?.path.toLowerCase() === path.toLowerCase() ? Promise.resolve(null) : invoke<DocumentDto>("open_document", { path }));
 }
 
 /** Åbn en tekst og spring til en position (søgning i hele biblioteket). */
@@ -797,15 +808,19 @@ await here.listen<string>("open-path", (e) => void openPath(e.payload));
 await listen("flush-requested", () => void session?.flush());
 /** Ctrl+Q og »Afslut« i bakken: gem (eller læg i backup), og luk så programmet helt. */
 async function quit(): Promise<void> {
+  document.body.inert = true;
   try {
-    await session?.close();
-  } finally {
-    // Også hvis gem og backup fejler: Ctrl+Q skal lukke (backuppen fra sidste gem ligger der).
+    await session?.prepareExit();
     await invoke("quit_app");
+  } catch (e) {
+    document.body.inert = false;
+    await invoke("cancel_quit");
+    showBanner(errorText(e));
   }
 }
 
 await listen("quit-requested", () => void quit());
+await listen("quit-cancelled", () => { document.body.inert = false; });
 // Alle vinduer får besked; kun det vindue, der har teksten, reagerer.
 await listen<string>("file-changed", (e) => {
   if (session && session.path.toLowerCase() === e.payload.toLowerCase()) void session.externalChange();
@@ -816,20 +831,24 @@ await listen("settings-changed", () =>
     await library.init();
     // Et andet sprog (i18n.ts): gem, og tegn vinduet forfra på det nye sprog.
     if ((await invoke<string>("ui_language").catch(() => currentLang())) !== currentLang()) {
-      await session?.flush();
+      await session?.prepareReload();
       location.reload();
     }
-  }),
+  }).catch((e) => showBanner(errorText(e))),
 );
 // Et ekstra vindue lukkes: gem (eller læg i backup), og luk så.
 // Luk: et ekstra vindue gemmer og lukker helt; hovedvinduet gemmer og skjules, så næste tekst åbner
 // med det samme. Første gang forklares det, med »Afslut helt« ved siden af (delbar udgave 3/10).
 async function closeThisWindow(): Promise<void> {
+  document.body.inert = true;
   try {
     if (getCurrentWindow().label === "main") await session?.flush();
     else await session?.close();
-  } finally {
     await invoke("close_window");
+  } catch (e) {
+    showBanner(errorText(e));
+  } finally {
+    document.body.inert = false;
   }
 }
 function explainCloseOnce(): boolean {

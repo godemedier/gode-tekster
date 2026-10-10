@@ -2,7 +2,30 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { acceptChanges, apply, findNotes, findRevisions, markupFor, rejectChanges, resolvePending, withRevisions } from "./critic.ts";
 
+test("noter inde i forslag giver ingen overlappende udskiftninger", () => {
+  assert.equal(resolvePending("Start {~~gammel <!-- note -->~>ny~~} slut"), "Start gammel slut");
+  assert.equal(resolvePending("Start {~~gammel~>ny <!-- note -->~~} slut"), "Start gammel slut");
+  assert.equal(resolvePending("Start {++ny <!-- note -->++} slut"), "Start  slut");
+});
+
 const doc = "Det kostede {~~5~>6~~} mia. kr.{++ i alt++} {>> tjek hos FMI <<}og{~~ meget~>~~} mere.";
+
+test("en halv rettelse sluger ikke teksten før den næste rettelse", () => {
+  for (const prefix of ["{++", "{~~a~>", "{>>", "<!--"]) {
+    const text = `${prefix}\nVigtig tekst.\n{++forslag++}\nRest.`;
+    const revisions = findRevisions(text);
+    assert.equal(revisions.length, 1);
+    assert.equal(apply(text, rejectChanges(revisions[0])), `${prefix}\nVigtig tekst.\n\nRest.`);
+  }
+  assert.equal(findRevisions("{~~a~>".repeat(20_000)).length, 0);
+});
+
+test("forslag i kode, kommentarer og fraklip er ikke aktive", () => {
+  const text = "`{++kode++}`\n```\n{~~a~>b~~}\n```\n<!-- note {++skjult++} -->\n<!-- gt:parkeret id=p1 dato=2026-10-10\n{++klip++}\n-->";
+  assert.deepEqual(findRevisions(text), []);
+  assert.equal(findNotes(text).length, 1);
+  assert.ok(resolvePending(text).includes("{++kode++}"));
+});
 
 test("noter og rettelser findes", () => {
   assert.deepEqual(findNotes(doc).map((n) => n.text), ["tjek hos FMI"]);

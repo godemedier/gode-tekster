@@ -12,15 +12,18 @@
 
 import { appendParked, escapeParked, unescapeParked } from "./parked.ts";
 import { todayIso } from "./dates.ts";
+import { commentSpans } from "./textSyntax.ts";
 
 export type ClaudeKind = "faktatjek" | "research";
 export type ClaudeBlock = { id: string; kind: ClaudeKind; date: string; data: unknown; from: number; to: number };
 
-export const CLAUDE_BLOCK = /<!-- gt:claude id=(\S+) type=(\S+) dato=(\S+)[^\n]*\n([\s\S]*?)\n?-->\n?/g;
+const CLAUDE_BLOCK = /^<!-- gt:claude id=(\S+) type=(\S+) dato=(\S+)[^\n]*\n([\s\S]*?)\n?-->$/;
 
 export function findClaudeBlocks(doc: string): ClaudeBlock[] {
   const out: ClaudeBlock[] = [];
-  for (const m of doc.matchAll(CLAUDE_BLOCK)) {
+  for (const span of commentSpans(doc)) {
+    const m = CLAUDE_BLOCK.exec(doc.slice(span.from, span.to));
+    if (!m) continue;
     if (m[2] !== "faktatjek" && m[2] !== "research") continue;
     let data: unknown = null;
     try {
@@ -28,8 +31,7 @@ export function findClaudeBlocks(doc: string): ClaudeBlock[] {
     } catch {
       continue; // En blok, der ikke kan læses, vises ikke, men bliver i filen.
     }
-    const from = m.index ?? 0;
-    out.push({ id: m[1], kind: m[2], date: m[3], data, from, to: from + m[0].length });
+    out.push({ id: m[1], kind: m[2], date: m[3], data, from: span.from, to: span.to + (doc[span.to] === "\n" ? 1 : 0) });
   }
   return out;
 }

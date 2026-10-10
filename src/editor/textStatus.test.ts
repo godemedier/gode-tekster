@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import { findStatus, findTagLine, statusChange, tagsOf, withoutTagLine } from "./textStatus.ts";
 import { withoutParked } from "./parked.ts";
 
+test("tags fjerner aldrig en kommentar på samme linje eller indhold i kode", () => {
+  assert.equal(withoutTagLine("Tekst\n#tag <!-- vigtig note -->"), "Tekst\n#tag <!-- vigtig note -->");
+  assert.equal(findTagLine("```\n#tag\n```"), null);
+});
+
 const apply = (doc: string, c: { from: number; to: number; insert: string }) => doc.slice(0, c.from) + c.insert + doc.slice(c.to);
 
 test("status sættes, skiftes og fjernes øverst i teksten", () => {

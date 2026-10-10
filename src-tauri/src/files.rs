@@ -145,7 +145,7 @@ pub type Result<T> = std::result::Result<T, FileError>;
 pub fn open(path: &Path) -> Result<Opened> {
     let bytes = fs::read(path)?;
     let stamp = stamp_from(&fs::metadata(path)?, &bytes);
-    let (raw, encoding) = decode(&bytes);
+    let (raw, encoding) = decode(&bytes)?;
     let (text, eol, mixed_eol) = normalize_eol(&raw);
     Ok(Opened {
         text,
@@ -245,26 +245,41 @@ pub fn backup(path: &Path, backup_dir: &Path) -> Result<PathBuf> {
 
 // --- indlæsning -------------------------------------------------------------------------------
 
-fn decode(bytes: &[u8]) -> (String, Encoding) {
+fn decode(bytes: &[u8]) -> Result<(String, Encoding)> {
+    let invalid = || {
+        FileError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            t!(
+                "Filen har en beskadiget tekstkodning. Originalen er ikke ændret.",
+                "The file has damaged text encoding. The original has not been changed."
+            ),
+        ))
+    };
     if let Some(rest) = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
-        return (
-            String::from_utf8_lossy(rest).into_owned(),
+        return Ok((
+            std::str::from_utf8(rest).map_err(|_| invalid())?.to_owned(),
             Encoding::Utf8Bom,
-        );
+        ));
     }
     if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
-        let (text, _) = encoding_rs::UTF_16LE.decode_without_bom_handling(rest);
-        return (text.into_owned(), Encoding::Utf16LeBom);
+        let (text, errors) = encoding_rs::UTF_16LE.decode_without_bom_handling(rest);
+        if errors {
+            return Err(invalid());
+        }
+        return Ok((text.into_owned(), Encoding::Utf16LeBom));
     }
     if let Some(rest) = bytes.strip_prefix(&[0xFE, 0xFF]) {
-        let (text, _) = encoding_rs::UTF_16BE.decode_without_bom_handling(rest);
-        return (text.into_owned(), Encoding::Utf16BeBom);
+        let (text, errors) = encoding_rs::UTF_16BE.decode_without_bom_handling(rest);
+        if errors {
+            return Err(invalid());
+        }
+        return Ok((text.into_owned(), Encoding::Utf16BeBom));
     }
     match std::str::from_utf8(bytes) {
-        Ok(s) => (s.to_owned(), Encoding::Utf8),
+        Ok(s) => Ok((s.to_owned(), Encoding::Utf8)),
         Err(_) => {
             let (text, _) = encoding_rs::WINDOWS_1252.decode_without_bom_handling(bytes);
-            (text.into_owned(), Encoding::Windows1252)
+            Ok((text.into_owned(), Encoding::Windows1252))
         }
     }
 }
@@ -364,9 +379,7 @@ pub fn stat_unchanged(path: &Path, expected: &Stamp) -> bool {
 }
 
 fn check_unchanged(path: &Path, expected: &Stamp) -> Result<()> {
-    if stat_unchanged(path, expected) {
-        return Ok(());
-    }
+    // Sync-programmer kan bevare både størrelse og tid. Før et gem skal indholdet altid tjekkes.
     let current = current_stamp(path)?;
     if current.hash == expected.hash {
         Ok(())
@@ -437,7 +450,7 @@ fn replace_existing(target: &Path, tmp: &Path, guard: &dyn Fn() -> Result<()>) -
 
     let wide = |p: &Path| -> Vec<u16> {
         let mut s = p.as_os_str().to_string_lossy().into_owned();
-        if p.is_absolute() && !s.starts_with(r"\\?\") && s.len() >= 240 {
+        if p.is_absolute() && !s.starts_with(r"\\?\") {
             if s.starts_with(r"\\") {
                 s = format!(r"\\?\UNC\{}", &s[2..]);
             } else {
@@ -509,6 +522,56 @@ fn replace_existing(target: &Path, tmp: &Path, _guard: &dyn Fn() -> Result<()>) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aendret_indhold_med_samme_tid_og_stoerrelse_afvises() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tekst.md");
+        fs::write(&path, b"mine").unwrap();
+        let opened = open(&path).unwrap();
+        let modified = fs::metadata(&path).unwrap().modified().unwrap();
+        fs::write(&path, b"dine").unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_times(fs::FileTimes::new().set_modified(modified))
+            .unwrap();
+        assert!(stat_unchanged(&path, &opened.meta.stamp));
+        assert!(matches!(
+            save(&path, "nyt", &opened.meta, Some(&opened.meta.stamp), false),
+            Err(FileError::ChangedOnDisk { .. })
+        ));
+        assert_eq!(fs::read(&path).unwrap(), b"dine");
+    }
+
+    #[test]
+    fn beskadiget_bom_afvises_uden_at_originalen_aendres() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tekst.md");
+        for bytes in [
+            vec![0xef, 0xbb, 0xbf, 0xff],
+            vec![0xff, 0xfe, 0x00, 0xd8],
+            vec![0xfe, 0xff, 0x00],
+        ] {
+            fs::write(&path, &bytes).unwrap();
+            assert!(open(&path).is_err());
+            assert_eq!(fs::read(&path).unwrap(), bytes);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn gemmer_paa_lang_sti() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("a".repeat(100)).join("b".repeat(100));
+        fs::create_dir_all(&folder).unwrap();
+        let path = folder.join("tekst.md");
+        assert!(path.as_os_str().len() > 236);
+        fs::write(&path, b"Foer").unwrap();
+        write_atomic(&path, b"Efter").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"Efter");
+    }
 
     fn roundtrip(bytes: &[u8]) -> (Opened, Vec<u8>) {
         let dir = tempfile::tempdir().unwrap();

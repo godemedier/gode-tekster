@@ -108,6 +108,12 @@ impl History {
         if !has {
             conn.execute_batch("ALTER TABLE version ADD COLUMN summary TEXT;")?;
         }
+        let has_start = conn
+            .prepare("SELECT 1 FROM pragma_table_info('version') WHERE name = 'started'")?
+            .exists([])?;
+        if !has_start {
+            conn.execute_batch("ALTER TABLE version ADD COLUMN started INTEGER NOT NULL DEFAULT 0; UPDATE version SET started = ts;")?;
+        }
         Ok(())
     }
 
@@ -167,22 +173,29 @@ impl History {
         source: &str,
         at: i64,
     ) -> rusqlite::Result<i64> {
-        let conn = self.conn()?;
+        let connection = self.conn()?;
+        let conn = connection.unchecked_transaction()?;
         let fid = Self::file_id(&conn, path)?;
         let hash = Self::put_blob(&conn, text)?;
         let authors_json = serde_json::to_string(authors).unwrap_or_else(|_| "[]".to_owned());
-        let last: Option<(i64, i64, String, String, i64)> = conn
+        let last: Option<(i64, i64, String, String, i64, i64)> = conn
             .query_row(
-                "SELECT id, ts, source, hash, pinned FROM version WHERE file_id = ?1 ORDER BY ts DESC, id DESC LIMIT 1",
+                "SELECT id, ts, source, hash, pinned, started FROM version WHERE file_id = ?1 ORDER BY ts DESC, id DESC LIMIT 1",
                 params![fid],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
             )
             .optional()?;
-        if let Some((id, ts, src, h, pinned)) = last.clone() {
+        if let Some((id, ts, src, h, pinned, started)) = last.clone() {
             if h == hash {
+                conn.commit()?;
                 return Ok(id);
             }
-            if src == source && source == "app" && pinned == 0 && at - ts < SESSION_MS {
+            if src == source
+                && source == "app"
+                && pinned == 0
+                && at >= ts
+                && at - started < SESSION_MS
+            {
                 // Lagt sammen med den forrige: beskrivelsen regnes fra versionen før den.
                 let summary = Self::text_before(&conn, fid, ts, id)?
                     .map(|old| describe(&old, text))
@@ -196,21 +209,24 @@ impl History {
                     "DELETE FROM blob WHERE hash = ?1 AND NOT EXISTS (SELECT 1 FROM version WHERE hash = ?1)",
                     params![h],
                 )?;
+                conn.commit()?;
                 return Ok(id);
             }
         }
         let summary = match &last {
-            Some((_, _, _, h, _)) => {
+            Some((_, _, _, h, _, _)) => {
                 let old = Self::read(&conn, h, String::new())?.text;
                 serde_json::to_string(&describe(&old, text)).ok()
             }
             None => None,
         };
         conn.execute(
-            "INSERT INTO version(file_id, ts, hash, source, authors, summary) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO version(file_id, ts, hash, source, authors, summary, started) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?2)",
             params![fid, at, hash, source, authors_json, summary],
         )?;
-        Ok(conn.last_insert_rowid())
+        let id = conn.last_insert_rowid();
+        conn.commit()?;
+        Ok(id)
     }
 
     pub fn record_now(
@@ -329,7 +345,8 @@ impl History {
 
     /// Udtynd alle filers historik og fjern indhold, ingen version peger på længere.
     pub fn thin(&self, now: i64) -> rusqlite::Result<usize> {
-        let conn = self.conn()?;
+        let connection = self.conn()?;
+        let conn = connection.unchecked_transaction()?;
         let mut stmt = conn.prepare(
             "SELECT id, file_id, ts, source, pinned FROM version ORDER BY file_id, ts DESC",
         )?;
@@ -350,7 +367,6 @@ impl History {
             });
         }
         // Én transaktion: ellers er hver sletning sin egen skrivning til disken.
-        conn.execute_batch("BEGIN")?;
         for slots in by_file.values() {
             for id in to_thin(slots, now) {
                 conn.execute("DELETE FROM version WHERE id = ?1", params![id])?;
@@ -358,7 +374,7 @@ impl History {
             }
         }
         Self::gc(&conn)?;
-        conn.execute_batch("COMMIT")?;
+        conn.commit()?;
         Ok(removed)
     }
 
@@ -574,6 +590,27 @@ mod tests {
         h.record("a", "v5", &[], "app", 80_000 + SESSION_MS + 1)
             .unwrap();
         assert_eq!(h.list("a").unwrap().len(), 4, "ny session efter pause");
+    }
+
+    #[test]
+    fn lang_skrivning_bevarer_versioner_hvert_tiende_minut() {
+        let h = History::memory();
+        for minute in 0..31 {
+            h.record(
+                "bog.md",
+                &format!("tekst {minute}"),
+                &[],
+                "app",
+                minute * 60_000,
+            )
+            .unwrap();
+        }
+        let versions = h.list("bog.md").unwrap();
+        assert_eq!(versions.len(), 4);
+        assert_eq!(h.last("bog.md").unwrap().unwrap().text, "tekst 30");
+        assert!(versions
+            .iter()
+            .any(|v| h.get(v.id).unwrap().text == "tekst 9"));
     }
 
     #[test]

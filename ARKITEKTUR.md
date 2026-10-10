@@ -606,9 +606,8 @@ kontrakt står i en intern plan.
 - **Web i egne AI-kommandoer:** fremmed tekst plus værktøjer plus en delt prompt er opskriften
   fra Notion-sagen (september 2025).
 
-**Kendt rest:** Codex har ingen kontakt, der slår dets egen skal fra. Uden `--search` har det
-intet net, og sandkassen er skrivebeskyttet med en tom arbejdsmappe, men »ingen værktøjer« er
-kun fuldt sandt for Claude og Gemini. Ikke prøvet mod et rigtigt login.
+**Opdateret 10/10:** Codex' værktøjer og lokale konfiguration afgrænses nu som beskrevet i
+ADR-0043. Kaldet er fortsat ikke prøvet mod et rigtigt login.
 **Revurdér først hvis:** brugeren vil have korte AI-forslag alligevel (så er det en ny svarform
 med sit eget loft, ikke et friere skema), eller en kommando får brug for en anden fil.
 
@@ -934,3 +933,28 @@ for felt ved indlæsning). Uden egen skabelon er resultatet det samme som før.
 i margenboksene, og Word kun i sidehoved og sidefod.
 **Revurdér hvis:** skabeloner skal følge med til en anden pc (så hører de til i settings.json), eller
 der kommer brug for logo eller billede i sidehovedet.
+
+### ADR-0043 — Holdbar afslutning og afgrænset teksttolkning (10/10-2026)
+Supplerer ADR-0013, ADR-0009 og ADR-0027.
+**Baggrund:** Gennemgangen fandt gemfejl, der stadig kunne lukke et vindue, samtidige filskift og
+fletninger, samt markeringer inde i kode, der blev tolket og fjernet ved eksport. Historikkens
+løbende ti minutters vindue kunne også opsluge en hel dags skrivning.
+**Beslutning:** Hver åben tekst har en vinduesejer i Rust. Gem og opdatering af filens kendte
+stempel sker under samme lås. Hashen kontrolleres før hvert gem, også ved samme størrelse og
+tidsstempel. Filer med beskadiget UTF-8- eller UTF-16-BOM afvises frem for at blive omskrevet.
+Filskift køes i fladen; igangværende fletning afsluttes før lukning og beregnes igen, hvis teksten
+ændres under kaldet. Afslutningen venter på gem eller en atomisk nødkopi af de seneste rettelser.
+Ingen tidsgrænse må tvinge processen væk. Under lukning tager fladen ikke imod nye tastetryk;
+fejl afbryder afslutningen. Sessionens metadata gemmes atomisk, også under brug.
+Historikgrupper må højst vare ti minutter fra gruppens første skrivning og opdateres i en
+SQLite-transaktion. Kode og afsluttede kommentarer afgrænses af fælles skannere i
+`src/editor/textSyntax.ts`. Halve markeringer må ikke opsluge den næste færdige markering, og
+kodeeksempler bevares ved optælling og eksport. Noter inde i rettelsesforslag behandles i
+forslagets felter, så udskiftninger ikke overlapper.
+Codex får en særskilt tom arbejdsmappe pr. kald. Brugerens config ignoreres; shell_tool og
+unified_exec slås fra, sandkassen er skrivebeskyttet, og web_search vælges eksplicit pr. opgave.
+Stderr tømmes løbende, så en fuld pipe ikke kan låse processen. Et ukendt flag er en fejl,
+ikke anledning til at gentage kaldet med færre begrænsninger.
+**Konsekvens:** Lukning kan blive afbrudt ved diskfejl. Det er nødvendigt for at bevare rettelserne.
+Codex kræver en CLI, der understøtter disse flag; et rigtigt login er endnu ikke afprøvet.
+**Revurdér hvis:** flere brugere eller maskiner skal redigere samme tekst samtidig.

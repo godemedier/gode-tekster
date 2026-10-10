@@ -5,6 +5,7 @@
 
 use memchr::memmem;
 use serde::Serialize;
+use std::io::Read;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -114,9 +115,16 @@ fn hits_in_file(f: &FileHit, query: &str, needle: &memmem::Finder) -> Vec<Hit> {
     if !(lower.ends_with(".md") || lower.ends_with(".markdown") || lower.ends_with(".txt")) {
         return Vec::new();
     }
-    let Ok(bytes) = std::fs::read(&f.path) else {
+    let Ok(file) = std::fs::File::open(&f.path) else {
         return Vec::new();
     };
+    if file.metadata().is_ok_and(|m| m.len() > MAX_BYTES) {
+        return Vec::new();
+    }
+    let mut bytes = Vec::new();
+    if file.take(MAX_BYTES + 1).read_to_end(&mut bytes).is_err() {
+        return Vec::new();
+    }
     if bytes.len() as u64 > MAX_BYTES {
         return Vec::new();
     }

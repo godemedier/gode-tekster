@@ -172,11 +172,13 @@ pub fn run() -> tauri::Result<()> {
             document::initial_document,
             document::pick_document,
             document::save_document,
+            document::release_document,
             document::backup_text,
             document::app_ready,
             document::test_mode,
             document::log_line,
             windows::quit_app,
+            windows::cancel_quit,
             windows::request_quit,
             windows::new_window,
             windows::focus_if_open,
@@ -322,8 +324,7 @@ pub fn run() -> tauri::Result<()> {
                         tauri::async_runtime::spawn(async move { notes::show_all(&app) });
                     }
                     "skjul-noter" => notes::hide_all(app),
-                    // Fladen gemmer først og kalder så `quit_app` (main.ts). Svarer den ikke inden
-                    // for 3 s, lukkes der alligevel; teksten ligger da i backup fra sidste gem.
+                    // Alle vinduer gemmer først og kalder så `quit_app`. Fejl afbryder afslutningen.
                     "afslut" => windows::request_quit(app.clone()),
                     _ => {}
                 });
@@ -409,6 +410,7 @@ pub fn run() -> tauri::Result<()> {
         RunEvent::Exit => {
             // Slukkede Ro på wifi, tændes det igen, før programmet er væk (ro.rs).
             ro::on_exit(app);
+            crate::session::save_to_disk(app);
             updater::install_on_exit(app);
         }
         _ => {}

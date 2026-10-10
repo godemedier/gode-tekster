@@ -6,6 +6,7 @@
 // skal også tilbage til Gode Ord (L-007).
 
 import { hasNumber, nextHeadingNumber } from "./headingNumbers.ts";
+import { findTagLine } from "./textStatus.ts";
 
 export type EditPlan = {
   /** Interval i den nuværende tekst, der skal erstattes. */
@@ -138,10 +139,10 @@ export function insertFootnote(
   for (const m of text.matchAll(/\[\^(\d+)\]/g)) max = Math.max(max, Number(m[1]));
   const label = `[^${max + 1}]`;
   const parked = text.search(/^<!-- gt:parkeret/m);
-  const end = parked === -1 ? text.length : parked;
+  const end = Math.min(parked === -1 ? text.length : parked, findTagLine(text)?.from ?? text.length);
   const before = text.slice(0, end);
   const lead = before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
-  const tail = parked === -1 ? "" : "\n\n";
+  const tail = end === text.length ? "" : "\n\n";
   const definition = `${lead}${label}: ${body}${tail}`;
   const cursor = end + label.length + lead.length + 2 + label.length;
   return { changes: [{ from: pos, insert: label }, { from: end, insert: definition }], label: label.slice(2, -1), cursor };

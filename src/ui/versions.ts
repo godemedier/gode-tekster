@@ -52,6 +52,7 @@ export class Versions {
   private hooks: VersionHooks;
   private saved: EditorState | null = null;
   private bar: HTMLElement | null = null;
+  private generation = 0;
 
   constructor(hooks: VersionHooks) {
     this.hooks = hooks;
@@ -138,6 +139,8 @@ export class Versions {
   }
 
   private async preview(v: VersionInfo): Promise<void> {
+    const generation = ++this.generation;
+    const path = this.hooks.path();
     let old: VersionDto;
     try {
       old = await invoke<VersionDto>("history_get", { id: v.id });
@@ -146,8 +149,18 @@ export class Versions {
       return;
     }
     const view = this.hooks.view;
+    if (generation !== this.generation || path !== this.hooks.path()) return;
     if (!this.saved) {
-      await this.hooks.pause(true);
+      try {
+        await this.hooks.pause(true);
+      } catch (e) {
+        showBanner(errorText(e));
+        return;
+      }
+      if (generation !== this.generation || path !== this.hooks.path()) {
+        if (path === this.hooks.path()) await this.hooks.pause(false);
+        return;
+      }
       this.saved = view.state;
     }
     view.setState(
@@ -186,6 +199,7 @@ export class Versions {
   }
 
   async back(): Promise<void> {
+    this.generation++;
     if (!this.saved) return;
     this.hooks.view.setState(this.saved);
     this.saved = null;
@@ -202,6 +216,7 @@ export class Versions {
    */
   private async compare(old: VersionDto): Promise<void> {
     await this.back();
+    const path = this.hooks.path();
     const view = this.hooks.view;
     const now = view.state.doc.toString();
     let edits: { from: number; to: number; insert: string }[];
@@ -212,6 +227,7 @@ export class Versions {
       return;
     }
     // Aldrig mærker inde i skjulte blokke (fraklip, Claudes resultater): de er kommentarer.
+    if (path !== this.hooks.path() || now !== view.state.doc.toString()) return;
     const hidden = [...findParked(now), ...findClaudeBlocks(now)];
     const skip = (at: number, length: number) => hidden.some((b) => at < b.to && at + length >= b.from);
     const changes = markupFor(edits, old.text, skip);
@@ -249,6 +265,7 @@ export class Versions {
       return;
     }
     await this.back();
+    if (path !== this.hooks.path()) return;
     const view = this.hooks.view;
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: old.text }, userEvent: "restore" });
     view.dispatch({ effects: setAuthorship.of({ authors: old.authors, me: now.me, pasted: [], external: [] }) });

@@ -4,6 +4,15 @@ import { insertFootnote, setHeading, toggleLinePrefix, toggleWrap, wordRangeAt, 
 
 const apply = (t: string, p: EditPlan) => t.slice(0, p.start) + p.replacement + t.slice(p.end);
 
+test("en fodnote lægges før tags, så de stadig er sidste synlige linje", () => {
+  const doc = "Tekst.\n\n#klima #bog\n";
+  const plan = insertFootnote(doc, 5, "Kilde");
+  let result = doc;
+  for (const c of [...plan.changes].reverse()) result = result.slice(0, c.from) + c.insert + result.slice(c.from);
+  assert.match(result, /\[\^1\]: Kilde\n\n#klima #bog\n$/);
+  assert.equal(result.slice(plan.cursor, plan.cursor + 5), "Kilde");
+});
+
 test("ordet omkring markøren, også med æøå", () => {
   const t = "en grøn æske";
   const r = wordRangeAt(t, 5);

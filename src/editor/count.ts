@@ -3,6 +3,7 @@
 // er på vej ud. Fodnoterne tæller med (ADR-0017), men ikke deres etiketter. En normalside er 2.400 anslag inklusive mellemrum.
 
 import { withoutParked } from "./parked.ts";
+import { resolveDimmed } from "./inline.ts";
 import { locale, tr } from "../i18n.ts";
 
 export type Count = { words: number; chars: number; pages: number; minutes: number };
@@ -11,9 +12,8 @@ export type Count = { words: number; chars: number; pages: number; minutes: numb
 const WPM = 220;
 
 export function readableText(markdown: string): string {
-  return withoutParked(markdown)
+  return resolveDimmed(withoutParked(markdown), false)
     .replace(/^\[\^[^\]\s]+\]:\s?/gm, "")
-    .replace(/\{--[\s\S]*?--\}/g, "")
     .replace(/^```[^\n]*\n[\s\S]*?^```\s*$/gm, "")
     .replace(/\[\^[^\]\s]+\]/g, "")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")

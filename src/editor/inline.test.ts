@@ -2,6 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { findDimmed, findFootnoteRefs, footnoteNumbers, footnoteDefinition, footnoteRef } from "./inline.ts";
 
+test("fodnoter i fraklip, kommentarer og kode ændrer ikke aktive fodnoter", () => {
+  const doc = "Aktiv[^1].\n\n[^1]: original\n\n<!-- gt:parkeret id=p1 dato=2026-10-10\nKlip[^2].\n[^1]: forkert\n[^2]: skjult\n-->\n```\nKode[^3]\n[^3]: kode\n```\n`[^4]`";
+  assert.deepEqual([...footnoteNumbers(doc)], [["1", 1]]);
+  assert.equal(footnoteDefinition(doc, "1")?.text, "original");
+  assert.equal(footnoteDefinition(doc, "2"), null);
+  assert.equal(footnoteRef(doc, "2"), null);
+});
+
 test("dæmpet tekst findes med åbning, indhold og lukning", () => {
   const line = "Før {--måske ud--} og {--også--} efter";
   const found = findDimmed(line);

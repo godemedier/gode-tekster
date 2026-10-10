@@ -5,6 +5,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use std::sync::{Mutex, OnceLock};
+
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
@@ -26,6 +28,8 @@ fn file(app: &AppHandle) -> Option<PathBuf> {
         .map(|d| d.join("session.json"))
 }
 
+static SESSION: OnceLock<Mutex<Session>> = OnceLock::new();
+
 fn load(app: &AppHandle) -> Session {
     file(app)
         .and_then(|f| std::fs::read(f).ok())
@@ -33,17 +37,39 @@ fn load(app: &AppHandle) -> Session {
         .unwrap_or_default()
 }
 
+fn get_session(app: &AppHandle) -> std::sync::MutexGuard<'_, Session> {
+    SESSION
+        .get_or_init(|| Mutex::new(load(app)))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
+pub fn save_to_disk(app: &AppHandle) {
+    if std::env::var("GT_TEST").is_ok() {
+        return;
+    }
+    let Some(s) = SESSION.get() else { return };
+    let s = s.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(f) = file(app) else { return };
+    if let Some(dir) = f.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(json) = serde_json::to_vec_pretty(&*s) {
+        let _ = crate::files::write_atomic(&f, &json);
+    }
+}
+
 pub fn last_path(app: &AppHandle) -> Option<PathBuf> {
-    load(app).last
+    get_session(app).last.clone()
 }
 
 /// De seneste tekster, nyeste først.
 pub fn recent(app: &AppHandle) -> Vec<PathBuf> {
-    load(app).recent
+    get_session(app).recent.clone()
 }
 
 pub fn cursor_for(app: &AppHandle, path: &Path) -> Option<usize> {
-    load(app).cursors.get(path).copied()
+    get_session(app).cursors.get(path).copied()
 }
 
 pub fn remember(app: &AppHandle, path: &Path, cursor: Option<usize>) {
@@ -51,8 +77,7 @@ pub fn remember(app: &AppHandle, path: &Path, cursor: Option<usize>) {
     if std::env::var("GT_TEST").is_ok() {
         return;
     }
-    let Some(f) = file(app) else { return };
-    let mut s = load(app);
+    let mut s = get_session(app);
     s.last = Some(path.to_path_buf());
     // Øverst i de seneste. Ændrer det rækkefølgen, bygges springlisten igen.
     let key = path.to_string_lossy().to_lowercase();
@@ -64,12 +89,8 @@ pub fn remember(app: &AppHandle, path: &Path, cursor: Option<usize>) {
     if let Some(c) = cursor {
         s.cursors.insert(path.to_path_buf(), c);
     }
-    if let Some(dir) = f.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    if let Ok(json) = serde_json::to_vec_pretty(&s) {
-        let _ = std::fs::write(f, json);
-    }
+    drop(s);
+    save_to_disk(app);
     if moved {
         crate::jumplist::refresh(app);
     }

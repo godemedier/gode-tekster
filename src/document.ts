@@ -29,6 +29,8 @@ type SaveError = { kind: string; message: string };
 type SaveOptions = { allowEolNormalize?: boolean; overwriteExternal?: boolean; forceUtf8?: boolean };
 
 const AUTOSAVE_MS = 1500;
+export type SessionIO = { invoke: typeof invoke; showBanner: typeof showBanner; hideBanner: typeof hideBanner; notify: typeof notify };
+const sessionIO: SessionIO = { invoke, showBanner, hideBanner, notify };
 
 export class DocumentSession {
   private timer: number | undefined;
@@ -46,15 +48,17 @@ export class DocumentSession {
   private merging: Promise<void> | null = null;
   /** Nummeret på sessionens egen besked, så den kun skjuler sine egne (ui/banner.ts). */
   private bannerId = -1;
+  private closed = false;
+  private closing = false;
 
   private show(message: string, actions: Action[] = []): void {
     // Sessionens forrige besked er forældet, når en ny kommer.
-    hideBanner(this.bannerId);
-    this.bannerId = showBanner(message, actions);
+    this.io.hideBanner(this.bannerId);
+    this.bannerId = this.io.showBanner(message, actions, { perText: true });
   }
 
   private hide(): void {
-    hideBanner(this.bannerId);
+    this.io.hideBanner(this.bannerId);
   }
 
   /** Beskeden om en rettelse udefra står. Den forsvinder, når brugeren skriver videre. */
@@ -64,8 +68,10 @@ export class DocumentSession {
   private dto: DocumentDto;
   /** Lytteren fra load, så en genindlæsning ikke mister højre spalte og autosave. */
   private onChange: () => void;
+  private readonly io: SessionIO;
 
-  constructor(view: EditorView, dto: DocumentDto, onChange: () => void) {
+  constructor(view: EditorView, dto: DocumentDto, onChange: () => void, io: SessionIO = sessionIO) {
+    this.io = io;
     this.view = view;
     this.dto = dto;
     this.onChange = onChange;
@@ -92,39 +98,70 @@ export class DocumentSession {
   }
 
   changed(): void {
-    if (this.paused || this.syncing) return;
+    if (this.paused || this.syncing || this.closed) return;
     if (this.notice) {
       // »Fortryd rettelsen« ville nu fortryde det, brugeren lige har skrevet.
       this.notice = false;
       this.hide();
     }
     this.dirty = true;
-    if (this.blocked) return;
     window.clearTimeout(this.timer);
-    this.timer = window.setTimeout(() => void this.save(), AUTOSAVE_MS);
+    this.timer = window.setTimeout(() => {
+      if (this.blocked) void this.backup().catch((e: unknown) => this.show(errorText(e)));
+      else void this.save();
+    }, AUTOSAVE_MS);
   }
 
   /** Gemmer nu, hvis der er noget at gemme. Bruges ved fokustab, luk og skift af fil. */
   async flush(): Promise<void> {
     if (this.paused) return;
     window.clearTimeout(this.timer);
+    if (this.merging) await this.merging;
     if (this.saving) await this.saving;
     if (this.dirty && !this.blocked) await this.save();
+    window.clearTimeout(this.timer);
   }
 
   /** Versioner: gem nu, og hold autosave på pause, mens en gammel udgave vises. */
   async pause(on: boolean): Promise<void> {
-    if (on) await this.flush();
+    if (on) await this.saveForHandoff();
     this.paused = on;
   }
 
   /** Før en anden fil åbnes: gem, og kan det ikke lade sig gøre, læg teksten i backup. */
   async close(): Promise<void> {
-    await this.flush();
-    if (this.dirty) {
-      await invoke("backup_text", { path: this.dto.path, text: this.view.state.doc.toString() });
-      this.hide();
+    await this.prepareExit();
+    await this.io.invoke("release_document", { path: this.dto.path });
+    this.closed = true;
+    this.hide();
+  }
+
+  async prepareExit(): Promise<void> {
+    this.closing = true;
+    try {
+      await this.flush();
+      if (this.dirty) await this.backup();
+    } finally {
+      this.closing = false;
     }
+  }
+
+  private async backup(): Promise<void> {
+    for (;;) {
+      const text = this.view.state.doc.toString();
+      await this.io.invoke("backup_text", { path: this.dto.path, text });
+      if (text === this.view.state.doc.toString()) return;
+    }
+  }
+
+  /** Et andet vindue eller en genindlæsning skal kunne læse de seneste rettelser fra filen. */
+  async saveForHandoff(): Promise<void> {
+    await this.flush();
+    if (this.dirty) throw new Error(tr("Teksten kunne ikke gemmes. Vinduet bliver åbent, så du kan prøve igen.", "The text could not be saved. The window stays open so you can try again."));
+  }
+
+  prepareReload(): Promise<void> {
+    return this.saveForHandoff();
   }
 
   private async save(opts: SaveOptions = {}): Promise<void> {
@@ -144,7 +181,7 @@ export class DocumentSession {
     const text = state.doc.toString();
     this.dirty = false;
     try {
-      await invoke("save_document", {
+      await this.io.invoke("save_document", {
         req: {
           path: this.dto.path,
           text,
@@ -169,6 +206,15 @@ export class DocumentSession {
 
   private handleError(err: SaveError): void {
     this.blocked = true;
+    if (err.kind !== "changed-on-disk" && err.kind !== "moved") {
+      void this.backup()
+        .then(() => {
+          if (!this.closed) this.io.notify(tr("En kopi af teksten er gemt i programmets backup-mappe.", "A copy of the text is saved in the app's backup folder."));
+        })
+        .catch((e: unknown) => {
+          if (!this.closed) this.show(errorText(e));
+        });
+    }
     switch (err.kind) {
       case "changed-on-disk":
         // Opdaget først ved gem: flet som ved enhver anden rettelse udefra.
@@ -221,7 +267,7 @@ export class DocumentSession {
    * og det nye får en stiplet streg. Står der egne rettelser på samme linje, vælger brugeren (2/10).
    */
   externalChange(): Promise<void> {
-    if (this.paused) return Promise.resolve();
+    if (this.paused || this.closed || this.closing) return Promise.resolve();
     this.merging ??= this.mergeExternal().finally(() => {
       this.merging = null;
     });
@@ -235,7 +281,7 @@ export class DocumentSession {
     this.blocked = true;
     window.clearTimeout(this.timer);
     try {
-      const fresh = await invoke<DocumentDto>("open_document", { path: this.dto.path });
+      const fresh = await this.io.invoke<DocumentDto>("open_document", { path: this.dto.path });
       let mine = this.view.state.doc.toString();
       if (fresh.text === mine) {
         this.base = fresh.text;
@@ -245,11 +291,12 @@ export class DocumentSession {
         return;
       }
       type Merge = { conflict: boolean; changes: { from: number; to: number; insert: string }[] };
-      let merge = await invoke<Merge>("merge_texts", { base: this.base, mine, theirs: fresh.text });
-      // Har brugeren skrevet videre imens, flettes der én gang til med den nyeste tekst.
-      if (this.view.state.doc.toString() !== mine) {
+      let merge: Merge;
+      // Tastetryk under et IPC-kald må aldrig anvende positioner fra en ældre tekst.
+      for (;;) {
         mine = this.view.state.doc.toString();
-        merge = await invoke<Merge>("merge_texts", { base: this.base, mine, theirs: fresh.text });
+        merge = await this.io.invoke<Merge>("merge_texts", { base: this.base, mine, theirs: fresh.text });
+        if (this.view.state.doc.toString() === mine) break;
       }
       if (merge.conflict) {
         this.conflict(fresh, mine);
@@ -335,10 +382,13 @@ export class DocumentSession {
   private offerStaleCleanup(): void {
     const stale = this.dto.staleBlocks;
     if (stale.length === 0) return;
+    const text = this.view.state.doc.toString();
+    this.notice = true;
     this.show(tr("Der står en gammel forfatterblok fra iA Writer midt i teksten.", "There is an old iA Writer author block in the middle of the text."), [
       {
         label: tr("Fjern den", "Remove it"),
         run: () => {
+          if (this.closed || this.view.state.doc.toString() !== text) { this.hide(); return; }
           const changes = stale.map((s) => ({ from: s.start, to: s.end }));
           this.view.dispatch({ changes, userEvent: "delete.cleanup" });
           this.hide();

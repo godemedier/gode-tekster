@@ -52,7 +52,7 @@ body.note.rolled .note-title { visibility: visible; }
 .note-colors button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Editoren i et lille ark: mindre skrift, ingen luft om teksten, samme markør. */
-body.note #editor { flex: 1; min-height: 0; }
+body.note #editor { flex: 1; min-height: 0; padding-bottom: 12px; box-sizing: border-box; }
 body.note .cm-editor { height: 100%; background: transparent !important; font-size: 14.5px !important; }
 body.note .cm-scroller { line-height: 1.6 !important; }
 body.note .cm-content { max-width: none !important; padding: 2px 16px 24px !important; color: var(--ark-blæk); }
