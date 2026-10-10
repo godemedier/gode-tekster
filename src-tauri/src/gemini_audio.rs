@@ -188,6 +188,20 @@ fn parse(value: &Value, duration_ms: u64) -> Result<Transcript, String> {
 /// Skal køres i lydimportens worker efter brugerens start. Bytebufferen er én lokal
 /// WAV-blok på højst ét minut. Ingen filsti, nøgle eller råt fejlsvar går til fladen.
 pub fn transcribe(audio: &[u8], duration_ms: u64, language: &str) -> Result<Transcript, String> {
+    transcribe_cancellable(
+        audio,
+        duration_ms,
+        language,
+        &std::sync::atomic::AtomicBool::new(false),
+    )
+}
+
+pub fn transcribe_cancellable(
+    audio: &[u8],
+    duration_ms: u64,
+    language: &str,
+    cancelled: &std::sync::atomic::AtomicBool,
+) -> Result<Transcript, String> {
     if duration_ms == 0 || duration_ms > 60_000 {
         return Err(invalid_input());
     }
@@ -199,24 +213,47 @@ pub fn transcribe(audio: &[u8], duration_ms: u64, language: &str) -> Result<Tran
         )
         .to_owned()
     })?;
-    let mut response = crate::gemini::agent(Duration::from_secs(60))
-        .post("https://generativelanguage.googleapis.com/v1beta/interactions")
-        .header("x-goog-api-key", &key)
-        .content_type("application/json")
-        .send(body.to_string())
-        .map_err(|_| {
-            t!(
-                "Gemini kunne ikke nås. Kontrollér forbindelsen og prøv igen.",
-                "Gemini could not be reached. Check your connection and try again."
-            )
-            .to_owned()
-        })?;
+    let mut attempts = 0;
+    let mut response = loop {
+        let response = crate::gemini::agent(Duration::from_secs(60))
+            .post("https://generativelanguage.googleapis.com/v1beta/interactions")
+            .header("x-goog-api-key", &key)
+            .content_type("application/json")
+            .send(body.to_string())
+            .map_err(|_| {
+                t!(
+                    "Gemini kunne ikke nås. Kontrollér forbindelsen og prøv igen.",
+                    "Gemini could not be reached. Check your connection and try again."
+                )
+                .to_owned()
+            })?;
+        let status = response.status().as_u16();
+        if ![429, 500, 502, 503, 504].contains(&status) || attempts >= 2 {
+            break response;
+        }
+        attempts += 1;
+        let wait = response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(if status == 429 { 60 } else { 5 * attempts })
+            .clamp(1, 120);
+        for _ in 0..wait * 5 {
+            if cancelled.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err(
+                    t!("Transskriptionen blev stoppet.", "Transcription stopped.").to_owned(),
+                );
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    };
     match response.status().as_u16() {
         200 => {},
         401 | 403 => return Err(t!("Gemini afviste adgangen. Kontrollér din nøgle og adgang til transskription i Google AI Studio.", "Gemini denied access. Check your key and transcription access in Google AI Studio.").to_owned()),
         429 => return Err(t!("Geminis kvote er brugt op. Vent og prøv igen, eller kontrollér kvoten i Google AI Studio.", "Gemini's quota is exhausted. Wait and try again, or check your quota in Google AI Studio.").to_owned()),
         400 | 404 => return Err(t!("Gemini kan ikke transskribere med denne forbindelse. Kontrollér adgang til Gemini 3.5 Transcribe i Google AI Studio.", "Gemini cannot transcribe with this connection. Check Gemini 3.5 Transcribe access in Google AI Studio.").to_owned()),
-        _ => return Err(t!("Gemini kunne ikke transskribere nu. Prøv igen senere.", "Gemini could not transcribe right now. Try again later.").to_owned()),
+        status => return Err(t!(format!("Gemini kunne ikke transskribere nu (HTTP {status}). Prøv igen senere."), format!("Gemini could not transcribe right now (HTTP {status}). Try again later."))),
     }
     let raw = response
         .body_mut()

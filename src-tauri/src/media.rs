@@ -110,6 +110,19 @@ fn store(app: &AppHandle, doc: &str, original: &str, bytes: &[u8]) -> Result<Str
             format!("The medier folder could not be created: {e}")
         )
     })?;
+    let dir = dir.canonicalize().map_err(|e| e.to_string())?;
+    let parent = doc
+        .parent()
+        .ok_or("Mappen mangler.")?
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    if dir.parent() != Some(parent.as_path()) {
+        return Err(t!(
+            "Mappen medier skal ligge ved teksten.",
+            "The media folder must be beside the text."
+        )
+        .to_owned());
+    }
     let stem = doc
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())

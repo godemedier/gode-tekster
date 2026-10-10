@@ -3,23 +3,25 @@
 //! Fladen må kun skrive til den sti, brugeren selv har valgt i Gem-dialogen. Stien huskes her, når
 //! dialogen lukkes, og bruges én gang. Så kan en fejl i fladen aldrig skrive et andet sted hen.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde::Deserialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 use crate::applog;
 
 #[derive(Default)]
 pub struct ExportState {
-    target: Mutex<Option<PathBuf>>,
+    target: Mutex<HashMap<String, PathBuf>>,
 }
 
 /// Gem-dialogen. `kind` er `pdf` eller `docx`. Navnet foreslås ud fra teksten, i samme mappe.
 #[tauri::command]
 pub async fn pick_export_path(
     app: AppHandle,
+    window: tauri::Window,
     state: State<'_, ExportState>,
     source: String,
     kind: String,
@@ -48,7 +50,10 @@ pub async fn pick_export_path(
     }
     let picked = dialog.blocking_save_file().and_then(|p| p.into_path().ok());
     if let Ok(mut t) = state.target.lock() {
-        *t = picked.clone();
+        t.remove(window.label());
+        if let Some(path) = &picked {
+            t.insert(window.label().to_owned(), path.clone());
+        }
     }
     Ok(picked.map(|p| p.to_string_lossy().into_owned()))
 }
@@ -83,12 +88,12 @@ pub fn file_name_from_title(title: &str) -> Option<String> {
     (!name.is_empty() && !reserved).then_some(name)
 }
 
-fn take_target(state: &ExportState) -> Result<PathBuf, String> {
+fn take_target(state: &ExportState, owner: &str) -> Result<PathBuf, String> {
     state
         .target
         .lock()
         .ok()
-        .and_then(|mut t| t.take())
+        .and_then(|mut t| t.remove(owner))
         .ok_or_else(|| {
             t!(
                 "Vælg først, hvor filen skal gemmes.",
@@ -102,10 +107,11 @@ fn take_target(state: &ExportState) -> Result<PathBuf, String> {
 #[tauri::command]
 pub async fn write_export(
     app: AppHandle,
+    window: tauri::Window,
     state: State<'_, ExportState>,
     bytes: Vec<u8>,
 ) -> Result<String, String> {
-    let target = take_target(&state)?;
+    let target = take_target(&state, window.label())?;
     crate::files::write_atomic(&target, &bytes).map_err(|e| match e {
         crate::files::FileError::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied => t!(
             "Filen kunne ikke gemmes. Er den åben i Word? Luk den, og prøv igen.",
@@ -133,13 +139,11 @@ pub struct Margins {
 #[tauri::command]
 pub async fn export_pdf(
     app: AppHandle,
+    window: tauri::WebviewWindow,
     state: State<'_, ExportState>,
     margins: Margins,
 ) -> Result<String, String> {
-    let target = take_target(&state)?;
-    let window = app
-        .get_webview_window("main")
-        .ok_or(t!("Vinduet findes ikke.", "The window does not exist."))?;
+    let target = take_target(&state, window.label())?;
     let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
     let path = target.clone();
     window
@@ -231,6 +235,29 @@ fn print_to_pdf(
 #[cfg(test)]
 mod tests {
     use super::file_name_from_title;
+    #[test]
+    fn eksportmaal_tilhoerer_vinduet_og_bruges_kun_en_gang() {
+        let state = super::ExportState::default();
+        state
+            .target
+            .lock()
+            .unwrap()
+            .insert("main".into(), "a.pdf".into());
+        state
+            .target
+            .lock()
+            .unwrap()
+            .insert("other".into(), "b.pdf".into());
+        assert_eq!(
+            super::take_target(&state, "other").unwrap(),
+            std::path::PathBuf::from("b.pdf")
+        );
+        assert!(super::take_target(&state, "other").is_err());
+        assert_eq!(
+            super::take_target(&state, "main").unwrap(),
+            std::path::PathBuf::from("a.pdf")
+        );
+    }
 
     #[test]
     fn filnavn_af_overskrift() {

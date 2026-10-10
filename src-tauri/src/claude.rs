@@ -123,7 +123,7 @@ pub struct Finding {
 
 /// Fjern HTML-kommentarer: de ses ikke i forhåndsvisningen og er det oplagte gemmested for en
 /// skjult instruks. Fraklip (`<!-- gt:parkeret`) er allerede taget fra af fladen.
-fn strip_comments(text: &str) -> String {
+pub(crate) fn strip_comments(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find("<!--") {

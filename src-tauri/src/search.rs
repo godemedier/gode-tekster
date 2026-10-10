@@ -41,7 +41,7 @@ pub fn init(app: &AppHandle) {
         std::thread::sleep(Duration::from_secs(3));
         let files = cached_files(crate::settings::load(&handle).libraries);
         if let Some(index) = handle.try_state::<crate::search_index::SearchIndex>() {
-            if let Err(e) = index.sync(&files, &|| false) {
+            if let Err(e) = index.sync(&files, &|| GENERATION.load(Ordering::SeqCst) != 0) {
                 crate::applog::write(&handle, &format!("søgeindeks: {e}"));
             }
         }

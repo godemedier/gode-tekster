@@ -1004,3 +1004,38 @@ Valget af udbyder skal håndhæves i den kommende importkommando før hvert lydk
 selv vælge en anden forbindelse. En ekstra modelvælger vises kun for afprøvede modeller.
 **Revurdér hvis:** Claude eller en anden eksisterende forbindelse får en dokumenteret
 filindgang med brugerens login, eller lange prøver viser behov for andre blokgrænser.
+
+### ADR-0046 — Struktur er metadata omkring manuskriptet (11/10-2026)
+**Beslutning:** Strukturkort omslutter den eksisterende tekst med `gt:del`/`gt:slut`.
+Titel, rolle og arbejdsnote ligger i JSON-kommentaren. `gt:struktur` gemmer metodevalget.
+Der er ingen separat projektfil eller kopi af brødteksten. Manuel gruppering følger hele
+Markdown-blokke. Tomme dele kan bruges til planlægning. Flytning flytter teksten med dens
+forfattermarkeringer og kan fortrydes. Ugrupperet tekst flyttes aldrig med uden et valg.
+Fortællemetoderne ligger i ét fælles JSON-katalog, grupperet efter anvendelse.
+AI ser brødtekst og deltitler, men ikke arbejdsnoter, fraklip eller andre skjulte kommentarer.
+Rust validerer metode, del-id'er og roller. Svar må kun indeholde metodebegrundelse og
+rolle/arbejdsnote for eksisterende dele eller lokalt udpegede blokke. Ingen genereret brødtekst.
+Brugeren skal godtage forslaget. Er manuskriptet ændret siden kaldet, kan det ikke indføres.
+**Konsekvens:** Struktur følger med ved kopiering og genåbning af Markdown-filen. Eksport,
+ordtal og AI-tekstgrundlag udelader metadata. Versionsvisning tillader ikke strukturændringer.
+
+### ADR-0047 — Lydjob, delresultater og afspilning (11/10-2026)
+Supplerer ADR-0045. **Beslutning:** Filvalg og afkodning foregår i Rust. FFmpeg og ffprobe
+8.1.2 fra den afprøvede Gyan-distribution verificeres med SHA-256. De store programmer
+bundles ikke. Brugeren kan udpege mappen; en understøttet lokal installation findes automatisk.
+Højst 8 GiB/6 timer. Afkodning er mono 16 kHz PCM i en privat jobmappe med filprotokol alene,
+tidsgrænse og Stop. Ingen shell. Kun jobbets eget vindue må styre det.
+Gemini modtager 54-sekunders kerner med et sekunds overlap. Ord uden for kernens tidsrum
+udelades. Tidskoder beregnes fra samples. Ved HTTP 429 ventes op til to gange med samme
+forbindelse og model. Ingen fallback. Stop afbryder ventetid, men et igangværende HTTP-kald
+kan tage op til et minut. Færdige dele kan gemmes eller fortsættes i samme session.
+Der gemmes en lokal Markdown-nødkopi efter hver færdig del. Genstart bevarer nødkopien,
+men fjerner den store afkodede lydfil. En gendannet nødkopi kan gemmes via Gem som.
+En ny transskription oprettes atomisk ved originalen med et ledigt navn. Originalen ændres
+aldrig. `gt:lyd` gemmer kildefilnavn, varighed, model og fuldførelsesstatus. Tidslinks åbner
+kun lydfilen ved den åbne tekst. Afspilleren bruger asset-protokollen under uændret script-CSP.
+**Begrænsninger:** Native filtransskription er implementeret for Gemini-nøglen. Andre valg
+giver en synlig forklaring. ChatGPT-abonnementets korte WebRTC-prøve er ikke en produktadapter.
+Taler-id'er er lokale for hver lydblok og foregiver ikke at være identiteter gennem hele filen.
+Lydkvalitet og hastighed afhænger af optagelse, udbyder og kvote. GoodTape er reference,
+ikke en påstand om samme kvalitet eller funktioner.

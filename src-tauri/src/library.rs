@@ -376,6 +376,7 @@ fn valid_name(name: &str) -> Result<&str, String> {
 
 fn list(path: &Path, root: &Path) -> Result<Folder, String> {
     let mut entries = Vec::new();
+    let mut pending = Vec::new();
     let house = house_rules(root);
     let rd = fs::read_dir(path).map_err(|e| {
         t!(
@@ -435,7 +436,8 @@ fn list(path: &Path, root: &Path) -> Result<Folder, String> {
             if vis == Visibility::Hidden {
                 continue;
             }
-            let m = read_meta(&p, &meta);
+            pending.push((entries.len(), p.clone(), meta.clone()));
+            let m = Meta::default();
             entries.push(Entry {
                 preview: m.preview,
                 status: m.status,
@@ -448,6 +450,29 @@ fn list(path: &Path, root: &Path) -> Result<Folder, String> {
                 visibility: vis,
             });
         }
+    }
+    let details = std::thread::scope(|scope| {
+        let workers: Vec<_> = pending
+            .chunks(pending.len().div_ceil(8).max(1))
+            .map(|chunk| {
+                scope.spawn(move || {
+                    chunk
+                        .iter()
+                        .map(|(i, p, m)| (*i, cached_meta(p, m)))
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .flat_map(|w| w.join().unwrap_or_default())
+            .collect::<Vec<_>>()
+    });
+    for (i, m) in details {
+        entries[i].preview = m.preview;
+        entries[i].status = m.status;
+        entries[i].tags = m.tags;
+        entries[i].deadline = m.deadline;
     }
     let parent = path
         .parent()
@@ -494,7 +519,15 @@ pub async fn list_folder(app: AppHandle, path: String) -> Result<Folder, String>
     let root = guard(&app, &p)?;
     let canon =
         dunce_canonical(&p).ok_or(t!("Mappen findes ikke.", "The folder does not exist."))?;
-    list(&canon, &root)
+    let file = index_file(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        load_index(file.as_deref());
+        let folder = list(&canon, &root);
+        save_index(file.as_deref());
+        folder
+    })
+    .await
+    .map_err(|_| t!("Mappen kunne ikke læses.", "The folder could not be read.").to_owned())?
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -515,7 +548,10 @@ pub struct FileHit {
 /// springes over, så `node_modules` aldrig læses. Højst 20.000 filer.
 #[tauri::command]
 pub async fn list_all_files(app: AppHandle) -> Vec<FileHit> {
-    files_in(settings::load(&app).libraries)
+    let libraries = settings::load(&app).libraries;
+    tauri::async_runtime::spawn_blocking(move || files_in(libraries))
+        .await
+        .unwrap_or_default()
 }
 
 /// Tekstfilerne i bibliotekerne. Et bibliotek inde i et andet (`Dokumenter\Gode Tekster` i
@@ -603,6 +639,32 @@ pub struct IndexEntry {
 /// Læste tekster efter sti, med (størrelse, ændret) fra sidst. Kun ændrede filer læses igen.
 type Cache = HashMap<PathBuf, (u64, u64, Meta)>;
 static INDEX: OnceLock<Mutex<Cache>> = OnceLock::new();
+
+pub fn invalidate_meta(path: &Path) {
+    if let Some(cache) = INDEX.get() {
+        if let Ok(mut c) = cache.lock() {
+            c.remove(path);
+        }
+    }
+}
+fn cached_meta(path: &Path, meta: &fs::Metadata) -> Meta {
+    let cache = INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    let stamp = (meta.len(), modified_ms(meta));
+    if let Ok(c) = cache.lock() {
+        if let Some((len, ms, value)) = c.get(path) {
+            if (*len, *ms) == stamp {
+                return value.clone();
+            }
+        }
+    }
+    let value = read_meta(path, meta);
+    if fs::metadata(path).is_ok_and(|m| (m.len(), modified_ms(&m)) == stamp) {
+        if let Ok(mut c) = cache.lock() {
+            c.insert(path.to_path_buf(), (stamp.0, stamp.1, value.clone()));
+        }
+    }
+    value
+}
 
 /// Alle tekster i bibliotekerne med status, tags og frist. Første gang læses hver fils hoved og
 /// hale (et par sekunder ved tusinder af filer); derefter kun det, der er ændret.
@@ -1004,14 +1066,19 @@ pub async fn sibling_clippings(app: AppHandle, path: String) -> Vec<Clipping> {
 /// som en åben tekst.
 #[tauri::command]
 pub async fn read_clipping(app: AppHandle, path: String) -> Result<String, String> {
-    let p = PathBuf::from(&path);
+    let p = PathBuf::from(&path)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
     let name = p
         .file_name()
         .map(|n| n.to_string_lossy().to_uppercase())
         .unwrap_or_default();
-    let beside_open = crate::document::open_paths(&app)
-        .iter()
-        .any(|o| o.parent().is_some() && o.parent() == p.parent());
+    let beside_open = crate::document::open_paths(&app).iter().any(|o| {
+        o.parent()
+            .and_then(|parent| parent.canonicalize().ok())
+            .as_deref()
+            == p.parent()
+    });
     if !name.starts_with("FRAKLIP") || !name.ends_with(".MD") || !beside_open {
         return Err(t!(
             "Kun fraklipsfiler ved siden af den åbne tekst kan hentes ind.",
@@ -1221,5 +1288,24 @@ mod tests {
                 ("artikler", Visibility::Normal)
             ]
         );
+    }
+
+    #[test]
+    fn mappens_uddrag_genbruger_cache_men_opdateres_ved_aendring() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("tekst.md");
+        fs::write(&path, "Original tekst").unwrap();
+        assert_eq!(
+            list(root.path(), root.path()).unwrap().entries[0].preview,
+            "Original tekst"
+        );
+        assert!(INDEX.get().unwrap().lock().unwrap().contains_key(&path));
+        fs::write(&path, "En nyere og laengere tekst").unwrap();
+        assert_eq!(
+            list(root.path(), root.path()).unwrap().entries[0].preview,
+            "En nyere og laengere tekst"
+        );
+        invalidate_meta(&path);
+        assert!(!INDEX.get().unwrap().lock().unwrap().contains_key(&path));
     }
 }

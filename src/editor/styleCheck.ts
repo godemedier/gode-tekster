@@ -70,10 +70,18 @@ export function flagAt(state: EditorState, pos: number): { from: number; to: num
 
 /** Teksten med »andres tekst« blanket ud: stiltjekket retter ikke i citater og kilders ord. */
 function withoutOthers(state: EditorState): string {
-  let text = state.doc.toString();
+  const text = state.doc.toString();
   const spans = (state.field(authorshipField, false)?.authors ?? []).filter((a) => a.author.kind === "reference").flatMap((a) => a.spans);
-  for (const s of spans) text = text.slice(0, s.start) + text.slice(s.start, s.end).replace(/[^\n]/g, " ") + text.slice(s.end);
-  return text;
+  const chunks: string[] = [];
+  let end = 0;
+  for (const s of spans.sort((a,b) => a.start-b.start)) {
+    const from=Math.max(end,s.start), to=Math.min(text.length,s.end);
+    if(to<=from)continue;
+    chunks.push(text.slice(end,from),text.slice(from,to).replace(/[^\n]/g," "));
+    end=to;
+  }
+  chunks.push(text.slice(end));
+  return chunks.join("");
 }
 
 let worker: Worker | null = null;

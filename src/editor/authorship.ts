@@ -118,6 +118,7 @@ export function assign(value: AuthorshipState, range: Span, who: Who): Authorshi
 }
 
 export const setAuthorship = StateEffect.define<AuthorshipState>();
+export const restoreMovedAuthorship = StateEffect.define<AuthorshipState>();
 export const assignAuthorship = StateEffect.define<{ range: Span; who: Who }>();
 
 /** Ctrl+Alt+V sætter flaget, og den næste indsættelse tilskrives AI. */
@@ -161,6 +162,7 @@ export const authorshipField = StateField.define<AuthorshipState>({
     // Fortryd: teksten, der kommer tilbage, får sin forfatter igen. Positionerne gælder teksten
     // efter ændringen, så de lægges på til sidst.
     for (const e of tr.effects) if (e.is(restoreAuthorship)) value = restore(value, e.value);
+    for (const e of tr.effects) if (e.is(restoreMovedAuthorship)) value = e.value;
     return value;
   },
 });
@@ -185,6 +187,7 @@ export const authorshipHistory = invertedEffects.of((tr) => {
   if (!tr.docChanged) return [];
   const before = tr.startState.field(authorshipField, false);
   if (!before) return [];
+  if (tr.effects.some(e => e.is(restoreMovedAuthorship))) return [restoreMovedAuthorship.of(before)];
   const removed: Authorship[] = [];
   tr.changes.iterChangedRanges((fromA, toA) => {
     if (toA <= fromA) return;

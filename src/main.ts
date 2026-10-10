@@ -286,6 +286,31 @@ const claude = new ClaudePanel(view, () => session?.path ?? null, () => {
 });
 // Sprog (4/10): ordklasser, stiltjek og hvem skrev hvad slås til her, med forklaring og overblik.
 const language = new LanguagePanel(view);
+let structurePanel: import("./structure/panel.ts").StructurePanel | undefined;
+let structureLoading: Promise<import("./structure/panel.ts").StructurePanel> | undefined;
+const loadStructure = () => structureLoading ??= import("./structure/panel.ts").then(({StructurePanel}) => structurePanel = new StructurePanel(view, async () => {
+  const ok=await claude.allowed();
+  if(ok)rightPanel.show("struktur");
+  return ok;
+}));
+rightPanel.addTab({ id: "struktur", label: tr("Struktur", "Structure"), secondary: false, render: (body) => {
+  if (structurePanel) structurePanel.render(body);
+  else { body.replaceChildren(); void loadStructure().then(p => { if (body.dataset.tab === "struktur") p.render(body); }); }
+} });
+window.addEventListener("gt-group", () => { void loadStructure().then(p => { p.group(); rightPanel.show("struktur"); right.open(); }); });
+let audioPanel: import("./audio/panel.ts").AudioPanel | undefined;
+let audioLoading: Promise<void> | undefined;
+const showAudio = async () => {
+  if (!audioPanel) {
+    audioLoading ??= import("./audio/panel.ts").then(({ AudioPanel }) => {
+      audioPanel = new AudioPanel(view, () => session?.path ?? null, openPath);
+      rightPanel.addTab({ id: "lyd", label: tr("Lyd", "Audio"), secondary: true, render: b => audioPanel!.render(b) });
+    });
+    await audioLoading;
+  }
+  rightPanel.show("lyd"); right.open(); return audioPanel!;
+};
+window.addEventListener("gt-audio", () => { void showAudio(); });
 rightPanel.addTab({ id: "sprog", label: tr("Sprog", "Language"), secondary: true, render: (b) => language.render(b) });
 window.addEventListener("gt-style", () => language.refresh());
 // Testkørsler (measure.ts): vis en bestemt fane i højre spalte.
@@ -420,6 +445,8 @@ function show(dto: DocumentDto | null): void {
   // setState nulstiller tilstandene, så de sættes igen for den nye tekst.
   applySettings(settings());
   claude.docOpened(dto.path);
+  audioPanel?.docOpened();
+  structurePanel?.docOpened();
   outline.docChanged();
   rightPanel.render();
   showVersions();
@@ -536,6 +563,7 @@ async function performSwitch(load: () => Promise<DocumentDto | null>): Promise<v
     e.stopPropagation();
   };
   const kinds = ["keydown", "beforeinput", "paste", "drop"];
+  let pending: DocumentDto | null = null;
   try {
     await versions.back();
     const dto = await load();
@@ -544,11 +572,17 @@ async function performSwitch(load: () => Promise<DocumentDto | null>): Promise<v
       await session.externalChange();
       return;
     }
+    pending = dto;
     kinds.forEach((k) => view.dom.addEventListener(k, block, true));
     claude.reset();
     await session?.close();
     show(dto);
+    pending = null;
   } catch (e) {
+    if(pending) {
+      await invoke("release_document",{path:pending.path});
+      if(session)await invoke("restore_document_window",{path:session.path});
+    }
     showBanner(errorText(e));
   } finally {
     kinds.forEach((k) => view.dom.removeEventListener(k, block, true));
@@ -571,6 +605,10 @@ window.addEventListener("gt-moved", () => void library.refresh());
 // Ctrl+klik på et link (links.ts): webadresser i browseren, andre tekster ved siden af den åbne.
 window.addEventListener("gt-open-link", (e) => {
   const target = (e as CustomEvent<string>).detail;
+  if (/^[^/#]+#t=\d+(?:\.\d+)?$/.test(target)) {
+    void import("./audio/document.ts").then(async ({ audioLink }) => { const link = audioLink(target); if (link) await (await showAudio()).seek(link.name, link.seconds); });
+    return;
+  }
   if (/^https?:\/\//i.test(target)) return void invoke("open_url", { url: target });
   if (/^[a-z][a-z0-9+.-]*:/i.test(target) && !/^[a-z]:[\\/]/i.test(target)) return;
   let rel = target;
@@ -830,6 +868,7 @@ await here.listen<string>("open-path", (e) => void openPath(e.payload));
 await listen("flush-requested", () => void session?.flush());
 /** Ctrl+Q og »Afslut« i bakken: gem (eller læg i backup), og luk så programmet helt. */
 async function quit(): Promise<void> {
+  if(audioPanel && !audioPanel.canLeave()) { await invoke("cancel_quit"); await showAudio(); return; }
   document.body.inert = true;
   try {
     await session?.prepareExit();
@@ -853,6 +892,8 @@ await listen("settings-changed", () =>
     await library.init();
     // Et andet sprog (i18n.ts): gem, og tegn vinduet forfra på det nye sprog.
     if ((await invoke<string>("ui_language").catch(() => currentLang())) !== currentLang()) {
+      if(audioPanel && !audioPanel.canLeave()) { await showAudio(); return; }
+      await audioPanel?.close();
       await session?.prepareReload();
       location.reload();
     }
@@ -862,6 +903,7 @@ await listen("settings-changed", () =>
 // Luk: et ekstra vindue gemmer og lukker helt; hovedvinduet gemmer og skjules, så næste tekst åbner
 // med det samme. Første gang forklares det, med »Afslut helt« ved siden af (delbar udgave 3/10).
 async function closeThisWindow(): Promise<void> {
+  if(getCurrentWindow().label !== "main" && audioPanel && !audioPanel.canLeave()) { await showAudio(); return; }
   document.body.inert = true;
   try {
     if (getCurrentWindow().label === "main") await session?.flush();

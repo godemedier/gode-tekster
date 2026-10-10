@@ -103,7 +103,7 @@ export class ClaudePanel {
    * Før et kald: er en udbyder klar, og har brugeren sagt ja til at sende teksten til den?
    * Spørgsmålet stilles én gang pr. udbyder (delbar udgave 3/10: teksten sendes ud af huset).
    */
-  private async allowed(): Promise<boolean> {
+  async allowed(): Promise<boolean> {
     // Et tidligere afslag må ikke overleve installation eller login i samme session.
     // Positive svar bruger Rusts korte cache; negative svar kontrolleres på ny.
     const previouslyReady = this.ai?.providers.some((p) => p.id === this.ai?.chosen && p.ready);
@@ -218,7 +218,8 @@ export class ClaudePanel {
       "Ret tastefejl, tegnsætning og afsnit i teksten. Den gamle tekst lægges i Fraklip (markér et stykke for kun at renskrive det)",
       "Fix typos, punctuation and paragraphs in the text. The old text goes to Clippings (select a passage to clean up only that)",
     );
-    head.append(cut, this.button(tr("Faktatjek", "Fact-check"), () => void this.factcheck()), clean);
+    head.append(cut, this.button(tr("Faktatjek", "Fact-check"), () => void this.factcheck()), clean,
+      this.button(tr("Lydfil …", "Audio file …"), () => window.dispatchEvent(new Event("gt-audio"))));
     const ask = document.createElement("form");
     ask.className = "cl-ask";
     const input = document.createElement("input");

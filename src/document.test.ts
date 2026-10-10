@@ -105,3 +105,14 @@ test("mislykket afslutning af et andet vindue stopper ikke autosave i det først
   await f.session.flush();
   assert.equal(saves, 2);
 });
+
+test("genindlaesning overskriver ikke tastetryk under backup eller laesning", async () => {
+  for(const step of ["backup_text","open_document"]) {
+    const f=fixture((command)=>{
+      if(command===step)f.type(" sidste ord");
+      if(command==="open_document")return {...dto,text:"ekstern"};
+    });
+    await (f.session as unknown as {reloadFromDisk():Promise<void>}).reloadFromDisk();
+    assert.equal(f.view.state.doc.toString(),"start sidste ord");
+  }
+});

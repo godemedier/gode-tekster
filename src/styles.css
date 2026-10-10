@@ -854,3 +854,22 @@ body.dark [data-color="rosa"] { --fk: #36242a; }
 .rp-card-tools button.rp-dot { width: 13px; height: 13px; padding: 0; border-radius: 50%; background: var(--fk, var(--kort)); border: 1px solid var(--kant-hover); }
 .rp-card-tools button.rp-dot[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--blæk); }
 .rp-card-tools button.rp-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Struktur bruger samme spalte og bliver kun et stort overblik på bestilling. */
+.rp-body[data-tab="struktur"] { padding: 16px; }
+.rp-body[data-tab="struktur"] p { color: var(--svag); font-size: 12px; line-height: 1.6; }
+.structure-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.structure-tools button, .structure-proposal button { border: 1px solid var(--kant, #ddd); border-radius: 5px; padding: 5px 8px; color: inherit; background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
+.structure-cards { display: grid; gap: 14px; }
+.rp-wide .structure-cards { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.structure-card, .structure-proposal { padding: 12px; border: 1px solid var(--kant, #ddd); border-radius: 6px; }
+.structure-card label { display: block; color: var(--svag); font-size: 11px; margin-bottom: 8px; }
+.structure-card input, .structure-card textarea, .rp-body[data-tab="struktur"] select { display: block; box-sizing: border-box; width: 100%; font: inherit; color: var(--blæk); background: transparent; border: 1px solid var(--kant, #ddd); border-radius: 4px; padding: 6px; }
+.structure-card textarea { min-height: 65px; resize: vertical; }
+
+.rp-body[data-tab="lyd"] { padding: 16px; }
+.rp-body[data-tab="lyd"] audio { width: 100%; margin: 12px 0; }
+.rp-body[data-tab="lyd"] p { font-size: 12px; line-height: 1.6; }
+.rp-body[data-tab="lyd"] button, .rp-body[data-tab="lyd"] select { margin: 6px 6px 6px 0; font: inherit; font-size: 12px; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 4px; padding: 6px 10px; }
+.rp-body[data-tab="lyd"] button:disabled, .structure-tools button:disabled { opacity: .5; cursor: default; }
+.rp-body[data-tab="lyd"] details { font-size: 12px; margin: 12px 0; color: var(--svag); }

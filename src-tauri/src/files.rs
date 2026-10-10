@@ -416,6 +416,36 @@ pub(crate) fn write_atomic(target: &Path, bytes: &[u8]) -> Result<()> {
     write_atomic_guarded(target, bytes, &|| Ok(()))
 }
 
+/// Opret en komplet fil uden nogensinde at erstatte en eksisterende destination.
+pub(crate) fn write_atomic_new(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let tmp = temp_path_for(target);
+    let result = (|| {
+        let mut f = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)?;
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        drop(f);
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::OsStrExt;
+            use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_WRITE_THROUGH};
+            let source: Vec<u16> = tmp.as_os_str().encode_wide().chain(Some(0)).collect();
+            let dest: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
+            // SAFETY: nulterminerede stier. Uden REPLACE_EXISTING kan ingen fil overskrives.
+            if unsafe { MoveFileExW(source.as_ptr(), dest.as_ptr(), MOVEFILE_WRITE_THROUGH) } == 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        }
+        #[cfg(not(windows))]
+        fs::hard_link(&tmp, target)
+    })();
+    let _ = fs::remove_file(&tmp);
+    result
+}
+
 /// Som `write_atomic`, men `guard` kaldes før hvert nyt forsøg, når filen er låst et øjeblik.
 fn write_atomic_guarded(target: &Path, bytes: &[u8], guard: &dyn Fn() -> Result<()>) -> Result<()> {
     let tmp = temp_path_for(target);
@@ -790,6 +820,19 @@ mod tests {
         fs::write(&p, b"original\n").unwrap();
         let dest = backup(&p, &dir.path().join("backup")).unwrap();
         assert_eq!(fs::read(dest).unwrap(), b"original\n");
+    }
+
+    #[test]
+    fn ny_atomisk_fil_overskriver_aldrig_en_eksisterende() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("transskription.md");
+        write_atomic_new(&path, b"foerste").unwrap();
+        assert_eq!(
+            write_atomic_new(&path, b"anden").unwrap_err().kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        assert_eq!(fs::read(&path).unwrap(), b"foerste");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
     /// Kriterie 1 i plan 1: alle rigtige filer i `tests/private/` (gitignoreret) skal tåle en rundtur.

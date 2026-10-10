@@ -41,6 +41,7 @@ pub struct Settings {
     pub author_name: Option<String>,
     /// AI-hjælpen: "claude", "codex", "gemini" eller "mistral". Ikke sat: den første, der er klar (ai.rs).
     pub ai_provider: Option<String>,
+    pub audio_tools_dir: Option<PathBuf>,
     /// Tegn pr. linje, 50 til 90 (skyderen i indstillingerne).
     pub line_length: u32,
     /// `guillemets` (»…«), `curly` (”…”) eller `low` („…“). ADR-0012.
@@ -104,6 +105,7 @@ impl Default for Settings {
             font: "Recursive Halvmono".to_owned(),
             author_name: None,
             ai_provider: None,
+            audio_tools_dir: None,
             line_length: 72,
             quotes: "low".to_owned(),
             always_show_count: false,
@@ -211,7 +213,7 @@ fn write(app: &AppHandle, settings: &Settings) -> Result<(), String> {
         )
     };
     let json = serde_json::to_vec_pretty(settings).map_err(|e| not_saved(&e))?;
-    std::fs::write(f, json).map_err(|e| not_saved(&e))?;
+    crate::files::write_atomic(&f, &json).map_err(|e| not_saved(&e))?;
     // Alle vinduer får besked, så skrift, tilstande og biblioteker følges ad (ét vindue pr. tekst).
     let _ = app.emit("settings-changed", ());
     Ok(())
@@ -227,6 +229,7 @@ pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     let settings = Settings {
         libraries: stored.libraries,
         commands_dir: stored.commands_dir,
+        audio_tools_dir: stored.audio_tools_dir,
         ..settings
     };
     // Sproget først: write sender settings-changed, og vinduerne spørger så om sproget (main.ts).
@@ -260,6 +263,12 @@ pub fn add_library_path(app: &AppHandle, dir: &std::path::Path) {
 pub fn set_commands_dir(app: &AppHandle, dir: &std::path::Path) -> Result<(), String> {
     let mut settings = load(app);
     settings.commands_dir = Some(dir.to_path_buf());
+    write(app, &settings)
+}
+
+pub fn set_audio_tools(app: &AppHandle, dir: &std::path::Path) -> Result<(), String> {
+    let mut settings = load(app);
+    settings.audio_tools_dir = Some(dir.to_path_buf());
     write(app, &settings)
 }
 

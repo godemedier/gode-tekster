@@ -51,6 +51,7 @@ export function selectionGroups(view: EditorView): { headings: MenuItem[]; forma
       { label: tr("Skær lidt", "Trim a little"), run: ai("cut") },
     ],
     more: [
+      { label: tr("Gruppér som del", "Group as part"), run: () => window.dispatchEvent(new Event("gt-group")) },
       { label: "Link", run: run(cmd.link) },
       { label: tr("Dæmp", "Dim"), run: run(cmd.dim) },
       { label: tr("Flyt til Fraklip", "Move to Clippings"), run: run(cmd.park) },

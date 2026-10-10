@@ -251,6 +251,33 @@ pub fn release_document(app: AppHandle, window: tauri::Window, path: String) {
     }
 }
 
+/// Rul vinduets visning tilbage, hvis lukning af den forrige tekst mislykkedes.
+#[tauri::command]
+pub fn restore_document_window(
+    app: AppHandle,
+    window: tauri::Window,
+    path: String,
+) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    let state = app.state::<AppState>();
+    let docs = state
+        .docs
+        .lock()
+        .map_err(|_| "Teksten kunne ikke gendannes.".to_owned())?;
+    if !docs.get(&path).is_some_and(|d| d.owner == window.label()) {
+        return Err("Teksten er ikke åben i dette vindue.".to_owned());
+    }
+    crate::watcher::set_open_file(&app, window.label(), &path);
+    crate::windows::showing(&app, window.label(), &path);
+    if !crate::notes::is_note(window.label()) {
+        crate::session::remember(&app, &path, None);
+    }
+    if let Some(name) = path.file_name() {
+        let _ = window.set_title(&crate::windows::title_of(&name.to_string_lossy()));
+    }
+    Ok(())
+}
+
 /// Kun tekstfiler, og kun fra et bibliotek, fra brugerens eget valg eller allerede åbne. Fladen
 /// kan ellers bede om at åbne (og siden gemme over) enhver fil på pc'en (sikkerhedsreview 2/10).
 pub(crate) fn may_open(app: &AppHandle, state: &AppState, path: &Path) -> Result<(), SaveError> {

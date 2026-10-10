@@ -135,3 +135,29 @@ Clippings is the place for what has to go but is too good to throw away.
 Ctrl+Alt+X moves the selection to the Clippings tab on the right.
 If you drag a clipping back into the text, it lands where you drop it.
 -->
+# Structure and audio
+
+Use **Structure** to group paragraphs, plan empty parts and move parts up or down.
+Titles, roles and working notes stay in the Markdown file. **From headings** previews
+the split first. **Wide view** gives the cards more space. Close the panel to write.
+Methods are grouped by use. AI can recommend a method or suggest roles and notes for
+your chosen method. Review and accept the suggestion yourself. This tool never writes
+body text. Working notes are excluded from the request.
+
+Choose **Input → Audio file …** to import a recording. Audio follows the AI provider
+selected in Settings. This release supports file transcription through your Gemini
+Google AI Studio key, subject to Google's quota and billing. Other providers show an
+explanation. There is no automatic switch to another provider or local model.
+
+Decoding requires the verified Gyan FFmpeg 8.1.2 build. Select its folder in the audio
+panel if it is not found locally. Nothing is downloaded or installed automatically.
+Recordings can be up to six hours long. Stop and save completed segments, or continue
+from where the job stopped. Quota limits can delay or interrupt transcription.
+
+**Save and edit text** creates a new Markdown file beside the recording. Edit it normally.
+Ctrl+click a timestamp to play that part. Playback speed is adjustable. Keep the audio
+beside the transcript when moving files. Speaker IDs apply within each audio block.
+Check names, quotations and numbers against the recording. After a crash, the audio
+panel offers saved partial transcripts. Use **Save as** to place recovered text beside
+the original recording again.
+

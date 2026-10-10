@@ -368,8 +368,14 @@ export class DocumentSession {
 
   /** Lægger editorens tekst i backup og henter filens nye udgave ind. */
   private async reloadFromDisk(): Promise<void> {
-    await invoke("backup_text", { path: this.dto.path, text: this.view.state.doc.toString() });
-    const fresh = await invoke<DocumentDto>("open_document", { path: this.dto.path });
+    const state = this.view.state;
+    await this.io.invoke("backup_text", { path: this.dto.path, text: state.doc.toString() });
+    if(this.closed || this.view.state.doc !== state.doc)return;
+    const fresh = await this.io.invoke<DocumentDto>("open_document", { path: this.dto.path });
+    if(this.closed || this.view.state.doc !== state.doc) {
+      this.show(tr("Du skrev videre, mens filen blev hentet. Din tekst er bevaret. Vælg igen, hvilken udgave du vil bruge.", "You continued writing while the file loaded. Your text is preserved. Choose again which version to use."));
+      return;
+    }
     this.dto = fresh;
     this.base = fresh.text;
     this.dirty = false;

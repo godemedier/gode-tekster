@@ -136,3 +136,31 @@ Fraklip er stedet til det, der skal ud, men som er for godt til at smide væk.
 Ctrl+Alt+X flytter det markerede over i fanen Fraklip til højre. 
 Trækker du et klip tilbage ind i teksten, lander det der, hvor du slipper.
 -->
+# Struktur og lyd
+
+I fanen **Struktur** kan du gruppere afsnit, oprette tomme dele og flytte dem op og ned.
+Titel, rolle og arbejdsnote følger teksten i Markdown-filen. **Fra overskrifter** viser
+opdelingen, før du vælger den. **Stort overblik** giver kortene mere plads. Luk spalten,
+når du vil skrive videre i ro.
+
+Fortællemetoderne er samlet efter anvendelse. Du kan vælge en selv eller bede AI anbefale
+en. **Foreslå opbygning** giver roller og noter til delene efter den valgte metode.
+Du ser forslaget først og vælger, om du vil bruge det. Denne hjælp skriver ikke brødtekst.
+Arbejdsnoterne sendes ikke med.
+
+Under **Input → Lydfil …** vælger du en optagelse. Lyd følger dit AI-valg i indstillingerne.
+Filtransskription virker i denne udgave med Gemini og din Google AI Studio-nøgle. Kvoter
+og eventuel betaling hos Google gælder. Andre forbindelser giver en forklaring.
+
+Afkodning kræver den afprøvede FFmpeg 8.1.2 fra Gyan. Er den ikke fundet på pc'en, kan du
+vælge dens mappe i lydpanelet. Programmet henter eller installerer den ikke automatisk.
+Der kan behandles op til seks timers lyd. Undervejs kan du stoppe, gemme de færdige dele
+eller fortsætte. En kvotegrænse kan give ventetid eller afbryde jobbet.
+
+**Gem og ret teksten** opretter en ny Markdown-fil ved optagelsen. Ret den som enhver
+anden tekst. Ctrl+klik på en tidskode afspiller stedet i optagelsen. Lydpanelet har pause
+og hastighedsvalg. Behold lydfilen ved transskriptionen, når du flytter dem.
+Taler-id'er gælder kun den enkelte lydblok. Kontroller navne, citater og tal mod lyden.
+Efter et nedbrud tilbyder lydpanelet at åbne gemte delresultater. Brug **Gem som** til
+at lægge den gendannede tekst ved optagelsen igen.
+

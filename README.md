@@ -32,7 +32,7 @@ explains what to do.
   and print. Clippings hold what had to go. Notes to yourself and footnotes live in the file.
 - **Plain files.** Reads and writes iA Writer's authorship annotations, so files can go back and
   forth between the two programs.
-- **Never loses text.** Saves 1.5 seconds after you pause. Every save is atomic (temporary file,
+- **Saves as you write.** Saves 1.5 seconds after you pause. Every save is atomic (temporary file,
   then rename). Earlier versions are kept, and if another program changes the file while it's
   open, the two versions are merged or you're asked first.
 - **Slash commands.** Type `/` for templates and commands. Missing one? Describe it in words, and

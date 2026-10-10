@@ -5,6 +5,7 @@ mod about;
 mod ai;
 pub mod annotations;
 mod applog;
+mod audio;
 mod authorship;
 mod autostart;
 mod claude;
@@ -35,6 +36,7 @@ mod search_index;
 mod session;
 mod settings;
 mod spelling;
+mod structure;
 mod textmeta;
 mod updater;
 mod watcher;
@@ -167,6 +169,7 @@ pub fn run() -> tauri::Result<()> {
         .manage(watcher::WatchState::new())
         .manage(export::ExportState::default())
         .manage(claude::ClaudeState::default())
+        .manage(audio::AudioState::default())
         .manage(notes::NotesState::default())
         .manage(windows::WindowState::default())
         .invoke_handler(tauri::generate_handler![
@@ -175,6 +178,7 @@ pub fn run() -> tauri::Result<()> {
             document::pick_document,
             document::save_document,
             document::release_document,
+            document::restore_document_window,
             document::backup_text,
             document::app_ready,
             document::test_mode,
@@ -265,6 +269,19 @@ pub fn run() -> tauri::Result<()> {
             commands::command_save,
             commands::command_delete,
             commands::ai_command,
+            structure::structure_suggest,
+            audio::audio_support,
+            audio::pick_audio_tools,
+            audio::pick_audio,
+            audio::audio_prepare,
+            audio::audio_transcribe,
+            audio::audio_cancel,
+            audio::close_audio,
+            audio::save_transcript,
+            audio::transcript_audio,
+            audio::audio_recoveries,
+            audio::audio_recover,
+            audio::audio_discard,
             commands::ai_design_command,
         ])
         .setup(|app| {
@@ -288,6 +305,7 @@ pub fn run() -> tauri::Result<()> {
                 });
             }
             applog::write(&handle, "start");
+            audio::cleanup(&handle);
             library::allow_library_images(&handle);
 
             // Historikken (ADR-0009). Kan den ikke åbnes, kører programmet videre uden versioner.
@@ -372,7 +390,7 @@ pub fn run() -> tauri::Result<()> {
         })
         .on_window_event(|window, event| {
             // Luk skjuler hovedvinduet. Programmet bliver kørende, så næste åbning er varm (ADR-0014).
-            // Et ekstra vindue gemmer først og lukker så helt (close_window); efter 3 s alligevel.
+            // Et ekstra vindue gemmer først og lukker så helt (close_window).
             match event {
                 // Hovedvinduet: fladen gemmer og skjuler selv (close_window). Første gang forklarer
                 // den, at programmet bliver klar i baggrunden (delbar udgave 3/10).
@@ -384,16 +402,9 @@ pub fn run() -> tauri::Result<()> {
                     api.prevent_close();
                     let label = window.label().to_owned();
                     let _ = window.emit_to(label.as_str(), "close-requested", ());
-                    let app = window.app_handle().clone();
-                    std::thread::spawn(move || {
-                        std::thread::sleep(Duration::from_secs(3));
-                        if let Some(w) = app.get_webview_window(&label) {
-                            windows::forget(&app, &label);
-                            let _ = w.destroy();
-                        }
-                    });
                 }
                 WindowEvent::Destroyed => {
+                    audio::release_owner(window.app_handle(), window.label());
                     windows::forget(window.app_handle(), window.label());
                     notes::destroyed(window.app_handle(), window.label());
                 }

@@ -20,6 +20,7 @@ export function structurePlan(doc: string): StructurePlan | null {
 }
 
 export function structureParts(doc: string): StructurePart[] {
+  if (!doc.includes("<!-- gt:del ")) return [];
   const out: StructurePart[] = [];
   const ids = new Set<string>();
   let pending: Omit<StructurePart, "to" | "contentTo"> | null = null;
@@ -66,20 +67,23 @@ export function setStructureModel(doc: string, model: string): StructureChange {
   return plan ? { from: plan.from, to: plan.to, insert } : { from: doc.length, insert: `${doc.endsWith("\n") || !doc ? "" : "\n"}\n${insert}\n` };
 }
 
-export function addStructurePart(doc: string, from: number, to: number, title: string, role = "", note = ""): StructureChange[] | null {
+export function structureContext(doc: string) {
+  return { parts: structureParts(doc), spans: [...commentSpans(doc), ...codeSpans(doc).filter(s => doc.slice(s.from, s.to).includes("\n"))] };
+}
+export function addStructurePart(doc: string, from: number, to: number, title: string, role = "", note = "", context = structureContext(doc)): StructureChange[] | null {
   if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < from || to > doc.length ||
-      (from > 0 && doc[from - 1] !== "\n") || (to < doc.length && to > 0 && doc[to - 1] !== "\n")) return null;
-  if (structureParts(doc).some(p => from < p.to && to > p.from || from === to && from > p.from && from < p.to)) return null;
-  const spans = [...commentSpans(doc), ...codeSpans(doc).filter(s => doc.slice(s.from, s.to).includes("\n"))];
+      (from > 0 && from < doc.length && doc[from - 1] !== "\n") || (to < doc.length && to > 0 && doc[to - 1] !== "\n")) return null;
+  if (context.parts.some(p => from < p.to && to > p.from || from === to && from > p.from && from < p.to)) return null;
+  const spans = context.spans;
   if (spans.some(s => from > s.from && from < s.to || to > s.from && to < s.to || /^<!-- gt:/.test(doc.slice(s.from, s.to)) && from < s.to && to > s.from)) return null;
   const id = `s-${crypto.randomUUID()}`;
-  const opening = marker({ id, title, role, note }) + "\n";
+  const opening = `${from === doc.length && from > 0 && doc[from - 1] !== "\n" ? "\n" : ""}${marker({ id, title, role, note })}\n`;
   const closing = `${to > from && doc[to - 1] !== "\n" ? "\n" : ""}<!-- gt:slut ${id} -->\n`;
   return from === to ? [{ from, insert: opening + closing }] : [{ from, insert: opening }, { from: to, insert: closing }];
 }
 
-export function editStructurePart(doc: string, id: string, changes: Partial<Pick<StructurePart, "title" | "role" | "note">>): StructureChange | null {
-  const part = structureParts(doc).find(p => p.id === id);
+export function editStructurePart(doc: string, id: string, changes: Partial<Pick<StructurePart, "title" | "role" | "note">>, parts = structureParts(doc)): StructureChange | null {
+  const part = parts.find(p => p.id === id);
   return part ? { from: part.from, to: part.markerTo, insert: marker({ ...part, ...changes }) } : null;
 }
 

@@ -13,6 +13,7 @@ import { findColor, findStatus } from "./textStatus.ts";
 import { FOOTNOTE_DEF } from "./inline.ts";
 import { touchesMarkers } from "./touches.ts";
 import { structureSpans } from "./structure.ts";
+import { commentSpans } from "./textSyntax.ts";
 
 function build(state: EditorState): DecorationSet {
   const out: Range<Decoration>[] = [];
@@ -20,6 +21,7 @@ function build(state: EditorState): DecorationSet {
   const goal = findGoal(doc);
   const status = findStatus(doc);
   const color = findColor(doc);
+  for (const span of commentSpans(doc).filter(s => /^<!-- gt:lyd /.test(doc.slice(s.from, s.to)))) out.push(Decoration.replace({ block: true }).range(span.from, span.to));
   for (const span of structureSpans(doc)) out.push(Decoration.replace({ block: true }).range(span.from, span.to));
   for (const p of [...(status ? [status] : []), ...findParked(doc), ...findClaudeBlocks(doc), ...(goal ? [goal] : []), ...(color ? [color] : [])]) {
     // Blokken uden sit sidste linjeskift, så linjen efter står urørt.
@@ -55,6 +57,16 @@ export function protectedRanges(state: EditorState): number[] {
  */
 const protect = EditorState.changeFilter.of((tr) => {
   if (!tr.docChanged || !tr.annotation(Transaction.userEvent) || OWN.some((e) => tr.isUserEvent(e))) return true;
+  // Flyttekommandoer må ikke kopiere mærker, mens changeFilter bevarer originalen.
+  // Hele dele flyttes gennem strukturpanelet med deres metadata og forfatterskab.
+  if (tr.isUserEvent("move") || tr.isUserEvent("input.drop")) {
+    const spans = structureSpans(tr.startState.doc.toString());
+    let touches = false;
+    tr.changes.iterChanges((from, to, _a, _b, insert) => {
+      if (spans.some(s => from < s.to && to > s.from) || /<!-- gt:(?:del|slut|struktur)\b/.test(insert.toString())) touches = true;
+    });
+    if (touches) return false;
+  }
   const ranges = protectedRanges(tr.startState);
   return ranges.length ? ranges : true;
 });

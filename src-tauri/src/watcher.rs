@@ -63,6 +63,7 @@ fn on_events(app: &AppHandle, result: DebounceEventResult) {
                 continue;
             }
             crate::search::invalidate(app, p);
+            crate::library::invalidate_meta(p);
             if let Some(o) = open.iter().find(|o| same(o, p)) {
                 // En åben fil selv: kun et tjek af den, ikke en ny læsning af hele mappen
                 // (ellers læste hvert autosave biblioteksmappen igen, performance-review 2/10).

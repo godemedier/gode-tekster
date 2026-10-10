@@ -14,8 +14,7 @@ import { showMenu } from "./menu.ts";
 import { errorText, hideBanner, notify, showBanner } from "./banner.ts";
 import { markupFor } from "../editor/critic.ts";
 import { resolveAll } from "../editor/revisionsView.ts";
-import { findParked } from "../editor/parked.ts";
-import { findClaudeBlocks } from "../editor/claudeBlocks.ts";
+import { protectedRanges } from "../editor/hidden.ts";
 import { countLine, type Summary } from "./versionLine.ts";
 import { tr } from "../i18n.ts";
 
@@ -228,8 +227,8 @@ export class Versions {
     }
     // Aldrig mærker inde i skjulte blokke (fraklip, Claudes resultater): de er kommentarer.
     if (path !== this.hooks.path() || now !== view.state.doc.toString()) return;
-    const hidden = [...findParked(now), ...findClaudeBlocks(now)];
-    const skip = (at: number, length: number) => hidden.some((b) => at < b.to && at + length >= b.from);
+    const hidden = protectedRanges(view.state);
+    const skip = (at: number, length: number) => hidden.some((from,i) => i%2===0 && at < hidden[i+1] && at+length >= from);
     const changes = markupFor(edits, old.text, skip);
     if (!changes.length) {
       notify(tr("Der er ingen forskel på den udgave og teksten nu.", "There is no difference between that version and the text now."));

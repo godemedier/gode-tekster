@@ -21,6 +21,8 @@ gode-tekster/
 │   │                            (med AI-hjælp og Om), versioner, fanen Input, ordtal-hjørnet, genveje (F1), beskedlinje
 │   ├── commands/                »/«-kommandoer: indbyggede, egne, menuen, kørsel og tjek (ADR-0027, -0028)
 │   ├── sprog/                   stiltjek: klarhed, AI-fingeraftryk, anførselstegn
+│   ├── structure/               manuelle strukturkort, fælles metodekatalog og AI-forslag
+│   ├── audio/                   lydpanel, afspilning og Markdown-tidslinks
 │   ├── main.ts · document.ts    opstart og binding · ét åbent dokument (gem, flet udefra)
 │   ├── i18n.ts                  dansk og engelsk: tr("Gem", "Save")
 │   ├── settings.ts · measure.ts indstillinger · måling og scenarier i testtilstand (GT_MEASURE, GT_SCENARIE)
@@ -35,6 +37,8 @@ gode-tekster/
 ├── src-tauri/                   Rust-kernen
 │   ├── Cargo.toml · Cargo.lock
 │   ├── src/search_index.rs      vedvarende lokalt FTS5-indeks til delordssøgning
+│   ├── src/audio.rs             lydjob, afkodning, delresultater og atomisk transskriptionsgem
+│   ├── src/structure.rs         AI-strukturforslag med skemavalidering
 │   ├── tauri.conf.json          vindue, CSP, bundle
 │   ├── capabilities/            hvad fladen må kalde
 │   ├── nsis/                    dansk installer (Danish.nsh) og afinstallation (hooks.nsh)
