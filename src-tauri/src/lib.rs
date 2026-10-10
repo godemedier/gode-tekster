@@ -20,6 +20,7 @@ mod export;
 mod feedback;
 pub mod files;
 mod gemini;
+pub mod gemini_audio;
 mod history;
 mod jumplist;
 mod library;

@@ -982,3 +982,25 @@ Usete nye filer i mapper, som ikke overvåges, findes ved fillistens næste genn
 **Alternativ:** et almindeligt ordindeks ændrer søgeoplevelsen; et separat søgeprogram giver
 en ny afhængighed og løser ikke genbrug efter genstart.
 **Revurdér hvis:** bibliotekerne vokser væsentligt ud over nogle tusinde filer.
+
+### ADR-0045 — Lydgenkendelse følger den valgte AI-forbindelse (10/10-2026)
+**Baggrund:** Filtransskription skal bruge brugerens eksisterende AI-adgang. De
+installerede tekstkommandoer har ikke samme lydmuligheder. Gemini har en dokumenteret
+filindgang, mens Claude Codes dokumenterede diktering kræver interaktiv mikrofonbrug.
+**Beslutning:** Lydimport skal bruge samme udbydervalg som teksthjælpen. Ingen automatisk
+overgang til en anden udbyder, en separat betalings-API eller lokal lydmodel.
+Udbyderens lydmodel kan være en anden end tekstmodellen. Gemini-adapteren bruger
+`gemini-3.5-transcribe` gennem eksisterende Credential Manager-nøgle og HTTPS-klient.
+WAV sendes inline til Interactions API, med `store: false`, ordret transskription og
+ordtidskoder. Ingen værktøjer eller promptinstruktioner til lydmodellen.
+Native adapter validerer tidsgrænser og ordannotationernes dækning og rækkefølge i
+teksten. Fejlsvar og nøgler sendes ikke til fladen. Et dokumenteret/afprøvet tomt svar
+for stilhed skelnes fra ukendt svarformat. Der er ingen automatisk modelretry.
+Første interne grænse er 60 sekunder og 12 MiB pr. lydblok, højst 2 MiB modelsvar.
+**Status:** Native Gemini-adapter og syntetisk live-prøve er implementeret. Der er endnu
+ingen registreret lydkommando, import-UI, sammenstilling af lange filer eller afspiller.
+Valget af udbyder skal håndhæves i den kommende importkommando før hvert lydkald.
+**Konsekvens:** En valgt forbindelse uden filstøtte giver en forklaring. Brugeren må
+selv vælge en anden forbindelse. En ekstra modelvælger vises kun for afprøvede modeller.
+**Revurdér hvis:** Claude eller en anden eksisterende forbindelse får en dokumenteret
+filindgang med brugerens login, eller lange prøver viser behov for andre blokgrænser.
