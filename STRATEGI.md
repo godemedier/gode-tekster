@@ -52,6 +52,11 @@ Fælles for de bedste skriveprogrammer, og det, brugerne hader, når det brydes 
    ord alene er ikke nok (L-326, Prismet).
 8. **Programmet er klar, før skribenten er.** Det åbner der, hvor skribenten slap, med markøren
    på plads.
+9. **En enkel skriveflade, også når programmet vokser.** Nye funktioner kommer frem ved behov,
+   bruger de eksisterende paneler og strukturer og kræver et konkret skrivebehov. Storyboard
+   og referencer må ikke føre til flere faste værktøjslinjer, konkurrerende visninger eller
+   indstillinger for alle tænkelige arbejdsgange. Start, skrivning og almindelige tekster skal
+   forblive hurtige. Udvidelser indlæses først, når de bruges (Troels, 10/10).
 
 ## Scope og afgrænsning
 
