@@ -275,6 +275,7 @@ const append = (view: EditorView, text: string) => view.dispatch({ changes: { fr
 export async function runScenario(name: string, view: EditorView, path: string | null = null): Promise<void> {
   await say(`start ${name}, ${view.state.doc.length} tegn`);
   if (name === "audit") {
+    window.addEventListener("error", (e) => void say(`audit ERROR ${e.message}`));
     try {
       const check = async (ok: boolean, label: string) => {
         if (!ok) throw new Error(label);
@@ -298,6 +299,46 @@ export async function runScenario(name: string, view: EditorView, path: string |
       await check(doc.indexOf("[^1]:") < (findTagLine(doc)?.from ?? -1), "fodnote før tags");
       await check(findRevisions("```\n{++kode++}\n```\n{++forslag++}").length === 1, "kode er data");
       await check(resolvePending("{~~gammel <!-- note -->~>ny~~}") === "gammel", "kommentar i rettelse");
+      window.dispatchEvent(new Event("gt-open-settings"));
+      await pause(350);
+      const sheet = document.querySelector<HTMLElement>(".settings:not(.feedback)")!;
+      const tab = sheet.querySelector<HTMLButtonElement>("#st-tab-tekst")!;
+      await check(!!tab && !sheet.hidden, "indstillinger åbnet");
+      tab.click();
+      const width = sheet.querySelector<HTMLInputElement>('input[type="range"]')!;
+      width.focus();
+      width.value = "72";
+      width.dispatchEvent(new Event("change"));
+      await pause(800);
+      await check(document.activeElement === sheet.querySelector('input[type="range"]'), "indstillinger bevarer fokus efter ændring");
+      const { focusable } = await import("./ui/focus.ts");
+      const controls = focusable(sheet);
+      controls.at(-1)!.focus();
+      const forward = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+      controls.at(-1)!.dispatchEvent(forward);
+      await check(forward.defaultPrevented && document.activeElement === controls[0], "Tab bliver i dialogen");
+      const backward = new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true });
+      controls[0].dispatchEvent(backward);
+      await check(backward.defaultPrevented && document.activeElement === controls.at(-1), "Shift+Tab bliver i dialogen");
+      sheet.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      await pause(300);
+      await check(view.hasFocus && !document.body.classList.contains("settings-open"), "Esc gendanner skrivefokus");
+      const beforeTab = view.state.doc.toString();
+      view.contentDOM.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", keyCode: 27, bubbles: true, cancelable: true }));
+      const escapeTab = new KeyboardEvent("keydown", { key: "Tab", keyCode: 9, bubbles: true, cancelable: true });
+      view.contentDOM.dispatchEvent(escapeTab);
+      await check(!escapeTab.defaultPrevented && view.state.doc.toString() === beforeTab, "Esc så Tab forlader editoren");
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "F6", bubbles: true, cancelable: true }));
+      await check(document.getElementById("left")!.contains(document.activeElement), "F6 åbner biblioteket med fokus");
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      await check(view.hasFocus, "Esc fra panel til tekst");
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: original + "\n\nAUDIT-GEMT" } });
+      window.dispatchEvent(new Event("gt-save-now"));
+      await pause(2000);
+      const hits = await invoke<{ path: string; snippet: string }[]>("search_library", { query: "syntetisk" });
+      await check(hits.some((hit) => hit.path.toLowerCase() === path?.toLowerCase()), "indekseret biblioteksøgning via IPC");
+      const again = await invoke<{ path: string }[]>("search_library", { query: "syntetisk" });
+      await check(again.length === hits.length, "søgeindeks genbruges");
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: original + "\n\nAUDIT-GEMT" } });
       window.dispatchEvent(new Event("gt-save-now"));
       await pause(2000);

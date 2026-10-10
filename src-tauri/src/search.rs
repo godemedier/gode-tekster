@@ -9,13 +9,51 @@ use std::io::Read;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::library::FileHit;
 
-const MAX_HITS: usize = 300;
-const MAX_PER_FILE: usize = 20;
-const MAX_BYTES: u64 = 2 * 1024 * 1024;
+pub(crate) const MAX_HITS: usize = 300;
+pub(crate) const MAX_PER_FILE: usize = 20;
+pub(crate) const MAX_BYTES: u64 = 2 * 1024 * 1024;
+
+pub fn init(app: &AppHandle) {
+    let Ok(dir) = app.path().app_local_data_dir() else {
+        return;
+    };
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    match crate::search_index::SearchIndex::open(&dir.join("search.sqlite")) {
+        Ok(index) => {
+            app.manage(index);
+        }
+        Err(e) => {
+            crate::applog::write(app, &format!("søgeindeks: {e}"));
+            return;
+        }
+    }
+    if std::env::var("GT_TEST").is_ok() {
+        return;
+    }
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(3));
+        let files = cached_files(crate::settings::load(&handle).libraries);
+        if let Some(index) = handle.try_state::<crate::search_index::SearchIndex>() {
+            if let Err(e) = index.sync(&files, &|| false) {
+                crate::applog::write(&handle, &format!("søgeindeks: {e}"));
+            }
+        }
+    });
+}
+
+pub fn invalidate(app: &AppHandle, path: &std::path::Path) {
+    if let Some(index) = app.try_state::<crate::search_index::SearchIndex>() {
+        index.invalidate(path);
+    }
+    forget_files();
+}
 
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -84,7 +122,8 @@ static GENERATION: AtomicU64 = AtomicU64::new(0);
 /// Fillisten huskes i et halvt minut (6/10: søgningen var »ekstremt langsom«). Med et stort
 /// bibliotek tog mappegennemgangen sekunder, og den kørte forfra ved hvert tastetryk.
 const LIST_TTL: Duration = Duration::from_secs(30);
-static FILES: Mutex<Option<(Instant, Vec<FileHit>)>> = Mutex::new(None);
+type FileCache = (Instant, Vec<std::path::PathBuf>, Vec<FileHit>);
+static FILES: Mutex<Option<FileCache>> = Mutex::new(None);
 
 /// En mappe i biblioteket er ændret (watcher.rs): næste søgning gennemgår mapperne igen.
 pub fn forget_files() {
@@ -95,15 +134,15 @@ pub fn forget_files() {
 
 fn cached_files(libraries: Vec<std::path::PathBuf>) -> Vec<FileHit> {
     if let Ok(guard) = FILES.lock() {
-        if let Some((at, files)) = guard.as_ref() {
-            if at.elapsed() < LIST_TTL {
+        if let Some((at, roots, files)) = guard.as_ref() {
+            if at.elapsed() < LIST_TTL && roots == &libraries {
                 return files.clone();
             }
         }
     }
-    let files = crate::library::files_in(libraries);
+    let files = crate::library::files_in(libraries.clone());
     if let Ok(mut guard) = FILES.lock() {
-        *guard = Some((Instant::now(), files.clone()));
+        *guard = Some((Instant::now(), libraries, files.clone()));
     }
     files
 }
@@ -203,6 +242,13 @@ pub async fn search_library(app: AppHandle, query: String) -> Vec<Hit> {
         let stale = || GENERATION.load(Ordering::SeqCst) != generation;
         if stale() {
             return Vec::new();
+        }
+        if let Some(index) = app.try_state::<crate::search_index::SearchIndex>() {
+            if index.sync(&files, &stale).is_ok() {
+                if let Ok(hits) = index.search(&files, &query, &stale) {
+                    return hits;
+                }
+            }
         }
         search_files(&files, &query, &stale)
     })

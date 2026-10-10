@@ -39,6 +39,7 @@ export const GROUPS: [string, [string, string][]][] = [
       ["Alt+↑ / Alt+↓", tr("Flyt afsnit (i en overskrift: hele sektionen)", "Move paragraph (in a heading: the whole section)")],
       ["Alt+Shift+← / →", tr("Fold sektionen sammen eller ud", "Fold or unfold the section")],
       ["Tab / Shift+Tab", tr("Ryk ind og ud (i en liste: underpunkt)", "Indent and outdent (in a list: sub-item)")],
+      ["Esc → Tab", tr("Flyt fokus ud af teksten", "Move focus out of the editor")],
     ],
   ],
   [
@@ -62,6 +63,7 @@ export const GROUPS: [string, [string, string][]][] = [
       ["Ctrl+N", tr("Nyt vindue (Ctrl+klik i biblioteket åbner en tekst i nyt vindue)", "New window (Ctrl+click in the Library opens a text in a new window)")],
       ["Ctrl+plus / Ctrl+minus", tr("Større og mindre skrift", "Larger and smaller text")],
       ["Ctrl+,", tr("Indstillinger", "Settings")],
+      ["F6 / Shift+F6", tr("Skift fokus mellem tekst og paneler", "Move focus between the editor and panels")],
       ["F1", tr("Genveje", "Shortcuts")],
     ],
   ],

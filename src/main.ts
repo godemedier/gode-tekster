@@ -36,7 +36,7 @@ import { PrintPreview } from "./print/preview.ts";
 import { ClaudePanel } from "./ui/claudepanel.ts";
 import { resolveAll } from "./editor/revisionsView.ts";
 import { toggleShortcuts } from "./ui/shortcutsHelp.ts";
-import { setFocusFallback } from "./ui/focus.ts";
+import { focusable, setFocusFallback } from "./ui/focus.ts";
 import { installScrollbars } from "./ui/scrollbars.ts";
 import { OutlinePanel } from "./ui/outlinePanel.ts";
 import { setCommaStyle, setStyleCheck } from "./editor/styleCheck.ts";
@@ -680,6 +680,7 @@ try {
 window.addEventListener(
   "keydown",
   (e) => {
+    if (document.body.classList.contains("settings-open")) return;
     if (!e.ctrlKey || e.altKey) return;
     const key = e.key.toLowerCase();
     const stop = () => {
@@ -761,6 +762,27 @@ window.addEventListener(
 // allerede håndteret, når hændelsen når hertil (bubble), så her spærres kun resten.
 const BROWSER_KEYS = new Set(["r", "p", "u", "j", "n", "t", "l", "d", "g", "+", "-", "=", "0"]);
 window.addEventListener("keydown", (e) => {
+  if (document.body.classList.contains("settings-open") || printing.isOpen || e.defaultPrevented) return;
+  if (e.key === "F6") {
+    e.preventDefault();
+    const regions = [view.contentDOM, leftEl, rightEl];
+    const current = regions.findIndex((el) => el.contains(document.activeElement));
+    const index = (current + (e.shiftKey ? regions.length - 1 : 1) + regions.length) % regions.length;
+    const next = regions[index];
+    if (next === view.contentDOM) view.focus();
+    else {
+      (next === leftEl ? left : right).open();
+      focusable(next)[0]?.focus();
+    }
+    return;
+  }
+  if (e.key === "Escape" && (leftEl.contains(document.activeElement) || rightEl.contains(document.activeElement))) {
+    e.preventDefault();
+    if (leftEl.contains(document.activeElement)) left.close();
+    else right.close();
+    view.focus();
+    return;
+  }
   // F1: genvejsoversigten. Ikke Ctrl+/, for på et dansk tastatur er det Ctrl+Shift+7 (nummereret liste).
   if (e.key === "F1") {
     e.preventDefault();

@@ -421,6 +421,23 @@ pub fn note_close(app: AppHandle, window: tauri::WebviewWindow, empty: bool) {
 
 /// Slet noten: filen i papirkurven, arket væk.
 #[tauri::command]
+pub async fn confirm_note_delete(app: AppHandle, window: tauri::WebviewWindow) -> bool {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+    app.dialog()
+        .message(t!(
+            "Vil du lægge noten i papirkurven?",
+            "Move this note to the Recycle Bin?"
+        ))
+        .title(t!("Slet note", "Delete note"))
+        .parent(&window)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            t!("Læg i papirkurven", "Move to Recycle Bin").into(),
+            t!("Behold noten", "Keep note").into(),
+        ))
+        .blocking_show()
+}
+
+#[tauri::command]
 pub fn note_delete(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), String> {
     let label = window.label().to_owned();
     if let Some(path) = path_of(&app, &label) {

@@ -958,3 +958,27 @@ ikke anledning til at gentage kaldet med færre begrænsninger.
 **Konsekvens:** Lukning kan blive afbrudt ved diskfejl. Det er nødvendigt for at bevare rettelserne.
 Codex kræver en CLI, der understøtter disse flag; et rigtigt login er endnu ikke afprøvet.
 **Revurdér hvis:** flere brugere eller maskiner skal redigere samme tekst samtidig.
+
+### ADR-0044 — Vedvarende søgeindeks med bogstavelig delordssøgning (10/10-2026)
+Supplerer ADR-0038.
+**Baggrund:** En søgning læste alle kildetekster, også efter genstart. Tidligere målinger viste
+op til 25 sekunder på en kold disk. Et ordindeks alene ville miste søgning efter dele af ord.
+**Beslutning:** SQLite FTS5 med trigrammer i `search.sqlite` under programmets lokale data.
+Den eksisterende rusqlite-afhængighed bruges. Normaliseret tekst gemmes uden iA-forfatterblok;
+samme tegnkodning som ved åbning understøttes. Trigrammer vælger kandidater, og den eksisterende
+bogstavelige søgning beregner uddrag og UTF-16-positioner. To tegn søges i indeksets tekst.
+Brugerens søgeord citeres som ét FTS-udtryk, så OR, stjerner og citationstegn er data.
+Indekset synkroniseres i en transaktion. Kun ændret størrelse, mtime med nanosekunder eller
+en filhændelse giver genlæsning. En filændring under læsning kasserer posten til næste søgning.
+Store, beskadigede og utilgængelige filer giver ingen gamle fund. Slettede filer og fjernede
+biblioteker fjernes. Fillistens cache er knyttet til den aktuelle biblioteksliste.
+Opstarten varmer indekset i baggrunden efter tre sekunder. Søgefejl falder tilbage til den
+direkte søgning. Indekset er afledte data og kan genopbygges. Kildetekster ændres aldrig.
+Fund står stabilt efter sti, højst 300 og højst 20 pr. fil. Der læses højst 2 MB pr. kildefil.
+**Konsekvens:** Første indeksering læser stadig bibliotekerne; senere genstarter genbruger
+teksterne. Indekset indeholder lokale tekstkopier, ligesom historikken, og forlader ikke pc'en.
+Usete nye filer i mapper, som ikke overvåges, findes ved fillistens næste gennemgang, højst
+30 sekunder senere. Eksisterende filers metadata kontrolleres ved hver søgning.
+**Alternativ:** et almindeligt ordindeks ændrer søgeoplevelsen; et separat søgeprogram giver
+en ny afhængighed og løser ikke genbrug efter genstart.
+**Revurdér hvis:** bibliotekerne vokser væsentligt ud over nogle tusinde filer.

@@ -174,8 +174,15 @@ async function openAsText(): Promise<void> {
 }
 
 async function deleteNote(): Promise<void> {
-  await session?.flush();
-  await invoke("note_delete").catch((e) => showBanner(errorText(e)));
+  try {
+    if (!await invoke<boolean>("confirm_note_delete")) return;
+    document.body.inert = true;
+    await session?.saveForHandoff();
+    await invoke("note_delete");
+  } catch (e) {
+    document.body.inert = false;
+    showBanner(errorText(e));
+  }
 }
 
 const more = button(SVG.more, tr("Mere", "More"), (b) => {

@@ -62,6 +62,7 @@ fn on_events(app: &AppHandle, result: DebounceEventResult) {
             if p.to_string_lossy().ends_with(".gt.tmp") {
                 continue;
             }
+            crate::search::invalidate(app, p);
             if let Some(o) = open.iter().find(|o| same(o, p)) {
                 // En åben fil selv: kun et tjek af den, ikke en ny læsning af hele mappen
                 // (ellers læste hvert autosave biblioteksmappen igen, performance-review 2/10).

@@ -30,6 +30,7 @@ mod notes;
 mod ro;
 mod seal;
 mod search;
+mod search_index;
 mod session;
 mod settings;
 mod spelling;
@@ -235,6 +236,7 @@ pub fn run() -> tauri::Result<()> {
             notes::note_new,
             notes::note_close,
             notes::note_delete,
+            notes::confirm_note_delete,
             notes::note_on_top,
             notes::note_roll,
             notes::note_state,
@@ -268,6 +270,7 @@ pub fn run() -> tauri::Result<()> {
             let handle = app.handle().clone();
             applog::install_panic_hook(&handle);
             i18n::init(&handle);
+            search::init(&handle);
             let handle2 = handle.clone();
             tauri::async_runtime::spawn_blocking(move || spelling::import_ia_dictionary(&handle2));
             ro::recover(&handle);

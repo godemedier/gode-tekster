@@ -245,7 +245,7 @@ pub fn backup(path: &Path, backup_dir: &Path) -> Result<PathBuf> {
 
 // --- indlæsning -------------------------------------------------------------------------------
 
-fn decode(bytes: &[u8]) -> Result<(String, Encoding)> {
+pub(crate) fn decode(bytes: &[u8]) -> Result<(String, Encoding)> {
     let invalid = || {
         FileError::Io(std::io::Error::new(
             std::io::ErrorKind::InvalidData,

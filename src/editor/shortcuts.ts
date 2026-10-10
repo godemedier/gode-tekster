@@ -176,7 +176,7 @@ export function shortcuts(): Extension {
       { key: "Mod-Alt-i", run: pickImage },
       { key: "Mod-Alt-n", run: cmd.note },
       { key: "Mod-s", run: saveNow, preventDefault: true },
-      { key: "Tab", run: tab, shift: indentLess, preventDefault: true },
+      { key: "Tab", run: tab, shift: indentLess },
       { key: "Enter", run: enterOnHeading },
     ]),
   );

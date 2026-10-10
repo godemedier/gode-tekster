@@ -17,6 +17,7 @@ const PARAGRAPH_TYPE = "application/x-gt-afsnit";
 import { showMenu } from "./menu.ts";
 import { errorText, showBanner } from "./banner.ts";
 import { tr } from "../i18n.ts";
+import { preserveFocus } from "./focus.ts";
 
 type Tab = { id: string; label: string; secondary: boolean; render: (body: HTMLElement) => void };
 
@@ -130,10 +131,12 @@ export class RightPanel {
     this.stale = false;
     const tab = this.tabs.find((t) => t.id === this.active) ?? this.tabs[0];
     // Fanerne deler kroppen. Claude-fanen tegner også selv om, når et svar kommer, og skal vide, om det er dens tur.
+    const restore = preserveFocus(this.body);
     this.body.dataset.tab = tab.id;
     // Kun fanen Input med svar gør spalten bred (claudepanel.ts); de andre fanes er smalle.
     document.body.classList.remove("rp-wide");
     tab.render(this.body);
+    restore();
   }
 
   // --- Fraklip ---------------------------------------------------------------------------------

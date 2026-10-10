@@ -5,7 +5,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { errorText, notify, showBanner } from "./banner.ts";
-import { rememberFocus } from "./focus.ts";
+import { rememberFocus, trapTab } from "./focus.ts";
 import { ICON, iconButton } from "./icons.ts";
 import { tr } from "../i18n.ts";
 
@@ -21,7 +21,11 @@ export class FeedbackDialog {
     this.sheet.setAttribute("aria-label", tr("Skriv til Gode Medier", "Write to Gode Medier"));
     this.sheet.hidden = true;
     this.sheet.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") this.close();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        this.close();
+      } else trapTab(this.sheet, e);
     });
     this.sheet.addEventListener("mousedown", (e) => {
       if (e.target === this.sheet) this.close();
@@ -33,12 +37,14 @@ export class FeedbackDialog {
     this.restore = rememberFocus();
     this.render();
     this.sheet.hidden = false;
+    document.body.classList.add("settings-open");
     window.setTimeout(() => this.sheet.querySelector<HTMLElement>("textarea")?.focus(), 0);
     requestAnimationFrame(() => this.sheet.classList.add("open"));
   }
 
   close(): void {
     if (this.sheet.hidden) return;
+    document.body.classList.remove("settings-open");
     this.restore?.();
     this.restore = null;
     this.sheet.classList.remove("open");

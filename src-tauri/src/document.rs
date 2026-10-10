@@ -571,6 +571,7 @@ pub async fn save_document(
     );
     drop(docs);
     // En note er aldrig »den sidste tekst« (ADR-0039): ellers åbnede hovedvinduet den ved næste start.
+    crate::search::invalidate(&app, &path);
     if !crate::notes::is_note(window.label()) {
         crate::session::remember(&app, &path, Some(req.cursor));
     }

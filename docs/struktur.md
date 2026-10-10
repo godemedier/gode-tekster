@@ -34,6 +34,7 @@ gode-tekster/
 │   └── trykproeve.sh · scenarier.sh · testkoersel.sh   test på kopier i tests/private
 ├── src-tauri/                   Rust-kernen
 │   ├── Cargo.toml · Cargo.lock
+│   ├── src/search_index.rs      vedvarende lokalt FTS5-indeks til delordssøgning
 │   ├── tauri.conf.json          vindue, CSP, bundle
 │   ├── capabilities/            hvad fladen må kalde
 │   ├── nsis/                    dansk installer (Danish.nsh) og afinstallation (hooks.nsh)

@@ -9,7 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { tr } from "../i18n.ts";
 import { BULLETS, settings, updateSettings, type BulletStyle, type Settings } from "../settings.ts";
 import { errorText, showBanner } from "./banner.ts";
-import { rememberFocus } from "./focus.ts";
+import { preserveFocus, rememberFocus, trapTab } from "./focus.ts";
 import { ICON, iconButton } from "./icons.ts";
 import { setLineLength } from "./lineWidth.ts";
 import { statusDot } from "./libraryStatus.ts";
@@ -67,7 +67,11 @@ export class SettingsPanel {
     this.sheet.setAttribute("aria-label", tr("Indstillinger", "Settings"));
     this.sheet.hidden = true;
     this.sheet.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") this.close();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        this.close();
+      } else trapTab(this.sheet, e);
     });
     // Et klik uden for vinduet lukker det.
     this.sheet.addEventListener("mousedown", (e) => {
@@ -116,6 +120,7 @@ export class SettingsPanel {
   }
 
   private render(): void {
+    const restore = preserveFocus(this.sheet);
     const s = settings();
     const set = (patch: Partial<Settings>) => void updateSettings(patch).then(() => this.render());
 
@@ -305,6 +310,7 @@ export class SettingsPanel {
     box.className = "settings-box st";
     box.append(head, tabs, general, text, ai, tags, ...extra.map((t) => t.panel));
     this.sheet.replaceChildren(box);
+    restore();
   }
 }
 
