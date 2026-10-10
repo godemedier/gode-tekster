@@ -2,9 +2,11 @@
 // indrykning som markdowns egne lister, og Enter fortsætter med næste bogstav. En tom linje med
 // kun markøren afslutter listen, som i Word. Reglerne for, hvad der er en liste, står i fancyLists.ts.
 
-import { Prec, RangeSetBuilder, type EditorState } from "@codemirror/state";
+import { EditorSelection, Prec, RangeSetBuilder, type EditorState } from "@codemirror/state";
+import { syntaxTree } from "@codemirror/language";
 import { Decoration, type DecorationSet, EditorView, keymap, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { MarkdownConfig } from "@lezer/markdown";
+import type { SyntaxNode } from "@lezer/common";
 import { fancyRun, isSetextUnderline, marker, parseItem, type FancyItem } from "./fancyLists.ts";
 import { hasNumber, nextHeadingNumber } from "./headingNumbers.ts";
 
@@ -107,9 +109,34 @@ function continueList(view: EditorView): boolean {
 
 export const fancyListSupport = [
   plugin,
-  Prec.high(keymap.of([{ key: "Enter", run: continueList }])),
+  Prec.high(keymap.of([{ key: "Enter", run: continueList }, { key: "Shift-Enter", run: listLineBreak }])),
   EditorView.baseTheme({ ".gt-ol-mark": { color: "var(--svag)" } }),
 ];
+
+/** Shift+Enter beholder indrykningen, også på tomme linjer mellem afsnit i samme punkt. */
+export function listLineBreak({ state, dispatch }: { state: EditorState; dispatch: (tr: ReturnType<EditorState["update"]>) => void }): boolean {
+  if (state.readOnly) return false;
+  const indentation = (pos: number): string | null => {
+    const line = state.doc.lineAt(pos);
+    // En tom fortsættelseslinje kan ligge uden for ListItem i det endnu ufærdige syntakstræ.
+    if (/^(?:[ \t]*>[ \t]?)*[ \t]+$/.test(line.text)) return line.text;
+    for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1); node; node = node.parent) {
+      if (node.name === "FencedCode" || node.name === "CodeBlock") return null;
+      if (node.name !== "ListItem") continue;
+      const first = state.doc.lineAt(node.from);
+      const before = first.text.slice(0, node.from - first.from);
+      const mark = /^(?:[-+*]|\d+[.)])[ \t]+/.exec(first.text.slice(node.from - first.from));
+      if (mark) return before + mark[0].replace(/[^ \t]/g, " ");
+    }
+    return null;
+  };
+  if (state.selection.ranges.some((r) => indentation(r.from) === null)) return false;
+  dispatch(state.update(state.changeByRange((range) => {
+    const insert = "\n" + (indentation(range.from) ?? "");
+    return { changes: { from: range.from, to: range.to, insert }, range: EditorSelection.cursor(range.from + insert.length) };
+  }), { scrollIntoView: true, userEvent: "input" }));
+  return true;
+}
 
 /** »## « skrevet i starten af en linje: sæt det næste nummer ind, hvis rækken over har et. */
 export const headingNumberInput = EditorView.inputHandler.of((view, from, to, text) => {
