@@ -260,7 +260,7 @@ body.right-pinned { --hoejre: 320px; }
 #banner .banner-close:hover { opacity: 1; text-decoration: none; }
 
 /* Søg og erstat (Ctrl+F, Ctrl+H) som i iA Writer. */
-.gt-find { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; font-family: var(--ui); font-size: 13px; }
+.gt-find { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; padding-left: max(12px, 64px - var(--venstre, 0px)); padding-right: max(12px, 72px - var(--hoejre, 0px)); font-family: var(--ui); font-size: 13px; }
 .gt-find-row { display: flex; align-items: center; gap: 6px; }
 .gt-find-row[hidden] { display: none; }
 .gt-find-mode, .gt-find-label { width: 82px; flex-shrink: 0; font: inherit; color: var(--blæk); }
