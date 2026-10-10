@@ -12,7 +12,7 @@ import { currentFlags, currentLix, categoryOf, mask, type Flag } from "../editor
 type SpellError = { from: number; to: number; word: string; suggestions: string[] };
 import { wordClassCounts, type WordClass } from "../editor/wordclasses.ts";
 import { parseItem } from "../editor/fancyLists.ts";
-import { isEnglish, tr } from "../i18n.ts";
+import { currentLang, tr } from "../i18n.ts";
 
 // Ordklasser og stiltjek bygger på danske ordlister og vises kun på dansk (render), så deres tekster
 // står kun på dansk.
@@ -44,14 +44,62 @@ export class LanguagePanel {
   render(body: HTMLElement): void {
     this.body = body;
     const s = settings();
-    // På engelsk er der kun stavningen: ordklasser og stiltjek kender kun dansk.
-    if (isEnglish()) return void body.replaceChildren(this.spelling());
+    const textLang = s.textLanguage || currentLang();
+    
     const sections = [
+      this.textLanguageSelector(),
       this.spelling(),
-      this.section("Ordklasser i farver", "Shift+F7", s.wordClasses, (v) => this.set({ wordClasses: v }), () => this.wordClasses()),
-      this.section("Stiltjek", "F7", s.styleCheck, (v) => this.set({ styleCheck: v }), () => this.styleCheck()),
     ];
+    
+    // Ordklasser og stiltjek kender kun dansk.
+    if (textLang === "da") {
+      sections.push(
+        this.section("Ordklasser i farver", "Shift+F7", s.wordClasses, (v) => this.set({ wordClasses: v }), () => this.wordClasses()),
+        this.section("Stiltjek", "F7", s.styleCheck, (v) => this.set({ styleCheck: v }), () => this.styleCheck())
+      );
+    }
+    
     body.replaceChildren(...sections);
+  }
+
+  private textLanguageSelector(): HTMLElement {
+    const sec = document.createElement("section");
+    sec.className = "lp-section";
+    const head = document.createElement("div");
+    head.className = "lp-spell-head";
+    const title = document.createElement("span");
+    title.className = "lp-title";
+    title.textContent = tr("Sprog i teksten", "Text language");
+    head.append(title);
+    
+    const select = document.createElement("select");
+    select.className = "lp-select";
+    // Vi bruger Windows' stavekontrol, så man kan tilføje de sprog, brugeren typisk har.
+    const langs = [
+      { code: "da", name: tr("Dansk", "Danish") },
+      { code: "en", name: tr("Engelsk", "English") },
+      { code: "de", name: tr("Tysk", "German") },
+      { code: "fr", name: tr("Fransk", "French") },
+      { code: "es", name: tr("Spansk", "Spanish") },
+      { code: "sv", name: tr("Svensk", "Swedish") },
+      { code: "nb", name: tr("Norsk (Bokmål)", "Norwegian (Bokmål)") }
+    ];
+    
+    const current = settings().textLanguage || currentLang();
+    for (const l of langs) {
+      const opt = document.createElement("option");
+      opt.value = l.code;
+      opt.textContent = l.name;
+      if (l.code === current) opt.selected = true;
+      select.append(opt);
+    }
+    
+    select.addEventListener("change", () => {
+      this.set({ textLanguage: select.value });
+    });
+    
+    sec.append(head, select);
+    return sec;
   }
 
   // --- stavning (5/10: »Ret stavefejl«) ---------------------------------------------------------

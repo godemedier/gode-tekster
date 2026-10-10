@@ -426,7 +426,8 @@ export const livePreviewTheme = EditorView.theme({
     right: "100%", 
     color: "var(--dæmpet)",
     fontWeight: "normal",
-    whiteSpace: "pre"
+    whiteSpace: "pre",
+    lineHeight: "0"
   },
   ".gt-h1": { fontSize: "1.75em", lineHeight: "1.3", fontWeight: "700", paddingTop: "0.5em" },
   ".gt-h2": { fontSize: "1.35em", lineHeight: "1.35", fontWeight: "700", paddingTop: "0.9em" },

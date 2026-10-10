@@ -112,6 +112,7 @@ pub async fn write_export(
         e => e.to_string(),
     })?;
     applog::write(&app, "eksporterede en Word-fil");
+    set_last_export(target.clone());
     Ok(target.to_string_lossy().into_owned())
 }
 
@@ -164,6 +165,7 @@ pub async fn export_pdf(
     .map_err(|e| format!("PDF'en kunne ikke laves: {e}"))?;
     result?;
     applog::write(&app, "eksporterede en PDF");
+    set_last_export(target.clone());
     Ok(target.to_string_lossy().into_owned())
 }
 
@@ -248,5 +250,29 @@ mod tests {
             file_name_from_title(&"a".repeat(300)).map(|n| n.chars().count()),
             Some(120)
         );
+    }
+}
+
+static LAST_EXPORT: std::sync::Mutex<Option<std::path::PathBuf>> = std::sync::Mutex::new(None);
+
+pub fn set_last_export(path: std::path::PathBuf) {
+    if let Ok(mut guard) = LAST_EXPORT.lock() {
+        *guard = Some(path);
+    }
+}
+
+#[tauri::command]
+pub fn open_last_export(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let path = LAST_EXPORT
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    if let Some(path) = path {
+        app.opener()
+            .open_path(path.to_string_lossy(), None::<&str>)
+            .map_err(|_| t!("Filen kunne ikke åbnes.", "The file could not be opened.").to_owned())
+    } else {
+        Err(t!("Ingen nylig fil.", "No recent file.").to_owned())
     }
 }

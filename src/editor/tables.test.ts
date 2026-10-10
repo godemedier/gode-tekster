@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EditorState } from "@codemirror/state";
+import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 
 import { escapeCell, formatDelimiter, formatRow, formatTable, inlineParts, modelOf, parseTable, repairPastedTable, splitRow, tablePreview } from "./tables.ts";
@@ -56,7 +57,12 @@ test("fed, kursiv, kode og links i en celle", () => {
 });
 
 const doc = "Før.\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nEfter.";
-const state = (anchor: number) => EditorState.create({ doc, selection: { anchor }, extensions: [markdown({ base: markdownLanguage }), tablePreview] });
+const state = (anchor: number) => {
+  let s = EditorState.create({ doc, selection: { anchor }, extensions: [markdown({ base: markdownLanguage }), tablePreview] });
+  ensureSyntaxTree(s, s.doc.length, 5000);
+  // Dispatch an empty update so state fields that depend on the syntax tree can recompute
+  return s.update({}).state;
+};
 const shown = (s: EditorState) => {
   const out: { from: number; to: number }[] = [];
   s.field(tablePreview).deco.between(0, s.doc.length, (from, to) => void out.push({ from, to }));

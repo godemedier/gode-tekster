@@ -1,7 +1,6 @@
 // Skrivefladen: samler alle editor-udvidelser (live preview, forfatterskab, fraklip, billeder,
 // tilstande, ordklasser, Claudes forslag) og laver en EditorState for en tekst.
 
-import { currentLang } from "../i18n.ts";
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, ViewPlugin, drawSelection, dropCursor, keymap, tooltips } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
@@ -165,8 +164,8 @@ export function baseExtensions(onChange: OnChange): Extension[] {
     markdown({ base: markdownLanguage, extensions: [fancyListBlocks] }),
     syntaxHighlighting(iaHighlight),
     EditorView.lineWrapping,
-    // Stavekontrollens understregning følger sproget (i18n.ts).
-    EditorView.contentAttributes.of({ spellcheck: "true", lang: currentLang(), autocorrect: "off" }),
+    // Stavekontrollens understregning følger sproget (sættes på <html> i main.ts).
+    EditorView.contentAttributes.of({ spellcheck: "true", autocorrect: "off" }),
     iaTheme,
     livePreview,
     livePreviewTheme,

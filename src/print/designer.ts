@@ -177,13 +177,42 @@ export class Designer {
     }
   }
 
-  private pieceButton(p: Piece, from: From, meta: Meta, rest: boolean): HTMLButtonElement {
-    const b = document.createElement("button");
-    b.type = "button";
+  private pieceButton(p: Piece, from: From, meta: Meta, rest: boolean): HTMLElement {
+    const isText = p.kind === "text" && from.target !== "title";
+    const b = document.createElement(isText ? "div" : "button") as HTMLElement;
+    if (b instanceof HTMLButtonElement) b.type = "button";
     b.className = "pv-piece";
     b.dataset.key = `p:${from.target}:${from.index}`;
     const value = valueFor(p, meta, rest);
-    b.textContent = from.target === "title" ? pieceLabel("title") : value || pieceLabel(p.kind);
+
+    if (p.kind === "text" && from.target !== "title") {
+      b.classList.add("pv-piece-text");
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.className = "pv-text-input";
+      inp.value = p.text ?? "";
+      inp.placeholder = tr("Skriv tekst", "Type text");
+      inp.addEventListener("change", () => {
+        const l = this.host.layout();
+        const list = l[from.view][from.target as Slot];
+        if (list && list[from.index]) {
+          list[from.index] = { kind: "text", text: inp.value };
+          this.host.setLayout(l);
+        }
+      });
+      inp.addEventListener("pointerdown", (e) => e.stopPropagation());
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+           inp.blur();
+           e.preventDefault();
+        }
+        if (e.key !== "Escape") e.stopPropagation();
+      });
+      b.append(inp);
+    } else {
+      b.textContent = from.target === "title" ? pieceLabel("title") : value || pieceLabel(p.kind);
+    }
+
     const off = !pieceOn(p, this.host.options());
     b.classList.toggle("is-off", off);
     b.setAttribute(

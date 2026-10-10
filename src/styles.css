@@ -798,9 +798,9 @@ body.rp-wide.right-pinned { --hoejre: var(--rp-bred); }
 .cmd-name-field { display: flex; align-items: center; gap: 4px; font-family: "IBM Plex Mono", monospace; }
 .cmd-name-field input { font-family: inherit; }
 .cmd-text { width: 100%; box-sizing: border-box; resize: vertical; font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.55; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 6px; padding: 6px 8px; outline: none; }
-.cmd-text:focus, .cmd-select:focus { border-color: var(--link); }
+.cmd-text:focus, .cmd-select:focus, .lp-select:focus { border-color: var(--link); }
 .cmd-text:disabled { opacity: 0.6; }
-.cmd-select { width: 100%; box-sizing: border-box; font: inherit; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 6px; padding: 5px 6px; outline: none; }
+.cmd-select, .lp-select { width: 100%; box-sizing: border-box; font: inherit; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 6px; padding: 5px 6px; outline: none; }
 .cmd-radios { border: none; margin: 0; padding: 0; min-width: 0; }
 .cmd-radios legend { padding: 0; }
 .cmd-radios .settings-toggle { padding: 2px 0; }

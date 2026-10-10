@@ -217,6 +217,7 @@ pub fn run() -> tauri::Result<()> {
             export::pick_export_path,
             export::write_export,
             export::export_pdf,
+            export::open_last_export,
             claude::claude_cut,
             clean::claude_clean,
             claude::claude_factcheck,
@@ -265,6 +266,8 @@ pub fn run() -> tauri::Result<()> {
             let handle = app.handle().clone();
             applog::install_panic_hook(&handle);
             i18n::init(&handle);
+            let handle2 = handle.clone();
+            tauri::async_runtime::spawn_blocking(move || spelling::import_ia_dictionary(&handle2));
             ro::recover(&handle);
             jumplist::refresh(&handle);
             welcome::detect(&handle);

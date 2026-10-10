@@ -38,7 +38,7 @@ test("standardopsætningen giver sidehoved og sidefod som før side-designeren",
     assert.deepEqual(pageMargins(t, defaultLayout(t)), pageMargins(t));
   }
   const css = pageCss("manuskript", meta);
-  assert.match(css, /^@page \{ size: A4; margin: 3\.5cm 2\.5cm 3cm 2\.5cm; @top-center \{ content: "Kim Skribent · 9\. oktober 2026"; [^}]*\} @bottom-center \{ content: counter\(page\);/);
+  assert.match(css, /^@page \{ size: A4; margin: 3\.5cm 2\.5cm 4\.5cm 2\.5cm; @top-center \{ content: "Kim Skribent · 9\. oktober 2026"; [^}]*\} @bottom-center \{ content: counter\(page\);/);
   // Første side: kun sidefoden er anderledes (tallene i stedet for sidetal).
   assert.match(css, /\n@page :first \{ @bottom-center \{ content: "[^"]*anslag[^"]*"; [^}]*\} \}$/);
   // Tal fravalgt: første side står uden sidetal, som før.
@@ -134,7 +134,7 @@ test("margener skrives med komma, og gemte værdier tjekkes", () => {
   assert.equal(parseCm("bred", 1, 8), null);
   assert.equal(parseCm("", 1, 8), null);
   const l = layoutFrom({ margins: { top: 2, left: 1, right: "x" }, font: "comic", title: false, firstDifferent: true, pages: { "top-left": [{ kind: "author" }, { kind: "script" }], nowhere: [] }, first: {} }, "laeseudgave");
-  assert.deepEqual(l.margins, { top: 2, right: 4, bottom: 3, left: 4 }, "venstre under 2,5 cm og et ikke-tal afvises");
+  assert.deepEqual(l.margins, { top: 2, right: 4, bottom: 4, left: 4 }, "venstre under 2,5 cm og et ikke-tal afvises");
   assert.equal(l.font, "newsreader");
   assert.equal(l.title, false);
   assert.deepEqual(l.pages, { "top-left": [{ kind: "author" }] });

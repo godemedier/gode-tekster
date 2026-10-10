@@ -328,7 +328,9 @@ export class PrintPreview {
       const { pageMargins } = await load();
       const saved = await invoke<string>("export_pdf", { margins: pageMargins(this.opts.template, this.design.layout) });
       const file = saved.slice(saved.lastIndexOf("\\") + 1);
-      notify(tr(`PDF'en er gemt: ${file}`, `PDF saved: ${file}`));
+      showBanner(tr(`PDF'en er gemt: ${file}`, `PDF saved: ${file}`), [
+        { label: tr("Åbn", "Open"), run: () => void invoke("open_last_export") }
+      ], { closable: true });
     } catch (e) {
       showBanner(errorText(e));
     }
@@ -361,7 +363,9 @@ export class PrintPreview {
       });
       const saved = await invoke<string>("write_export", { bytes: Array.from(bytes) });
       const file = saved.slice(saved.lastIndexOf("\\") + 1);
-      notify(tr(`Word-filen er gemt: ${file}`, `Word file saved: ${file}`));
+      showBanner(tr(`Word-filen er gemt: ${file}`, `Word file saved: ${file}`), [
+        { label: tr("Åbn", "Open"), run: () => void invoke("open_last_export") }
+      ], { closable: true });
     } catch (e) {
       showBanner(errorText(e));
     }

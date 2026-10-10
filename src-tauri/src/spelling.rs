@@ -242,6 +242,28 @@ mod imp {
 
 pub use imp::word_status;
 
+/// Importerer Troels' egen ordbog fra iA Writer (ADR-0012) og føjer ordene til Windows' ordbog.
+/// Kaldes én gang ved startup. Fejl ignoreres (fx hvis filen ikke findes).
+pub fn import_ia_dictionary(app: &tauri::AppHandle) {
+    #[cfg(windows)]
+    {
+        use tauri::Manager;
+        let Ok(data_dir) = app.path().data_dir() else {
+            return;
+        };
+        let path = data_dir.join("iA Writer").join("custom_dictionary.txt");
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            return;
+        };
+        for line in content.lines() {
+            let word = line.trim();
+            if !word.is_empty() {
+                let _ = imp::add(word);
+            }
+        }
+    }
+}
+
 /// »Tilføj til ordbog« fra højreklik (contextmenu.rs).
 pub fn add_word(word: &str) -> Result<(), String> {
     imp::add(word.trim())

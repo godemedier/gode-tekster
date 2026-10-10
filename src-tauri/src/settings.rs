@@ -68,6 +68,8 @@ pub struct Settings {
     pub starred: Vec<String>,
     /// Sproget: "auto" (følger Windows), "da" eller "en" (i18n.rs, 5/10).
     pub language: String,
+    /// Sproget i teksten (til stavekontrol, orddeling mv.). "da", "en", "de", "fr" osv.
+    pub text_language: Option<String>,
     pub show_house_files: bool,
     pub focus_mode: bool,
     pub typewriter: bool,
@@ -103,7 +105,7 @@ impl Default for Settings {
             author_name: None,
             ai_provider: None,
             line_length: 72,
-            quotes: "guillemets".to_owned(),
+            quotes: "low".to_owned(),
             always_show_count: false,
             show_authorship: true,
             dark: false,
@@ -118,6 +120,7 @@ impl Default for Settings {
             hidden_word_classes: Vec::new(),
             starred: Vec::new(),
             language: "auto".to_owned(),
+            text_language: None,
             show_house_files: false,
             focus_mode: false,
             typewriter: false,

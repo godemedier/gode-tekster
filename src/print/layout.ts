@@ -9,8 +9,8 @@ export type Margins = { top: number; right: number; bottom: number; left: number
 
 /** Margener i cm, som skabelonens `@page` (og PDF-kaldet i Rust). */
 export const MARGINS: Record<Template, Margins> = {
-  manuskript: { top: 3.5, right: 4.5, bottom: 3, left: 4.5 },
-  laeseudgave: { top: 2.5, right: 4, bottom: 3, left: 4 },
+  manuskript: { top: 3.5, right: 4.5, bottom: 4.5, left: 4.5 },
+  laeseudgave: { top: 2.5, right: 4, bottom: 4, left: 4 },
 };
 
 /** Pladserne svarer til `@page`-margenboksene med samme navn. */

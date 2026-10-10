@@ -39,6 +39,8 @@ export type Settings = {
   starred: string[];
   /** Sproget: "auto" følger Windows (i18n.ts). Skift genindlæser vinduerne. */
   language: "auto" | "da" | "en";
+  /** Sproget i teksten (til stavekontrol m.m.). null = følger UI-sproget. */
+  textLanguage: string | null;
   showHouseFiles: boolean;
   focusMode: boolean;
   typewriter: boolean;

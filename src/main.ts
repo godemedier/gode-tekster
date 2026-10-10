@@ -51,7 +51,6 @@ import { showCommandResult } from "./ui/commandResults.ts";
 import { renderPapers, type RecentDoc } from "./ui/recentPapers.ts";
 
 // index.html er skrevet på dansk. Sproget og de faste tekster sættes her, før vinduet vises.
-document.documentElement.lang = currentLang();
 (document.getElementById("open-file") as HTMLElement).textContent = tr("Åbn en tekst", "Open a text");
 document.getElementById("left")?.setAttribute("aria-label", tr("Bibliotek", "Library"));
 document.getElementById("right")?.setAttribute("aria-label", tr("Fraklip og fodnoter", "Clippings and footnotes"));
@@ -65,6 +64,7 @@ const empty = document.getElementById("empty") as HTMLElement;
 let session: DocumentSession | null = null;
 
 await loadSettings();
+document.documentElement.lang = settings().textLanguage || currentLang();
 
 // --- kommandoer med »/« (commands/, 5/10) --------------------------------------------------------
 // Sættes før første tekst, så menuen er med i editorens tilstand fra start.
@@ -810,9 +810,9 @@ await listen("quit-requested", () => void quit());
 await listen<string>("file-changed", (e) => {
   if (session && session.path.toLowerCase() === e.payload.toLowerCase()) void session.externalChange();
 });
-// Et andet vindue har ændret indstillinger eller biblioteker.
 await listen("settings-changed", () =>
   void reloadSettings().then(async () => {
+    document.documentElement.lang = settings().textLanguage || currentLang();
     await library.init();
     // Et andet sprog (i18n.ts): gem, og tegn vinduet forfra på det nye sprog.
     if ((await invoke<string>("ui_language").catch(() => currentLang())) !== currentLang()) {

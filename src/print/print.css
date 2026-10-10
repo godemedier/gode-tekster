@@ -208,3 +208,4 @@ body.pv-dragging, body.pv-dragging * { cursor: grabbing !important; }
 .pv-article ol[data-delim=")"][data-type="A"] > li::marker { content: counter(gt-ol, upper-alpha) ") "; }
 .pv-article ol[data-delim=")"][data-type="i"] > li::marker { content: counter(gt-ol, lower-roman) ") "; }
 .pv-article ol[data-delim=")"][data-type="I"] > li::marker { content: counter(gt-ol, upper-roman) ") "; }
+.pv-text-input { border: none; background: transparent; font: inherit; color: inherit; padding: 0; min-width: 40px; width: 8ch; text-align: center; } .pv-text-input:focus { outline: none; } 
