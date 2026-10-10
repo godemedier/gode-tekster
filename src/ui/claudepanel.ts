@@ -104,7 +104,10 @@ export class ClaudePanel {
    * Spørgsmålet stilles én gang pr. udbyder (delbar udgave 3/10: teksten sendes ud af huset).
    */
   private async allowed(): Promise<boolean> {
-    if (!this.ai) await this.refreshAi();
+    // Et tidligere afslag må ikke overleve installation eller login i samme session.
+    // Positive svar bruger Rusts korte cache; negative svar kontrolleres på ny.
+    const previouslyReady = this.ai?.providers.some((p) => p.id === this.ai?.chosen && p.ready);
+    await this.refreshAi(this.ai !== null && !previouslyReady);
     const chosen = this.ai?.providers.find((p) => p.id === this.ai?.chosen);
     if (!chosen?.ready) {
       showBanner(chosen ? `${chosen.name}: ${chosen.detail}` : tr(
