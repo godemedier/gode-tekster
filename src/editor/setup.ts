@@ -29,6 +29,7 @@ import { outline } from "./outline.ts";
 import { styleCheck, styleCheckTheme } from "./styleCheck.ts";
 import { linkClicks } from "./links.ts";
 import { trimLineBreakSelection } from "./selection.ts";
+import { selectionDrag } from "./selectionDrag.ts";
 import { fancyListBlocks, fancyListSupport, headingNumberInput } from "./lists.ts";
 import { paragraphStyle } from "./paragraphs.ts";
 import { slashCommands } from "../commands/slashMenu.ts";
@@ -156,6 +157,7 @@ export function baseExtensions(onChange: OnChange): Extension[] {
     history(),
     drawSelection({ cursorBlinkRate: 0 }),
     wordSelection,
+    selectionDrag,
     blinkingCursor,
     dropCursor(),
     shortcuts(),
