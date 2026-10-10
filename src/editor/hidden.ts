@@ -12,6 +12,7 @@ import { findGoal } from "./goal.ts";
 import { findColor, findStatus } from "./textStatus.ts";
 import { FOOTNOTE_DEF } from "./inline.ts";
 import { touchesMarkers } from "./touches.ts";
+import { structureSpans } from "./structure.ts";
 
 function build(state: EditorState): DecorationSet {
   const out: Range<Decoration>[] = [];
@@ -19,6 +20,7 @@ function build(state: EditorState): DecorationSet {
   const goal = findGoal(doc);
   const status = findStatus(doc);
   const color = findColor(doc);
+  for (const span of structureSpans(doc)) out.push(Decoration.replace({ block: true }).range(span.from, span.to));
   for (const p of [...(status ? [status] : []), ...findParked(doc), ...findClaudeBlocks(doc), ...(goal ? [goal] : []), ...(color ? [color] : [])]) {
     // Blokken uden sit sidste linjeskift, så linjen efter står urørt.
     const end = doc[p.to - 1] === "\n" ? p.to - 1 : p.to;
@@ -35,7 +37,7 @@ function build(state: EditorState): DecorationSet {
  * Programmets egne ændringer af blokkene: fanerne Fraklip, Input og Fodnoter, import, ekstern
  * ændring, oprydning, gendannelse af en version, og fortryd/gentag.
  */
-const OWN = ["input.goal", "input.status", "input.color", "input.park", "delete.park", "input.import", "input.ai", "delete.claude", "input.note", "input.external", "delete.cleanup", "input.compare", "restore", "undo", "redo"];
+const OWN = ["input.structure", "input.goal", "input.status", "input.color", "input.park", "delete.park", "input.import", "input.ai", "delete.claude", "input.note", "input.external", "delete.cleanup", "input.compare", "restore", "undo", "redo"];
 
 /** De skjulte blokke plus linjeskiftet foran dem, som [fra, til, fra, til, …]. */
 export function protectedRanges(state: EditorState): number[] {

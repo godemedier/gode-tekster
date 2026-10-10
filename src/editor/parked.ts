@@ -94,7 +94,7 @@ export function parkChanges(
  */
 export function withoutParked(doc: string): string {
   // Status øverst og #tags sidst er etiketter, ikke tekst (ADR-0038).
-  const spans = commentSpans(doc).filter((s) => /^<!-- gt:(?:parkeret|claude|maal|farve)\b/.test(doc.slice(s.from, s.to)));
+  const spans = commentSpans(doc).filter((s) => /^<!-- gt:(?:parkeret|claude|maal|farve|struktur|del|slut|lyd)\b/.test(doc.slice(s.from, s.to)));
   const pieces: string[] = [];
   let from = 0;
   for (const span of spans) {
