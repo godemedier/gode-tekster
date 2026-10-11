@@ -858,17 +858,118 @@ body.dark [data-color="rosa"] { --fk: #36242a; }
 .rp-card-tools button.rp-dot[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--blæk); }
 .rp-card-tools button.rp-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-/* Struktur bruger samme spalte og bliver kun et stort overblik på bestilling. */
-.rp-body[data-tab="struktur"] { padding: 16px; }
+/* Struktur — nyt kompakt panel og selvstændigt stort overblik */
+.rp-body[data-tab="struktur"] { padding: 12px 14px; height: 100%; box-sizing: border-box; overflow: hidden; }
 .rp-body[data-tab="struktur"] p { color: var(--svag); font-size: 12px; line-height: 1.6; }
+.structure-panel { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; overflow: hidden; }
+.structure-panel .heading { padding: 4px 0 10px; display: flex; flex-direction: column; gap: 8px; flex: none; }
+.structure-panel .heading .row { display: flex; align-items: center; justify-content: space-between; }
+.structure-panel .heading h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.structure-panel .heading small { font-size: 12px; color: var(--svag); font-weight: normal; }
+.structure-panel .icon { font-size: 18px; padding: 2px 8px; min-height: 28px; line-height: 1; border: 1px solid var(--kant); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.structure-panel .overview { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--kant); border-radius: 5px; font-size: 12px; padding: 7px 10px; background: transparent; color: inherit; cursor: pointer; }
+.structure-panel .overview:hover { background: var(--hover); }
+.structure-panel .method { padding: 0 0 10px; border-bottom: 1px solid var(--streg); flex: none; }
+.structure-panel .method button { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 12px; border: none; background: transparent; cursor: pointer; color: inherit; }
+.structure-panel .method small { display: block; font-size: 11px; color: var(--svag); }
+.structure-panel .list { overflow-y: auto; flex: 1; min-height: 80px; padding: 8px 0; }
+.structure-panel .part { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 7px; text-align: left; width: 100%; padding: 9px 8px; border: 1px solid transparent; border-left: 2px solid transparent; border-radius: 4px; margin-bottom: 2px; background: transparent; color: inherit; cursor: pointer; box-sizing: border-box; }
+.structure-panel .part:hover { background: var(--hover); }
+.structure-panel .part.selected { background: var(--valgt); border-left-color: var(--accent); }
+.structure-panel .part .number { color: var(--svag); font-size: 11px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.structure-panel .part strong { font-size: 13px; font-weight: 600; display: block; overflow-wrap: anywhere; }
+.structure-panel .part small { font-size: 11px; color: var(--svag); display: block; margin-top: 3px; }
+.structure-panel .part .words { font-size: 10px; color: var(--svag); white-space: nowrap; padding-top: 3px; }
+.structure-panel .note-dot { font-size: 12px; color: var(--accent); }
+.structure-panel .details { border-top: 1px solid var(--streg); padding: 12px 0 8px; flex: none; max-height: 48%; overflow-y: auto; }
+.structure-panel .details .eyebrow { font-size: 10px; color: var(--svag); text-transform: uppercase; letter-spacing: .8px; }
+.structure-panel .details .detail-title { font-weight: 600; font-size: 14px; margin: 4px 0 6px; overflow-wrap: anywhere; }
+.structure-panel .details p { font-size: 12px; line-height: 1.6; color: var(--svag); margin: 6px 0; }
+.structure-panel .detail-actions { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.structure-panel .detail-actions button { font-size: 12px; padding: 4px 8px; border: 1px solid var(--kant); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.structure-panel .detail-actions button:hover { background: var(--hover); }
+.structure-panel .detail-actions button:disabled { opacity: .4; cursor: default; }
+.structure-panel .detail-actions button:first-child { margin-right: auto; }
+.structure-panel .edit-form { margin-top: 8px; }
+.structure-panel .field { display: block; font-size: 11px; color: var(--svag); margin-bottom: 8px; }
+.structure-panel .field input, .structure-panel .field textarea, .structure-panel .field select { margin-top: 4px; font-size: 13px; color: var(--blæk); width: 100%; box-sizing: border-box; background: var(--kort); border: 1px solid var(--kant); border-radius: 4px; padding: 6px; }
+.structure-panel .field textarea { min-height: 65px; resize: vertical; }
+.structure-panel .hidden-note { font-size: 11px; color: var(--svag); display: block; margin-bottom: 6px; }
+.structure-panel .foot { border-top: 1px solid var(--streg); padding: 8px 0 0; display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--svag); flex: none; }
+.structure-panel .foot button { font-size: 11px; padding: 3px 8px; border: 1px solid var(--kant); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.structure-panel .empty { padding: 20px 8px; text-align: left; }
+.structure-panel .empty h3 { font-size: 15px; margin-bottom: 8px; }
+.structure-panel .empty p { font-size: 12px; color: var(--svag); margin: 0 0 16px; }
+.structure-panel .empty button { width: 100%; margin-bottom: 8px; text-align: left; padding: 8px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.structure-panel .empty button.primary { background: var(--blæk); color: var(--kort); border: none; }
+.structure-panel .empty button.outline { border: 1px solid var(--kant); background: transparent; color: inherit; }
+
+/* Dialoger til struktur */
+dialog.structure-dialog { padding: 0; border: 1px solid var(--kant); border-radius: 10px; background: var(--flade); color: var(--blæk); box-shadow: 0 24px 80px rgba(0,0,0,.25); max-width: calc(100vw - 40px); max-height: calc(100dvh - 60px); z-index: 100; }
+dialog.structure-dialog::backdrop { background: rgba(0,0,0,.5); }
+dialog.structure-dialog header { padding: 16px 20px; border-bottom: 1px solid var(--streg); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+dialog.structure-dialog header h2 { font-size: 17px; margin: 0; }
+dialog.structure-dialog header p { font-size: 12px; color: var(--svag); margin: 4px 0 0; }
+dialog.structure-dialog footer { border-top: 1px solid var(--streg); padding: 12px 20px; display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+dialog.structure-dialog .modal-body { padding: 18px 20px; overflow-y: auto; }
+dialog.structure-dialog.small-dialog { width: 460px; }
+dialog.structure-dialog .choice { display: block; width: 100%; text-align: left; border: 1px solid var(--kant); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; background: var(--kort); color: inherit; cursor: pointer; }
+dialog.structure-dialog .choice strong { display: block; font-size: 13px; }
+dialog.structure-dialog .choice small { display: block; font-size: 11px; color: var(--svag); margin-top: 3px; }
+dialog.structure-dialog .choice.selected { border-color: var(--accent); }
+dialog.structure-dialog button.primary { background: var(--blæk); color: var(--flade); border: 1px solid var(--blæk); border-radius: 4px; padding: 6px 14px; font-size: 12px; cursor: pointer; }
+dialog.structure-dialog button.outline { border: 1px solid var(--kant); background: transparent; color: inherit; border-radius: 4px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+
+/* Stort overblik */
+#board { width: 1120px; height: min(780px, calc(100dvh - 64px)); }
+#board[open] { display: flex; flex-direction: column; }
+#board .board-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; min-height: 0; flex: 1; }
+#board .board-grid { padding: 20px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; align-content: start; }
+#board .board-card { background: var(--kort); border: 1px solid var(--kant); border-radius: 7px; min-height: 170px; display: flex; flex-direction: column; padding: 14px; text-align: left; cursor: grab; color: inherit; }
+#board .board-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+#board .board-card.drag-over { border: 2px dashed var(--accent); }
+#board .board-card h3 { font-size: 14px; line-height: 1.4; margin: 10px 0 6px; overflow-wrap: anywhere; }
+#board .board-card p { font-size: 12px; color: var(--svag); line-height: 1.5; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#board .board-card .row:last-child { margin-top: auto; font-size: 11px; color: var(--svag); display: flex; justify-content: space-between; }
+#board .board-detail { padding: 20px; border-left: 1px solid var(--streg); overflow-y: auto; background: var(--panel); }
+#board .board-detail h3 { font-size: 17px; line-height: 1.4; margin: 8px 0 12px; }
+#board .board-detail p { font-size: 13px; line-height: 1.7; margin-bottom: 14px; }
+#board .board-detail .note { padding: 10px; border-left: 2px solid var(--accent); background: var(--valgt); font-size: 12px; }
+#board-read-toggle { display: none; }
+@media (max-width: 760px) {
+  #board-read-toggle { display: block; }
+  #board .board-body { display: block; overflow: hidden; }
+  #board .board-grid { height: 100%; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  #board .board-detail { display: none; height: 100%; border-left: 0; }
+  #board.reading .board-grid { display: none; }
+  #board.reading .board-detail { display: block; }
+}
+
+/* Metodedialog */
+#methods { width: 740px; }
+#methods[open] { display: flex; flex-direction: column; }
+.categories { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 16px; }
+.categories button { font-size: 12px; border: 1px solid var(--kant); border-radius: 4px; padding: 4px 10px; background: transparent; color: inherit; cursor: pointer; }
+.categories button[aria-pressed="true"] { background: var(--valgt); border-color: var(--blæk); font-weight: 600; }
+.method-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.method-choices .choice { margin: 0; min-height: 96px; }
+.method-choices .choice.selected { border-color: var(--accent); }
+
+/* AI Forslagsdialog */
+#proposal { width: 480px; }
+#proposal[open] { display: flex; flex-direction: column; }
+.proposal-list { list-style: none; padding: 0; margin: 0; }
+.proposal-list li { padding: 10px 0; border-bottom: 1px solid var(--streg); }
+.proposal-list strong { font-size: 13px; }
+.proposal-list p { margin: 4px 0 0; font-size: 12px; color: var(--svag); }
+.proposal-role { font-size: 11px; color: var(--accent); margin-top: 2px; }
+
+/* Bagudkompatibilitet til testværktøjer */
 .structure-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
 .structure-tools button, .structure-proposal button { border: 1px solid var(--kant, #ddd); border-radius: 5px; padding: 5px 8px; color: inherit; background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
 .structure-cards { display: grid; gap: 14px; }
 .rp-wide .structure-cards { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-.structure-card, .structure-proposal { padding: 12px; border: 1px solid var(--kant, #ddd); border-radius: 6px; }
 .structure-card label { display: block; color: var(--svag); font-size: 11px; margin-bottom: 8px; }
-.structure-card input, .structure-card textarea, .rp-body[data-tab="struktur"] select { display: block; box-sizing: border-box; width: 100%; font: inherit; color: var(--blæk); background: transparent; border: 1px solid var(--kant, #ddd); border-radius: 4px; padding: 6px; }
-.structure-card textarea { min-height: 65px; resize: vertical; }
 
 .rp-body[data-tab="lyd"] { padding: 16px; }
 .rp-body[data-tab="lyd"] audio { width: 100%; margin: 12px 0; }

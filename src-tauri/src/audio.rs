@@ -619,15 +619,24 @@ fn audio_provider(app: &AppHandle) -> Option<crate::ai::Provider> {
 pub async fn audio_support(app: AppHandle) -> Result<Support, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let provider = audio_provider(&app);
-        let ready = provider == Some(crate::ai::Provider::Gemini) && crate::gemini::has_key();
-        let detail=if ready {
-            t!("Lyden sendes til Gemini med din nøgle fra Google AI Studio. Din kvote og eventuelle betaling gælder.", "Audio is sent to Gemini using your Google AI Studio key. Your quota and any billing apply.")
-        } else if provider==Some(crate::ai::Provider::Gemini) {
-            t!("Gemini mangler din nøgle. Indsæt den under AI-hjælp i indstillingerne.","Gemini needs your key. Add it under AI help in Settings.")
-        } else {
-            t!("Den valgte AI-forbindelse har endnu ingen afprøvet filtransskription i appen. Vælg selv en anden under AI-hjælp, hvis du vil bruge den.", "The selected AI connection has no verified file transcription in this app yet. Choose another in AI help if you want to use it.")
+        let (ready, detail) = match provider {
+            Some(crate::ai::Provider::Gemini) => {
+                if crate::gemini::has_key() {
+                    (true, t!("Lyden sendes til Gemini med din nøgle fra Google AI Studio. Din kvote og eventuelle betaling gælder.", "Audio is sent to Gemini using your Google AI Studio key. Your quota and any billing apply."))
+                } else {
+                    (false, t!("Gemini mangler din nøgle. Indsæt den under AI-hjælp i indstillingerne.", "Gemini needs your key. Add it under AI help in Settings."))
+                }
+            }
+            Some(crate::ai::Provider::Codex) => {
+                if crate::codex::logged_in() {
+                    (true, t!("Lyden transskriberes gennem dit ChatGPT-abonnement via OpenAIs Codex-program. Ingen API-nøgle kræves.", "Audio is transcribed through your ChatGPT subscription via OpenAI's Codex app. No API key needed."))
+                } else {
+                    (false, t!("ChatGPT kræver login i Codex-programmet. Kør 'codex login' i terminalen.", "ChatGPT requires login in the Codex app. Run 'codex login' in the terminal."))
+                }
+            }
+            _ => (false, t!("Den valgte AI-forbindelse har endnu ingen afprøvet filtransskription i appen. Vælg selv en anden under AI-hjælp, hvis du vil bruge den.", "The selected AI connection has no verified file transcription in this app yet. Choose another in AI help if you want to use it.")),
         };
-        Ok(Support {provider,ready,detail:detail.to_owned()})
+        Ok(Support { provider, ready, detail: detail.to_owned() })
     }).await.map_err(|_| error())?
 }
 #[tauri::command]
@@ -685,8 +694,23 @@ fn escape_text(text: &str) -> String {
     }
     out
 }
-fn metadata(info: &AudioInfo, complete: bool) -> String {
-    let json = serde_json::json!({"version":1,"audio":info.name,"duration":info.duration,"provider":"gemini","model":crate::gemini_audio::DEFAULT_MODEL,"complete":complete,"timing":"segments"}).to_string().replace('<',"\\u003c").replace('>',"\\u003e");
+fn metadata(info: &AudioInfo, complete: bool, provider: Option<crate::ai::Provider>) -> String {
+    let (p_name, model_name) = match provider {
+        Some(crate::ai::Provider::Codex) => ("codex", crate::codex_audio::DEFAULT_MODEL),
+        _ => ("gemini", crate::gemini_audio::DEFAULT_MODEL),
+    };
+    let json = serde_json::json!({
+        "version": 1,
+        "audio": info.name,
+        "duration": info.duration,
+        "provider": p_name,
+        "model": model_name,
+        "complete": complete,
+        "timing": "segments"
+    })
+    .to_string()
+    .replace('<', "\\u003c")
+    .replace('>', "\\u003e");
     format!("<!-- gt:lyd {json} -->\n")
 }
 fn resume_language(
@@ -838,7 +862,7 @@ pub async fn audio_transcribe(
             let complete = core_end == bytes;
             *selected.transcript.lock().map_err(|_| error())? = Some(format!(
                 "{}{}{}",
-                metadata(&info, complete),
+                metadata(&info, complete, provider),
                 if complete {
                     String::new()
                 } else {

@@ -11,6 +11,7 @@ mod autostart;
 mod claude;
 mod clean;
 mod codex;
+pub mod codex_audio;
 mod commands;
 mod contextmenu;
 mod convert;
