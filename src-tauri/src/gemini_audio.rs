@@ -193,6 +193,7 @@ pub fn transcribe(audio: &[u8], duration_ms: u64, language: &str) -> Result<Tran
         duration_ms,
         language,
         &std::sync::atomic::AtomicBool::new(false),
+        &|_, _| {},
     )
 }
 
@@ -201,6 +202,7 @@ pub fn transcribe_cancellable(
     duration_ms: u64,
     language: &str,
     cancelled: &std::sync::atomic::AtomicBool,
+    on_retry: &dyn Fn(u64, u64),
 ) -> Result<Transcript, String> {
     if duration_ms == 0 || duration_ms > 60_000 {
         return Err(invalid_input());
@@ -215,6 +217,9 @@ pub fn transcribe_cancellable(
     })?;
     let mut attempts = 0;
     let mut response = loop {
+        if cancelled.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(t!("Transskriptionen blev stoppet.", "Transcription stopped.").to_owned());
+        }
         let response = crate::gemini::agent(Duration::from_secs(60))
             .post("https://generativelanguage.googleapis.com/v1beta/interactions")
             .header("x-goog-api-key", &key)
@@ -239,6 +244,7 @@ pub fn transcribe_cancellable(
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(if status == 429 { 60 } else { 5 * attempts })
             .clamp(1, 120);
+        on_retry(attempts, wait);
         for _ in 0..wait * 5 {
             if cancelled.load(std::sync::atomic::Ordering::SeqCst) {
                 return Err(
@@ -247,6 +253,7 @@ pub fn transcribe_cancellable(
             }
             std::thread::sleep(Duration::from_millis(200));
         }
+        on_retry(attempts, 0);
     };
     match response.status().as_u16() {
         200 => {},

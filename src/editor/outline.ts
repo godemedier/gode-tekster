@@ -10,6 +10,7 @@ import { codeFolding, foldCode, unfoldCode } from "@codemirror/language";
 
 import { tr } from "../i18n.ts";
 import { codeSpans, commentSpans, maskSpans } from "./textSyntax.ts";
+import { footnoteText } from "./inline.ts";
 
 export type Heading = { level: number; text: string; from: number };
 type Unit = { from: number; to: number };
@@ -35,9 +36,10 @@ export function bodyHeadings(doc: string): Heading[] {
 }
 
 /** Hvor teksten slutter, før de skjulte blokke (fodnotedefinitioner, fraklip, Claude). */
-function bodyEnd(doc: string): number {
-  const m = /^(\[\^[^\]\s]+\]:|<!-- gt:(?:parkeret|claude|maal|farve)\b)/m.exec(doc);
-  return m ? m.index : doc.length;
+export function bodyEnd(doc: string): number {
+  const footnote = /^\[\^[^\]\s]+\]:/m.exec(footnoteText(doc));
+  const metadata = commentSpans(doc).find(s => /^<!-- gt:(?:parkeret|claude|maal|farve)\b/.test(doc.slice(s.from, s.to)));
+  return Math.min(footnote?.index ?? doc.length, metadata?.from ?? doc.length);
 }
 
 /** Afsnit: sammenhængende ikke-tomme linjer. Til `end`, så skjulte blokke ikke kommer med. */

@@ -156,6 +156,8 @@ Afkodning kræver den afprøvede FFmpeg 8.1.2 fra Gyan. Er den ikke fundet på p
 vælge dens mappe i lydpanelet. Programmet henter eller installerer den ikke automatisk.
 Der kan behandles op til seks timers lyd. Undervejs kan du stoppe, gemme de færdige dele
 eller fortsætte. En kvotegrænse kan give ventetid eller afbryde jobbet.
+Panelet viser færdige dele, forløbet tid og pauser før genforsøg. Fortsættelse bruger
+samme sprog som de færdige dele.
 
 **Gem og ret teksten** opretter en ny Markdown-fil ved optagelsen. Ret den som enhver
 anden tekst. Ctrl+klik på en tidskode afspiller stedet i optagelsen. Lydpanelet har pause
@@ -163,4 +165,6 @@ og hastighedsvalg. Behold lydfilen ved transskriptionen, når du flytter dem.
 Taler-id'er gælder kun den enkelte lydblok. Kontroller navne, citater og tal mod lyden.
 Efter et nedbrud tilbyder lydpanelet at åbne gemte delresultater. Brug **Gem som** til
 at lægge den gendannede tekst ved optagelsen igen.
+Kan teksten ikke gemmes ved optagelsen, giver **Gem et andet sted …** adgang til en
+anden mappe. Vælg et nyt filnavn. Flyt en kopi af lyden med for at bruge tidskoderne.
 

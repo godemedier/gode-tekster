@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EditorState } from "@codemirror/state";
 import { hiddenBlocks } from "./hidden.ts";
+import { addStructurePart, structureParts } from "./structure.ts";
 
 const block = "<!-- gt:parkeret id=p1 dato=2026-10-05\nEt klip.\n-->";
 const doc = `# Titel\n\nFørste afsnit.\n\nSidste afsnit.\n${block}\n`;
@@ -34,4 +35,26 @@ test("der kan stadig skrives i enden af sidste linje, og fanen kan selv fjerne k
   const from = doc.indexOf(block);
   const removed = s.update({ changes: { from, to: from + block.length }, userEvent: "delete.park" }).state.doc.toString();
   assert.ok(!removed.includes("gt:parkeret"));
+});
+
+test("note og formatering over strukturmærker bevarer del og arbejdsnote", () => {
+  let s = EditorState.create({ doc: "Første afsnit.\n", extensions: [hiddenBlocks] });
+  s = s.update({ changes: addStructurePart(s.doc.toString(), 0, s.doc.length, "Start", "", "Bevar noten")!, userEvent: "input.structure" }).state;
+  const before = s.doc.toString(), part = structureParts(before)[0];
+  for (const userEvent of ["input.note", "input.format"]) {
+    const selected = before.slice(part.contentFrom);
+    const after = s.update({ changes: { from: part.contentFrom, to: s.doc.length, insert: `<!-- ${selected.replace(/-->/g, "-- >")} -->` }, userEvent }).state;
+    assert.equal(after.doc.toString(), before);
+    assert.equal(structureParts(after.doc.toString())[0].note, "Bevar noten");
+  }
+});
+
+test("ændret kodeafgrænsning giver samme skjulte områder før og efter genåbning", () => {
+  let s = EditorState.create({ doc: "Første.\n\nAnden.\n", extensions: [hiddenBlocks] });
+  s = s.update({ changes: addStructurePart(s.doc.toString(), 0, s.doc.length, "Start")!, userEvent: "input.structure" }).state;
+  const p = structureParts(s.doc.toString())[0];
+  s = s.update({ changes: { from: p.contentFrom, insert: "```\n" }, userEvent: "input.type" }).state;
+  const reopened = EditorState.create({ doc: s.doc, extensions: [hiddenBlocks] });
+  const ranges = (state: EditorState) => { const out: number[] = []; state.field(hiddenBlocks).between(0, state.doc.length, (a,b) => { out.push(a,b); }); return out; };
+  assert.deepEqual(ranges(s), ranges(reopened));
 });

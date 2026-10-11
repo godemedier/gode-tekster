@@ -154,6 +154,7 @@ struct Job {
     completed: AtomicU64,
     text: Mutex<String>,
     provider: Mutex<Option<crate::ai::Provider>>,
+    language: Mutex<Option<String>>,
 }
 impl Drop for Job {
     fn drop(&mut self) {
@@ -184,6 +185,8 @@ pub struct AudioInfo {
 pub struct Progress {
     done: u64,
     total: u64,
+    retry: u64,
+    wait_seconds: u64,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -395,6 +398,7 @@ fn register(app: &AppHandle, owner: String, source: PathBuf) -> Result<String, S
         completed: AtomicU64::new(0),
         text: Mutex::new(String::new()),
         provider: Mutex::new(None),
+        language: Mutex::new(None),
     });
     let mut jobs = app
         .state::<AudioState>()
@@ -511,7 +515,9 @@ pub async fn audio_prepare(
         )?;
         let (_, samples) = wav_data(&playback)?;
         let actual = samples as f64 / 32000.0;
-        if (actual - duration).abs() > 1.0
+        if actual <= 0.0
+            || actual > 21600.0
+            || (actual - duration).abs() > 1.0
             || hash_checked(&selected.source, Some(&selected.cancelled))? != stamp
             || selected.cancelled.load(Ordering::SeqCst)
         {
@@ -683,6 +689,17 @@ fn metadata(info: &AudioInfo, complete: bool) -> String {
     let json = serde_json::json!({"version":1,"audio":info.name,"duration":info.duration,"provider":"gemini","model":crate::gemini_audio::DEFAULT_MODEL,"complete":complete,"timing":"segments"}).to_string().replace('<',"\\u003c").replace('>',"\\u003e");
     format!("<!-- gt:lyd {json} -->\n")
 }
+fn resume_language(
+    current: &mut Option<String>,
+    completed: u64,
+    language: &str,
+) -> Result<(), String> {
+    if completed > 0 && current.as_deref() != Some(language) {
+        return Err(t!("Fortsæt med samme sprog som de færdige lyddele. Åbn optagelsen igen for at begynde forfra med et andet sprog.", "Continue with the language used for completed segments. Reopen the recording to start over with another language.").to_owned());
+    }
+    *current = Some(language.to_owned());
+    Ok(())
+}
 #[tauri::command]
 pub async fn audio_transcribe(
     app: AppHandle,
@@ -716,6 +733,17 @@ pub async fn audio_transcribe(
         f.seek(SeekFrom::Start(start)).map_err(|_| error())?;
         let total = bytes.div_ceil(32000 * 54);
         let completed = selected.completed.load(Ordering::SeqCst);
+        resume_language(
+            &mut *selected.language.lock().map_err(|_| error())?,
+            completed,
+            &language,
+        )?;
+        let _ = progress.send(Progress {
+            done: completed,
+            total,
+            retry: 0,
+            wait_seconds: 0,
+        });
         let mut text = if completed == 0 {
             format!("# {}\n\n", t!("Transskription", "Transcript"))
         } else {
@@ -745,6 +773,14 @@ pub async fn audio_transcribe(
                 (size as u64).div_ceil(32),
                 &language,
                 &selected.cancelled,
+                &|retry, wait_seconds| {
+                    let _ = progress.send(Progress {
+                        done: index,
+                        total,
+                        retry,
+                        wait_seconds,
+                    });
+                },
             )?;
             if selected.cancelled.load(Ordering::SeqCst) {
                 break;
@@ -816,6 +852,8 @@ pub async fn audio_transcribe(
             let _ = progress.send(Progress {
                 done: index + 1,
                 total,
+                retry: 0,
+                wait_seconds: 0,
             });
             if let Some(snapshot) = selected.transcript.lock().map_err(|_| error())?.as_ref() {
                 crate::files::write_atomic(
@@ -846,14 +884,35 @@ pub async fn save_transcript(
     app: AppHandle,
     window: tauri::Window,
     id: String,
-) -> Result<String, String> {
+    elsewhere: Option<bool>,
+) -> Result<Option<String>, String> {
     let selected = job(&app, window.label(), &id)?;
     let guard = running(&selected)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = guard;
         let text=selected.transcript.lock().map_err(|_| error())?.clone().ok_or_else(error)?;
+        // En færdig tekst kan reddes, selv om kilden er flyttet eller mappen er skrivebeskyttet.
+        if elsewhere == Some(true) {
+            use tauri_plugin_dialog::DialogExt;
+            let picked = app.dialog().file()
+                .set_title(t!("Gem transskription", "Save transcript"))
+                .set_file_name("Transskription.md")
+                .add_filter("Markdown", &["md"])
+                .blocking_save_file().and_then(|p| p.into_path().ok());
+            let Some(target) = picked else { return Ok(None); };
+            crate::files::write_atomic_new(&target, text.as_bytes()).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::AlreadyExists {
+                    t!("Filen findes allerede. Vælg et nyt navn, så den eksisterende tekst bliver bevaret.", "The file already exists. Choose a new name to keep the existing text.").to_owned()
+                } else {
+                    t!("Transskriptionen kunne ikke gemmes. Vælg en mappe med plads og skriverettigheder.", "Could not save the transcript. Choose a writable folder with enough space.").to_owned()
+                }
+            })?;
+            let _ = std::fs::remove_file(selected.folder.join("recovery.md"));
+            crate::document::choose(&app, &target);
+            return Ok(Some(target.to_string_lossy().into_owned()));
+        }
         let info=selected.info.lock().map_err(|_| error())?.clone().ok_or_else(error)?;
-        if selected.source.canonicalize().map_err(|_| error())?!=selected.source || hash_checked(&selected.source, Some(&selected.cancelled))?!=info.stamp { return Err(t!("Optagelsen er ændret eller flyttet. Vælg den igen.","The recording changed or moved. Select it again.").to_owned()); }
+        if selected.source.canonicalize().map_err(|_| t!("Optagelsen blev ikke fundet. Gem transskriptionen et andet sted.","The recording was not found. Save the transcript elsewhere.").to_owned())?!=selected.source || hash_checked(&selected.source, Some(&selected.cancelled))?!=info.stamp { return Err(t!("Optagelsen er ændret eller flyttet. Vælg den igen.","The recording changed or moved. Select it again.").to_owned()); }
         let parent=selected.source.parent().ok_or_else(error)?;
         let stem=selected.source.file_stem().ok_or_else(error)?.to_string_lossy();
         for n in 1..1000 {
@@ -863,7 +922,7 @@ pub async fn save_transcript(
                 Ok(())=>{
                     let _ = std::fs::remove_file(selected.folder.join("recovery.md"));
                     crate::document::choose(&app,&target);
-                    return Ok(target.to_string_lossy().into_owned());
+                    return Ok(Some(target.to_string_lossy().into_owned()));
                 },
                 Err(e) if e.kind()==std::io::ErrorKind::AlreadyExists=>continue,
                 Err(_)=>return Err(t!("Transskriptionen kunne ikke gemmes ved lydfilen. Kontrollér plads og skriverettigheder.","Could not save the transcript beside the audio. Check disk space and write permissions.").to_owned()),
@@ -913,6 +972,15 @@ pub fn transcript_audio(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn genoptagelse_bevarer_sprog_ogsaa_efter_gemning() {
+        let mut language = None;
+        assert!(resume_language(&mut language, 0, "da").is_ok());
+        assert!(resume_language(&mut language, 3, "en").is_err());
+        assert_eq!(language.as_deref(), Some("da"));
+        assert!(resume_language(&mut language, 3, "da").is_ok());
+        assert!(resume_language(&mut language, 0, "en").is_ok());
+    }
     #[test]
     fn pcm_rundtur_og_afvisning_af_beskadiget_wav() {
         let dir = tempfile::tempdir().unwrap();

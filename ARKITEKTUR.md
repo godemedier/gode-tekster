@@ -1039,3 +1039,12 @@ giver en synlig forklaring. ChatGPT-abonnementets korte WebRTC-prøve er ikke en
 Taler-id'er er lokale for hver lydblok og foregiver ikke at være identiteter gennem hele filen.
 Lydkvalitet og hastighed afhænger af optagelse, udbyder og kvote. GoodTape er reference,
 ikke en påstand om samme kvalitet eller funktioner.
+
+### ADR-0048 — Gem transskriptionen, selv om lydkilden er utilgængelig (11/10-2026)
+Supplerer ADR-0047. **Beslutning:** Fejler gemning ved lydfilen, kan brugeren vælge
+en anden destination i Rusts Gem-dialog. Kun en ny fil må oprettes, atomisk og uden
+overskrivning. Denne redningsvej kræver ikke, at lydkilden stadig findes. Nødkopien
+fjernes først efter vellykket skrivning. Fladen husker den gemte sti, så et afvist
+filskift kan prøves igen uden at oprette en dublet.
+**Begrundelse:** En flyttet lydfil eller skrivebeskyttet kildemappe må ikke blokere
+gemning af færdige delresultater. Tidslinks kræver fortsat lyden ved teksten.

@@ -1,18 +1,20 @@
 import type { EditorView } from "@codemirror/view";
-import { syntaxTree } from "@codemirror/language";
 import { invoke } from "@tauri-apps/api/core";
 import { addStructurePart, editStructurePart, removeStructurePart, setStructureModel, structureParts, structurePlan, structureContext } from "../editor/structure.ts";
-import { bodyHeadings } from "../editor/outline.ts";
 import { withoutParked } from "../editor/parked.ts";
 import { MODEL_GROUPS, NARRATIVE_MODELS, narrativeModel } from "./models.ts";
-import { applyStructure, groupSelection, movePart } from "./edit.ts";
+import { applyStructure, groupSelection, headingGroups, movePart, structureCandidates } from "./edit.ts";
 import { errorText, showBanner } from "../ui/banner.ts";
-import { tr } from "../i18n.ts";
+import { locale, tr } from "../i18n.ts";
 
 const button = (text: string, run: () => void) => {
   const el = document.createElement("button"); el.type = "button"; el.textContent = text; el.onclick = run; return el;
 };
 const paragraph = (text: string) => { const el = document.createElement("p"); el.textContent = text; return el; };
+const excerpt = (text: string) => {
+  const visible = withoutParked(text).trim();
+  return visible ? visible.slice(0, 160) + (visible.length > 160 ? "…" : "") : tr("Planlagt del", "Planned part");
+};
 type Suggestion = { model: string; reason: string; parts: { id: string; role: string; note: string }[] };
 
 export class StructurePanel {
@@ -22,6 +24,9 @@ export class StructurePanel {
   private documentGeneration = 0;
   private proposal: { doc: string; value: Suggestion; candidates: {id:string;title:string;from:number;to:number}[] } | null = null;
   private body: HTMLElement | null = null;
+  private renderKey = "";
+  private cards: HTMLElement | null = null;
+  private previews = new Map<string, HTMLElement>();
   private allowed: () => Promise<boolean>;
   constructor(view: EditorView, allowed: () => Promise<boolean> = async () => true) { this.view = view; this.allowed = allowed; }
   docOpened(): void { this.documentGeneration++; this.proposal=null; }
@@ -34,6 +39,23 @@ export class StructurePanel {
     document.body.classList.toggle("rp-wide", this.wide);
     const doc = this.view.state.doc.toString(), parts = structureParts(doc), plan = structurePlan(doc);
     const model = narrativeModel(plan?.model ?? "");
+    const key = JSON.stringify([this.documentGeneration, this.wide, this.busy, this.view.state.readOnly,
+      locale(), plan?.model, Boolean(this.proposal), parts.map(p => [p.id, p.role])]);
+    // Skrivning flytter grænser, men kræver ikke 300 nye formularer. Knapperne finder delen ved id.
+    if (!this.proposal && key === this.renderKey && this.cards?.parentElement === body) {
+      for (const part of parts) {
+        const preview = this.previews.get(part.id);
+        const text = excerpt(doc.slice(part.contentFrom, part.contentTo));
+        if (preview && preview.textContent !== text) preview.textContent = text;
+        for (const field of ["title", "note"] as const) {
+          const input = preview?.parentElement?.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-field="${field}"]`);
+          if (input && input.value !== part[field]) input.value = part[field];
+        }
+      }
+      return;
+    }
+    this.renderKey = key;
+    this.previews.clear();
     const select = document.createElement("select");
     select.setAttribute("aria-label", tr("Fortællemetode", "Narrative method"));
     select.add(new Option(tr("Fri opbygning", "Free structure"), ""));
@@ -80,6 +102,7 @@ export class StructurePanel {
     }
     if (!parts.length) body.append(paragraph(tr("Markér et afsnit og gruppér det, eller begynd med en tom del.", "Group a selected paragraph, or start with an empty part.")));
     const cards = document.createElement("div"); cards.className = "structure-cards";
+    this.cards = cards;
     for (const part of parts) {
       const card = document.createElement("section"); card.className = "structure-card"; card.dataset.part = part.id;
       const field = (key: "title" | "role" | "note", label: string) => {
@@ -102,8 +125,9 @@ export class StructurePanel {
       card.append(field("note", tr("Arbejdsnote", "Working note")));
       const role = model?.roles.find(r => r.id === part.role || r.name === part.role);
       if (role) card.append(paragraph(role.question));
-      const text = withoutParked(doc.slice(part.contentFrom, part.contentTo)).trim();
-      card.append(paragraph(text ? text.slice(0, 160) + (text.length > 160 ? "…" : "") : tr("Planlagt del", "Planned part")));
+      const preview = paragraph(excerpt(doc.slice(part.contentFrom, part.contentTo)));
+      this.previews.set(part.id, preview);
+      card.append(preview);
       const actions = document.createElement("div"); actions.className = "structure-tools";
       actions.append(button(tr("Skriv her", "Write here"), () => {
         const current = structureParts(this.view.state.doc.toString()).find(p => p.id === part.id); if (!current) return;
@@ -126,15 +150,11 @@ export class StructurePanel {
   private refresh(): void { if (this.body?.dataset.tab === "struktur") this.render(this.body); }
   private headings(): void {
     const doc = this.view.state.doc.toString();
-    const hs = bodyHeadings(doc);
-    const level = Math.min(...hs.map(h => h.level));
-    const selected = hs.filter(h => h.level === level);
-    const context = structureContext(doc);
-    const end = structurePlan(doc)?.from ?? doc.length;
-    const candidates = selected.map((h,i) => ({ h, changes: addStructurePart(doc, h.from, selected[i+1]?.from ?? end, h.text, "", "", context) }));
+    const generation = this.documentGeneration;
+    const candidates = headingGroups(doc);
     if (!candidates.length || candidates.some(c => !c.changes)) { showBanner(tr("Ingen hele, ugrupperede overskriftsafsnit at opdele.", "No complete ungrouped sections to split.")); return; }
-    showBanner(tr(`Opret ${candidates.length} dele: ${selected.map(h => h.text).join(" · ")}`, `Create ${candidates.length} parts: ${selected.map(h => h.text).join(" · ")}`), [{ label: tr("Opret dele", "Create parts"), run: () => {
-      if (doc !== this.view.state.doc.toString()) { showBanner(tr("Teksten er ændret. Vælg opdeling igen.", "The text has changed. Preview the split again.")); return; }
+    showBanner(tr(`Opret ${candidates.length} dele: ${candidates.map(h => h.title).join(" · ")}`, `Create ${candidates.length} parts: ${candidates.map(h => h.title).join(" · ")}`), [{ label: tr("Opret dele", "Create parts"), run: () => {
+      if (generation !== this.documentGeneration || doc !== this.view.state.doc.toString()) { showBanner(tr("Teksten er ændret. Vælg opdeling igen.", "The text has changed. Preview the split again.")); return; }
       applyStructure(this.view, candidates.flatMap(c => c.changes!));
     } }], { closable: true, perText: true });
   }
@@ -148,13 +168,10 @@ export class StructurePanel {
       const parts = structureParts(doc).map(p => ({ id: p.id, title: p.title, text: withoutParked(doc.slice(p.contentFrom,p.contentTo)) }));
       const candidates:{id:string;title:string;from:number;to:number}[]=[];
       if(model && !parts.length) {
-        const context=structureContext(doc);
-        for(let node=syntaxTree(this.view.state).topNode.firstChild;node;node=node.nextSibling) {
-          const from=this.view.state.doc.lineAt(node.from).from,to=Math.min(doc.length,this.view.state.doc.lineAt(node.to).to+1);
-          const title=doc.slice(from,to).trim().replace(/^#+\s*/,"").split("\n")[0].slice(0,80);
-          if(!addStructurePart(doc,from,to,title,"","",context))continue;
-          const id=`candidate-${candidates.length}`;candidates.push({id,title,from,to});parts.push({id,title,text:withoutParked(doc.slice(from,to))});
-        }
+        const parsed = structureCandidates(this.view.state);
+        if (!parsed) { showBanner(tr("Teksten er stadig ved at blive læst. Prøv igen om et øjeblik.", "The text is still being parsed. Try again in a moment.")); return; }
+        candidates.push(...parsed);
+        for (const candidate of candidates) parts.push({ id: candidate.id, title: candidate.title, text: withoutParked(doc.slice(candidate.from, candidate.to)) });
       }
       const value = await invoke<Suggestion>("structure_suggest", { text: withoutParked(doc), parts, model });
       if(generation===this.documentGeneration)this.proposal = { doc, value, candidates };

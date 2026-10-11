@@ -7,7 +7,7 @@ import { authorshipField, authorshipHistory, setAuthorship, OTHERS } from "../ed
 import { markdown } from "@codemirror/lang-markdown";
 import { hiddenBlocks } from "../editor/hidden.ts";
 import { addStructurePart, structureParts } from "../editor/structure.ts";
-import { selectedBlocks, movePart, applyStructure } from "./edit.ts";
+import { selectedBlocks, movePart, applyStructure, headingGroups, structureCandidates } from "./edit.ts";
 test("markering midt i liste grupperer hele listen", () => {
   const doc = "Indledning.\n\n- Første\n\n  Fortsættelse\n- Andet\n\nEfter.\n";
   const state = EditorState.create({doc,selection:{anchor:doc.indexOf("Forts")},extensions:[markdown()]});
@@ -52,4 +52,44 @@ test("struktur kan ikke aendre en skrivebeskyttet versionsvisning",()=>{
   let state=EditorState.create({doc:"Historik",extensions:[EditorState.readOnly.of(true)]});
   const view={get state(){return state;},dispatch(spec:TransactionSpec){state=state.update(spec).state;}} as unknown as EditorView;
   applyStructure(view,{from:0,insert:"Ny tekst"});assert.equal(state.doc.toString(),"Historik");
+});
+
+test("overskrifter grupperes med fraklip bagefter og metodevalg før teksten", () => {
+  const plan = '<!-- gt:struktur {"version":1,"model":"three-acts"} -->\n';
+  const clipping = '<!-- gt:parkeret id=p1 dato=2026-10-11\nBevar dette klip.\n-->\n';
+  for (const doc of ["# Første\n\nA.\n\n# Anden\n\nB.\n" + clipping, plan + "# Første\n\nA.\n\n# Anden\n\nB."]) {
+    const groups = headingGroups(doc);
+    assert.equal(groups.length, 2);
+    assert.ok(groups.every(g => g.changes));
+    const result = EditorState.create({ doc }).update({ changes: groups.flatMap(g => g.changes!) }).state.doc.toString();
+    assert.equal(structureParts(result).length, 2);
+    assert.ok(result.includes(doc.includes(clipping) ? clipping : plan));
+  }
+});
+
+test("gruppering finder afsnit langt inde i et manuskript", () => {
+  const doc = "Et afsnit med tekst.\n\n".repeat(1000) + "Sidste afsnit.";
+  const state = EditorState.create({ doc, selection: { anchor: doc.length - 3 }, extensions: [markdown()] });
+  const range = selectedBlocks(state);
+  assert.ok(range);
+  assert.equal(doc.slice(range.from, range.to), "Sidste afsnit.");
+});
+
+test("overskriftsdele udelader fodnoter, men bevarer definitioner i kode", () => {
+  const doc = "# Første\n\n```md\n[^kode]: Et eksempel.\n```\n\n# Anden\n\nB.[^1]\n\n[^1]: Kilden.\n";
+  const groups = headingGroups(doc);
+  assert.equal(groups.length, 2);
+  const result = EditorState.create({ doc }).update({ changes: groups.flatMap(g => g.changes!) }).state.doc.toString();
+  const parts = structureParts(result);
+  assert.match(result.slice(parts[0].contentFrom, parts[0].contentTo), /\[\^kode\]:/);
+  assert.ok(!result.slice(parts[1].contentFrom, parts[1].contentTo).includes("[^1]:"));
+  assert.match(result.slice(parts[1].to), /\[\^1\]: Kilden/);
+});
+
+test("AI-kandidater omfatter slutningen af lange tekster og udelader fodnoter", () => {
+  const doc = "Et afsnit med tekst.\n\n".repeat(1000) + "Sidste afsnit.\n\n[^1]: Kilden.";
+  const candidates = structureCandidates(EditorState.create({ doc, extensions: [markdown()] }));
+  assert.ok(candidates);
+  assert.equal(candidates.at(-1)?.title, "Sidste afsnit.");
+  assert.ok(candidates.every(c => !doc.slice(c.from, c.to).includes("[^1]:")));
 });

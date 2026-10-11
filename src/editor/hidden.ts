@@ -56,10 +56,10 @@ export function protectedRanges(state: EditorState): number[] {
  * lige foran en blok. Kun programmets egne handlinger (OWN) og ændringer uden brugerhændelse rører dem.
  */
 const protect = EditorState.changeFilter.of((tr) => {
-  if (!tr.docChanged || !tr.annotation(Transaction.userEvent) || OWN.some((e) => tr.isUserEvent(e))) return true;
+  if (!tr.docChanged || !tr.annotation(Transaction.userEvent)) return true;
   // Flyttekommandoer må ikke kopiere mærker, mens changeFilter bevarer originalen.
   // Hele dele flyttes gennem strukturpanelet med deres metadata og forfatterskab.
-  if (tr.isUserEvent("move") || tr.isUserEvent("input.drop")) {
+  if (tr.isUserEvent("move") || tr.isUserEvent("input.drop") || tr.isUserEvent("input.note") || tr.isUserEvent("input.format")) {
     const spans = structureSpans(tr.startState.doc.toString());
     let touches = false;
     tr.changes.iterChanges((from, to, _a, _b, insert) => {
@@ -67,6 +67,7 @@ const protect = EditorState.changeFilter.of((tr) => {
     });
     if (touches) return false;
   }
+  if (OWN.some((e) => tr.isUserEvent(e))) return true;
   const ranges = protectedRanges(tr.startState);
   return ranges.length ? ranges : true;
 });
@@ -91,7 +92,7 @@ export const hiddenBlocks = StateField.define<DecorationSet>({
   create: build,
   update: (deco, tr) => {
     if (!tr.docChanged) return deco;
-    return touchesMarkers(tr, ["<!--", "-->", /^\[\^[^\]\s]+\]:/m]) ? build(tr.state) : deco.map(tr.changes);
+    return touchesMarkers(tr, ["<!--", "-->", "`", "~~~", /^\[\^[^\]\s]+\]:/m]) ? build(tr.state) : deco.map(tr.changes);
   },
   provide: (f) => [EditorView.decorations.from(f), EditorView.atomicRanges.of((v) => v.state.field(f)), protect, cleanCopy],
 });

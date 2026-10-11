@@ -153,6 +153,8 @@ Decoding requires the verified Gyan FFmpeg 8.1.2 build. Select its folder in the
 panel if it is not found locally. Nothing is downloaded or installed automatically.
 Recordings can be up to six hours long. Stop and save completed segments, or continue
 from where the job stopped. Quota limits can delay or interrupt transcription.
+The panel shows completed segments, elapsed time and pauses before retries.
+Resuming keeps the language used for completed segments.
 
 **Save and edit text** creates a new Markdown file beside the recording. Edit it normally.
 Ctrl+click a timestamp to play that part. Playback speed is adjustable. Keep the audio
@@ -160,4 +162,6 @@ beside the transcript when moving files. Speaker IDs apply within each audio blo
 Check names, quotations and numbers against the recording. After a crash, the audio
 panel offers saved partial transcripts. Use **Save as** to place recovered text beside
 the original recording again.
+If saving beside the recording fails, use **Save elsewhere …** to choose another
+folder and a new filename. Copy the audio there too to use the timestamps.
 

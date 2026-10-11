@@ -305,6 +305,9 @@ body.left-open:not(.left-pinned) .panel-left, body.right-open:not(.right-pinned)
 .lib-sort { font: inherit; color: var(--blæk); background: none; border: none; padding: 6px 14px; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .lib-list { flex-grow: 1; overflow-y: auto; padding: 4px 0 8px; }
 .lib-row { display: block; width: 100%; box-sizing: border-box; text-align: left; font: inherit; color: var(--blæk); background: none; border: none; padding: 7px 14px 7px 16px; cursor: pointer; }
+/* Store biblioteker: udskyd layout af usynlige rækker, men behold dem i tastaturrækkefølgen. */
+.lib-row { content-visibility: auto; contain-intrinsic-size: auto 70px; }
+.lib-row.lib-folder { contain-intrinsic-size: auto 40px; }
 .lib-row:hover { background: var(--hover); }
 .lib-row.active { background: var(--valgt); box-shadow: inset 3px 0 0 var(--accent); }
 .lib-row.drop { background: var(--valgt); box-shadow: inset 0 0 0 2px var(--accent); }
@@ -872,4 +875,6 @@ body.dark [data-color="rosa"] { --fk: #36242a; }
 .rp-body[data-tab="lyd"] p { font-size: 12px; line-height: 1.6; }
 .rp-body[data-tab="lyd"] button, .rp-body[data-tab="lyd"] select { margin: 6px 6px 6px 0; font: inherit; font-size: 12px; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 4px; padding: 6px 10px; }
 .rp-body[data-tab="lyd"] button:disabled, .structure-tools button:disabled { opacity: .5; cursor: default; }
+.audio-progress { display: block; width: 100%; height: 8px; margin-top: 18px; accent-color: var(--accent); }
+.audio-elapsed { font-variant-numeric: tabular-nums; color: var(--svag); font-size: 12px; }
 .rp-body[data-tab="lyd"] details { font-size: 12px; margin: 12px 0; color: var(--svag); }
