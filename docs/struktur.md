@@ -36,6 +36,7 @@ gode-tekster/
 │   ├── ordklasser.mjs           bygger ordklasse-leksikonet af UD Danish-DDT
 │   ├── licenser.mjs             samler src-tauri/resources/LICENSES.txt (licens-tillaeg/: tekster hentet ved kilden)
 │   ├── udgiv.mjs                bygger, signerer og lægger en ny version op
+│   ├── stiltjek-maal.mjs        målebænk for stiltjekket: korpus og DaLA, præcision pr. regel (ADR-0051)
 │   └── trykproeve.sh · scenarier.sh · testkoersel.sh   test på kopier i tests/private
 ├── src-tauri/                   Rust-kernen
 │   ├── Cargo.toml · Cargo.lock

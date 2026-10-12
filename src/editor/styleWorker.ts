@@ -8,6 +8,6 @@ import type { Agreement } from "./grammar.ts";
 const lex = ordklasser as unknown as { v: string[]; n: string[]; a: string[]; d: string[] };
 const words = { verbs: new Set(lex.v), nouns: new Set(lex.n), adjectives: new Set(lex.a), adverbs: new Set(lex.d), agree: kongruens as unknown as Agreement };
 
-self.onmessage = (e: MessageEvent<{ id: number; doc: string; comma?: string }>) => {
-  self.postMessage({ id: e.data.id, ...analyze(e.data.doc, words, e.data.comma) });
+self.onmessage = (e: MessageEvent<{ id: number; doc: string; comma?: string; strict?: boolean }>) => {
+  self.postMessage({ id: e.data.id, ...analyze(e.data.doc, words, e.data.comma, e.data.strict) });
 };

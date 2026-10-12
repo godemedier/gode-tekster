@@ -11,13 +11,20 @@ test("markdown, kode og skjulte blokke analyseres ikke, men positionerne passer"
 });
 
 test("fyldord streges, kancellisprog får et enklere ord, »blev træt« er ikke passiv", () => {
-  const doc = "Det var faktisk sådan, at vi i forbindelse med sagen gik. Han blev træt. Sagen blev afgjort.";
-  const { flags } = analyze(doc);
+  const doc = "Det var faktisk sådan, at vi med henblik på sagen gik. Han blev træt. Sagen blev afgjort.";
+  const { flags } = analyze(doc, undefined, undefined, true);
   const by = (k: string) => flags.find((f) => f.kind === k);
   assert.equal(doc.slice(by("fyldord")!.from, by("fyldord")!.to), "faktisk");
   assert.equal(categoryOf("fyldord"), "stryg");
-  assert.equal(by("omstaendeligt")!.replacement, "ved");
+  assert.equal(by("omstaendeligt")!.replacement, "for at");
   const passive = flags.filter((f) => f.kind === "passiv").map((f) => doc.slice(f.from, f.to));
   assert.ok(!passive.some((p) => p.includes("træt")), JSON.stringify(passive));
   assert.ok(passive.some((p) => p.includes("afgjort")), JSON.stringify(passive));
+});
+
+test("som standard kun de regler, der sjældent tager fejl (målebænken 12/10)", () => {
+  const doc = "Det var faktisk sådan, at vi med henblik på sagen gik; Sagen blev afgjort.";
+  const kinds = (strict: boolean) => new Set(analyze(doc, undefined, undefined, strict).flags.map((f) => f.kind));
+  assert.ok(kinds(true).has("fyldord") && kinds(true).has("passiv"));
+  assert.deepEqual([...kinds(false)], ["hus:semikolon"]);
 });

@@ -54,9 +54,13 @@ export function grammarFlags(
   adjectives = adjs ?? new Set();
   nouns = nounSet ?? new Set();
   const words: Word[] = [];
-  for (const m of text.matchAll(/\p{L}+(?:-\p{L}+)*/gu)) {
+  // Den bløde bindestreg (U+00AD) står inde i ordet: »er­kende« er ét ord, ikke »er« + »kende«
+  // (målebænken 12/10: »må er­kende« blev til »må er«).
+  // Kombinerende tegn (\p{M}) hører også til ordet: »å« kan stå som »a« + ring, og så blev »fået«
+  // til »fa« + »et«, og »har fået et lån« gav »et et« (målebænken 12/10).
+  for (const m of text.matchAll(/\p{L}[\p{L}\p{M}]*(?:[-­]\p{L}[\p{L}\p{M}]*)*/gu)) {
     const from = m.index ?? 0;
-    words.push({ text: m[0], low: m[0].toLowerCase(), from, to: from + m[0].length });
+    words.push({ text: m[0], low: m[0].normalize("NFC").toLowerCase().replace(/­/g, ""), from, to: from + m[0].length });
   }
   // To ord hænger kun sammen, hvis der er mellemrum imellem: intet punktum, komma eller linjeskift.
   const joined = (a: Word, b: Word) => /^[ \t]+$/.test(text.slice(a.to, b.from));
@@ -212,6 +216,8 @@ let text0 = "";
 const SUBORD_START = new Set(["når", "hvis", "fordi", "selvom", "mens", "skønt", "medmindre", "eftersom", "idet"]);
 const SUBORD_MID = new Set(["hvis", "når", "fordi", "selvom"]);
 const SUBJ = new Set(["jeg", "du", "han", "hun", "vi", "de", "man", "det", "den"]);
+/** Grundled ud over stedordene, der står foran udsagnsordet »når« (af »nå«). */
+const NAA_SUBJECT = new Set(["der", "alle", "mange", "flere", "nogle", "få", "ingen", "hver", "begge", "andre", "ham", "hende", "dem", "os"]);
 const SAYING = new Set([
   "siger", "sagde", "mener", "mente", "tror", "troede", "synes", "syntes", "fortæller", "fortalte", "skriver", "skrev",
   "viser", "viste", "oplyser", "oplyste", "forklarer", "forklarede", "understreger", "påpeger", "vurderer", "håber",
@@ -224,6 +230,11 @@ const BEFORE_SUBORD_OK = new Set([
   "er", "var", "være", "været", "bliver", "blev",
   // Faste udtryk fra korpusset (7/10): »hvad hvis«, »tænk hvis«, »i hvert fald hvis«, »dels fordi«.
   "hvad", "tænk", "fald", "mindst", "dels", "enten", "eksempel", "særligt", "særlig", "fremfor", "det",
+  // To bindeord i træk (»fordi hvis«, »at når«): intet komma imellem (målebænken 12/10).
+  "fordi", "hvis", "når", "selvom", "mens", "da", "skønt", "eftersom", "idet",
+  // Biord, der hører til bindeordet: »ganske enkelt fordi«, »først og fremmest fordi«.
+  "enkelt", "fremmest", "simpelthen", "primært", "hovedsageligt", "blot", "delvis", "alene", "måske", "formentlig",
+  "sandsynligvis",
 ]);
 /** Det, der kan stå efter »at« som bindeord: et stedord, en artikel eller et ejestedord (ikke »at gå«). */
 const AT_CONJ_NEXT = new Set([
@@ -276,7 +287,9 @@ function commaFlags(text: string, words: Word[], verbs: ReadonlySet<string>, sty
       }
       // Ikke et bindeord med stort (en overskrift uden punktum foran) og ikke »de når dem« (udsagnsord).
       const lower = w.text[0] === w.low[0];
-      const verbUse = w.low === "når" && SUBJ.has(prev.low);
+      // »når« efter et grundled er udsagnsordet »nå« (»alle når det«, »svin når ikke«, »MA når ud«).
+      // 6 af 7 falske kommafund i målebænken 12/10 var den slags.
+      const verbUse = w.low === "når" && (SUBJ.has(prev.low) || NAA_SUBJECT.has(prev.low) || nouns.has(prev.low) || prev.text[0] !== prev.low[0]);
       if (style === "start" && SUBORD_MID.has(w.low) && lower && !verbUse && /^[ \t]+$/.test(gap) && !BEFORE_SUBORD_OK.has(prev.low) && !advs.has(prev.low) && j >= 2) {
         add(prev.from, prev.to, "komma", `Med startkomma: komma foran »${w.text}«.`, `${prev.text},`);
       }

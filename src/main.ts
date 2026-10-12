@@ -40,7 +40,7 @@ import { toggleShortcuts } from "./ui/shortcutsHelp.ts";
 import { focusable, setFocusFallback } from "./ui/focus.ts";
 import { installScrollbars } from "./ui/scrollbars.ts";
 import { OutlinePanel } from "./ui/outlinePanel.ts";
-import { setCommaStyle, setStyleCheck } from "./editor/styleCheck.ts";
+import { setCommaStyle, setStrictStyle, setStyleCheck } from "./editor/styleCheck.ts";
 import { currentLang, isEnglish, tr } from "./i18n.ts";
 import { hasDefaultName, titleFromText } from "./ui/autoName.ts";
 import { setCommandHooks } from "./editor/setup.ts";
@@ -399,6 +399,7 @@ function applySettings(s: Settings): void {
   // indstillingerne (fra en dansk kørsel) siger til.
   void setWordClasses(view, s.wordClasses && !isEnglish());
   setCommaStyle(view, s.commaStyle ?? "start");
+  setStrictStyle(view, s.strictStyle ?? false);
   setStyleCheck(view, s.styleCheck && !isEnglish());
   setParagraphs(view, s.paragraphs === "indryk");
   setBullet(view, bulletChar(s));

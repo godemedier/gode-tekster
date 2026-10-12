@@ -1,4 +1,4 @@
-// KOPI af gode-ord/src/lib/aitells.ts @ ebee85f 2026-10-07. Ret i Gode Ord, ikke her, og kør scripts/sprog.mjs.
+// KOPI af gode-ord/src/lib/aitells.ts @ 713912c 2026-10-12. Ret i Gode Ord, ikke her, og kør scripts/sprog.mjs.
 // Maskinsprog-analyse – tekstformer som mange forbinder med AI. DETERMINISTISK: ingen service,
 // ingen nøgle, instant (kører klient-side). Spejler clarity.ts' form, men er en anden linse.
 //
@@ -298,7 +298,8 @@ export function analyzeAiTells(text: string): AiReport {
   // ── Mekanik ──
   addRegex(text, /—/gu, "em-dash", "Em-dash (—) findes ikke i dansk typografi. Brug – med mellemrum om.", ranges, flags, false, " – ");
   addRegex(text, /(?<=\S);/gu, "semikolon", "Semikolon – sæt punktum. Det er sjældent i levende dansk.", ranges, flags);
-  addRegex(text, /\b\d{1,3},\d{3}(?!\d)/gu, "tusindtal", "Dansk bruger punktum som tusindtalsseparator (1.402), komma som decimal.", ranges, flags);
+  // »0,572« er altid et decimaltal, så heltalsdelen må ikke være 0 (målebænken 12/10).
+  addRegex(text, /\b[1-9]\d{0,2},\d{3}(?!\d)/gu, "tusindtal", "Dansk bruger punktum som tusindtalsseparator (1.402), komma som decimal.", ranges, flags);
   addRegex(text, EMOJI_PUNKT, "emoji-punkt", "Emoji som punkttegn – et af de mest genkendte AI-træk.", ranges, flags, true);
   addRegex(text, /^[ \t]*[-*+][ \t]+\*\*[^*\n]{2,40}\*\*\s*:/gmu, "fed-punkt", "«**Fed indledning**: forklaring» – punktopstillingen der råber AI. Skriv punktet som sætning.", ranges, flags);
 

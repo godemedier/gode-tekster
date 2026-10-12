@@ -1079,3 +1079,21 @@ filnavnet og slår det op i Noter-mappen, så listen kan ikke åbne eller slette
 **Konsekvens:** Lukker man alle ark, er noterne stadig to klik væk, også uden at kende
 Win+Alt+N. Sticky Notes' synkronisering med Outlook findes ikke: noterne er filer, og OneDrive
 synker dem, hvis Dokumenter ligger der.
+
+### ADR-0051 — Stiltjekket viser som standard kun målte, sikre regler (12/10-2026)
+**Baggrund:** Målebænken (`scripts/stiltjek-maal.mjs`) kørte stiltjekket på 1.774 redigerede
+fagbladsartikler og DaLA (CC BY 4.0). En redaktør vurderede faste stikprøver på 20 pr. regel.
+Før rettelserne gav stiltjekket 34,8 fund pr. 1.000 ord, og de fleste regler ramte rigtigt i
+5-30 % af tilfældene. Forskningen (docs/research/2026-10-12-stiltjek-forskning.md) viser, at
+skribenter retter efter falske fund, og at redigeret dansk har 0,2-0,5 % fejl.
+**Beslutning:** En regel vises kun som standard, når mindst 70 % af dens fund var nyttige.
+Listen er en tilladelsesliste i `styleRules.ts` (`isStandard`): grammatikken, semikolon,
+tusindtal og husets mekaniske regler. Alt andet vises med indstillingen »Alle forslag«
+(`strictStyle`). En ny regel er uden for listen, til den er målt. Målebænken måler altid alle
+regler, og vurderingerne genbruges på stikprøvens id, så kun nye fund skal vurderes.
+**Rettet samtidig:** citater med ”…” og replikker med tankestreg springes over, ASCII-`\b` i
+Gode Ords tjek, kombinerende tegn og blød bindestreg i grammatikken, »når« som udsagnsord og
+to bindeord i træk i kommatjekket, decimaltal i tusindtalsreglen, gentagelse kun tæt på
+hinanden og ikke for navne, samt ord og forslag, der oftere var forkerte end rigtige.
+**Revurdér:** når en regel er omskrevet (fx passiv som tæthed for hele teksten, kløvning i stedet
+for svagt anslag), måles den igen og kan komme på listen.

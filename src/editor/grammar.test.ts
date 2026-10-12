@@ -110,3 +110,20 @@ test("uden startkomma: kommaet foran »at« er unødvendigt", () => {
   assert.deepEqual(fixC("Han sagde at hun var syg.", "uden"), []);
   assert.deepEqual(fixC("Han sagde at hun var syg.", "fra"), []);
 });
+
+test("målebænken 12/10: »når« som udsagnsord, to bindeord i træk og blød bindestreg", () => {
+  const comma = (t: string) => grammarFlags(t, verbs, undefined, undefined, new Set(["svin"]), "start").filter((f) => f.kind === "grammatik:komma").map((f) => t.slice(f.from, f.to));
+  for (const t of ["Det er ikke sikkert, at alle når det.", "Vi ved, at mange når til samme resultat.", "Det betyder, at svin når ikke at vokse.", "Det viser, at DM når bredere ud."]) {
+    assert.deepEqual(comma(t), [], t);
+  }
+  assert.deepEqual(comma("Vi går hjem fordi hvis det regner bliver vi våde."), ["hjem"]);
+  assert.deepEqual(comma("Hun går hjem når det regner."), ["hjem"]);
+  assert.deepEqual(fix("Vi må er­kende, at det gik galt."), []);
+});
+
+test("målebænken 12/10: kombinerende tegn deler ikke et ord, og biord foran bindeordet", () => {
+  assert.deepEqual(fix("De har fået et lån."), []);
+  const comma = (t: string) => grammarFlags(t, verbs, undefined, undefined, undefined, "start").filter((f) => f.kind === "grammatik:komma");
+  assert.deepEqual(comma("Det gik galt, ganske enkelt fordi ingen svarede."), []);
+  assert.deepEqual(comma("Det skete først og fremmest fordi de manglede penge."), []);
+});

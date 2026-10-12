@@ -52,7 +52,16 @@ export function plainMessage(message: string): string {
   return message.replace(/\s+[–—]\s+/, ": ").replace(/\s+[–—]\s+/g, ", ");
 }
 
-export function analyze(doc: string, words?: GrammarWords, comma?: string): { flags: Flag[]; lix: number; lixLabel: string } {
+/**
+ * Reglerne, der vises som standard. Målt 12/10 på 1.774 redigerede fagbladsartikler med en
+ * redaktørs vurdering af stikprøver (scripts/stiltjek-maal.mjs, docs/research/2026-10-12-stiltjek-plan.md):
+ * kun regler, hvor mindst 70 % af fundene var nyttige. Resten vises kun med »Alle forslag«
+ * (indstillingen strictStyle). En ny regel er uden for listen, til den er målt.
+ */
+const STANDARD = new Set(["hus:semikolon", "hus:tusindtal", "hus:title-case", "hus:emoji-punkt", "hus:fed-punkt"]);
+export const isStandard = (kind: string): boolean => kind.startsWith("grammatik:") || STANDARD.has(kind);
+
+export function analyze(doc: string, words?: GrammarWords, comma?: string, strict = false): { flags: Flag[]; lix: number; lixLabel: string } {
   const text = mask(doc);
   const clarity = analyzeClarity(text);
   const flags: Flag[] = [];
@@ -60,12 +69,14 @@ export function analyze(doc: string, words?: GrammarWords, comma?: string): { fl
     if (f.inQuote || !CATEGORY[f.kind]) continue;
     flags.push({ from: f.offset, to: f.offset + f.length, kind: f.kind, message: plainMessage(f.message), replacement: (f as { replacement?: string }).replacement });
   }
+  // Syv vendinger står både som floskel og som AI-ord (»kaste lys over«). Ét fund pr. sted.
+  const taken = new Set(flags.map((f) => `${f.from}:${f.to}`));
   for (const f of analyzeAiTells(text).flags) {
-    if (f.inQuote) continue;
+    if (f.inQuote || taken.has(`${f.offset}:${f.offset + f.length}`)) continue;
     flags.push({ from: f.offset, to: f.offset + f.length, kind: `hus:${f.kind}`, message: plainMessage(f.message), replacement: f.replacement });
   }
   if (words) flags.push(...grammarFlags(text, words.verbs, words.agree, words.adjectives, words.nouns, comma, words.adverbs));
-  return { flags, lix: clarity.lix, lixLabel: clarity.lixLabel };
+  return { flags: strict ? flags : flags.filter((f) => isStandard(f.kind)), lix: clarity.lix, lixLabel: clarity.lixLabel };
 }
 
 export function categoryOf(kind: string): Category {

@@ -211,6 +211,18 @@ export class SettingsPanel {
       tr("Komma", "Commas"),
     );
 
+    // Hvor meget stiltjekket viser (målebænken 12/10): kun de regler, der sjældent tager fejl,
+    // eller også dem, der ofte rammer god dansk.
+    const strictness = choices(
+      [
+        { value: "sikre", label: tr("Sikre fund", "Reliable"), title: tr("Kun regler, der sjældent tager fejl: grammatik, komma og husets tegnsætning", "Only rules that are rarely wrong: grammar, commas and house punctuation") },
+        { value: "alle", label: tr("Alle forslag", "All suggestions"), title: tr("Også lange sætninger, passiv, floskler og ordvalg. De rammer oftere god dansk", "Also long sentences, passive voice, clichés and word choice. These hit good Danish more often") },
+      ],
+      s.strictStyle ? "alle" : "sikre",
+      (v) => set({ strictStyle: v === "alle" }),
+      tr("Stiltjek", "Style check"),
+    );
+
     // Udseendet (ADR-0037): »Skifter selv« går til aften ved solnedgang og tilbage ved solopgang.
     const theme = choices(
       [
@@ -249,6 +261,7 @@ export class SettingsPanel {
         row(tr("Anførselstegn", "Quotation marks"), quotes),
         row(tr("Punkttegn", "Bullet"), bullets),
         row(tr("Komma i stiltjekket", "Commas in the style check"), comma),
+        row(tr("Stiltjekket viser", "The style check shows"), strictness),
         row(tr("Udseende", "Appearance"), theme),
       ),
       // Markdown-tegnene (7/10): fire visninger af den samme fil. Standard er tegn ved markøren.

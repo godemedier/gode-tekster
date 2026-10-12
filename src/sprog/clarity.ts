@@ -1,4 +1,4 @@
-// KOPI af gode-ord/src/lib/clarity.ts @ ebee85f 2026-10-07. Ret i Gode Ord, ikke her, og kør scripts/sprog.mjs.
+// KOPI af gode-ord/src/lib/clarity.ts @ 713912c 2026-10-12. Ret i Gode Ord, ikke her, og kør scripts/sprog.mjs.
 // Klarheds-analyse (Hemingway-agtig, dansk). DETERMINISTISK – ingen service, ingen nøgle,
 // instant (kan køre klient-side). Måler læsbarhed (LIX) + flager tunge sætninger, passiv,
 // nominaliseringer, floskler og fyldord. Forslag, ikke autokorrektur. Citat-bevidst.
@@ -46,6 +46,10 @@ export type ClarityReport = {
 
 const LANG = 25;
 const MEGET_LANG = 40;
+/** Tegn før hovedsætningen. 45 gav mest falske fund: »Hvis …« og »Da …« forrest er god dansk (12/10). */
+const TUNG_OPTAKT = 75;
+/** Højst så mange ord mellem to ens ord, før gentagelsen markeres. */
+const GENTAGELSE_AFSTAND = 8;
 
 // Klichéer/floskler (fraser). Nedslidte – sig det konkret i stedet. Kilder: DR's stilguide,
 // Dansk Sprognævn, journalistik-guides (research 2026-07-18). Kan udvides.
@@ -55,7 +59,6 @@ const FLOSKLER = [
   "det er vigtigt at understrege",
   "det er værd at bemærke",
   "når alt kommer til alt",
-  "i sidste ende",
   "når dagen er omme",
   "for at gøre en lang historie kort",
   "det korte af det lange",
@@ -83,7 +86,9 @@ const FLOSKLER = [
   "helhedsorienteret",
   "brænder for",
 ];
-// Fyldord / tomme forstærkere + hedges. Ofte overflødige.
+// Fyldord / tomme forstærkere + hedges. Ofte overflødige. »ligesom«, »rimelig« og »alt i alt« er
+// taget ud: i redigerede fagbladstekster var de næsten altid sammenligning, tillægsord eller en
+// opsummering (målebænken 12/10, 0 af 5 rigtige for »ligesom«).
 const FYLDORD = [
   "faktisk",
   "egentlig",
@@ -93,10 +98,7 @@ const FYLDORD = [
   "i og for sig",
   "virkelig",
   "temmelig",
-  "rimelig",
-  "alt i alt",
   "som sagt",
-  "ligesom",
   "en form for",
   "en slags",
   "i bund og grund",
@@ -106,10 +108,9 @@ const FYLDORD = [
 // Kancellisprog = hovedfjenden i klart dansk (Dansk Sprognævn). [frase, enklere].
 const OMSTAENDELIGE: [string, string][] = [
   ["med henblik på", "for at"],
-  ["i forbindelse med", "ved"],
-  ["på baggrund af", "efter"],
+  ["på baggrund af", "ud fra"],
   ["med hensyn til", "om"],
-  ["i overensstemmelse med", "efter"],
+  ["i overensstemmelse med", "i tråd med"],
   ["med undtagelse af", "undtagen"],
   ["forud for", "før"],
   ["efterfølgende", "bagefter"],
@@ -119,7 +120,6 @@ const OMSTAENDELIGE: [string, string][] = [
   ["anvende", "bruge"],
   ["besidde", "have"],
   ["erhverve", "få"],
-  ["påbegynde", "begynde"],
   ["bringe til ophør", "stoppe"],
   ["være af den opfattelse", "mene"],
   ["foretage en vurdering af", "vurdere"],
@@ -134,7 +134,9 @@ const OMSTAENDELIGE: [string, string][] = [
 ];
 // Danske stopord – udelukkes fra gentagelses-tjek (kun indholdsord tæller).
 const STOPORD = new Set(
-  ("og i på af det en at er som til med for den de har var et om vi kan man vil skal ikke men eller også kun mere flere over under mod ved fra ud op ind han hun der her nu så jeg du sig sin hans hendes deres denne dette disse hvor hvad hvem hvilken være blive have gøre").split(
+  ("og i på af det en at er som til med for den de har var et om vi kan man vil skal ikke men eller også kun mere flere over under mod ved fra ud op ind han hun der her nu så jeg du sig sin hans hendes deres denne dette disse hvor hvad hvem hvilken være blive have gøre" +
+    // Funktionsord og hjælpeverber på fem bogstaver eller flere (målebænken 12/10).
+    " skulle kunne ville måtte havde haft bliver blevet blive været andre anden andet mange meget mellem efter blandt omkring igennem gennem inden siden senere fordi hvordan hvorfor hvilke hvilket nogle nogen ingen alle selv samme sådan sådant hinanden både endnu stadig allerede netop måske også derfor dermed således eller").split(
     " ",
   ),
 );
@@ -191,16 +193,13 @@ const UPRAECISE_MAENGDER = [
 ];
 // Fremmedord med et gangbart dansk alternativ → ét-kliks-swap (tjek konteksten). [ord, dansk].
 const FREMMEDORD: [string, string][] = [
-  ["implementere", "gennemføre"],
-  ["implementering", "gennemførelse"],
+  ["implementere", "indføre"],
+  ["implementering", "indførelse"],
   ["facilitere", "understøtte"],
-  ["deadline", "frist"],
   ["mindset", "tankegang"],
   ["commitment", "engagement"],
   ["location", "sted"],
   ["update", "opdatering"],
-  ["timing", "tidspunkt"],
-  ["feedback", "tilbagemelding"],
   ["approach", "tilgang"],
   ["issue", "problem"],
 ];
@@ -408,7 +407,8 @@ export function analyzeClarity(text: string): ClarityReport {
     // Tunge/abstrakte navneord: nominaliseringer (-ning/-else/-tion/-ering) + abstraktions-
     // endelser (-hed/-itet/-isme). "Konkret frem for abstrakt" (Meilby/Vaaben).
     // Tillad bøjnings-/definit-endelser (ordningEN, implementeringEN, mulighedER).
-    const noms = s.text.match(/\b\p{L}+(ning|else|tion|ering|hed|itet|isme)(en|er|erne|s)?\b/giu);
+    // \p{L}-grænser, ikke \b: \b kender kun ASCII, så »Ældning« blev til »ldning«.
+    const noms = s.text.match(/(?<!\p{L})\p{L}+(ning|else|tion|ering|hed|itet|isme)(en|er|erne|s)?(?!\p{L})/giu);
     if (noms && noms.length >= 3) {
       flags.push(sentenceFlag("nominalisering", s, `Mange tunge/abstrakte navneord (${noms.length}) – gør det konkret; kan nogle blive udsagnsord?`, ranges));
     }
@@ -425,27 +425,35 @@ export function analyzeClarity(text: string): ClarityReport {
     const sub = s.text.match(/^(da|fordi|selvom|selv om|hvis|mens|efter at|inden|idet|eftersom|når|såfremt)\b/i);
     if (sub) {
       const comma = s.text.indexOf(",");
-      if (comma >= 45) {
+      if (comma >= TUNG_OPTAKT) {
         flags.push(sentenceFlag("tung-optakt", s, `Tung optakt (${comma} tegn før hovedsætningen) – kom hurtigere til hvem der gør hvad.`, ranges));
       }
     }
 
     // Adverbie-tæthed (-ligt/-mæssigt): Hemingway – kan verbet bære betydningen?
-    const advs = s.text.match(/\b\p{L}+(ligt|mæssigt)\b/giu);
+    const advs = s.text.match(/(?<!\p{L})\p{L}+(ligt|mæssigt)(?!\p{L})/giu);
     if (advs && advs.length >= 2) {
       flags.push(sentenceFlag("adverbier", s, `Mange adverbier (${advs.length}: ${[...new Set(advs)].slice(0, 3).join(", ")}) – kan verberne bære betydningen?`, ranges));
     }
 
-    // Ordgentagelse inden for sætningen (kun indholdsord ≥5 bogstaver). Flag 2. forekomst.
-    const count = new Map<string, number>();
-    const wre = /\p{L}{5,}/gu;
+    // Ordgentagelse inden for sætningen (kun indholdsord ≥5 bogstaver), når de to står tæt
+    // (højst GENTAGELSE_AFSTAND ord imellem). Et nøgleord eller et navn gentaget hen over en lang
+    // sætning er normalt god dansk; det klodsede er »vi skal sikre, at vi sikrer« (målebænken 12/10).
+    const seen = new Map<string, number>();
+    const flagged = new Set<string>();
+    const wre = /\p{L}{5,}|\p{L}+/gu;
     let wm: RegExpExecArray | null;
+    let index = 0;
     while ((wm = wre.exec(s.text)) !== null) {
+      index++;
+      if (wm[0].length < 5) continue;
       const norm = wm[0].toLowerCase();
-      if (STOPORD.has(norm)) continue;
-      const c = (count.get(norm) ?? 0) + 1;
-      count.set(norm, c);
-      if (c === 2) {
+      // Stort bogstav inde i sætningen er et navn (»Akademikerbladet«, »Aarhus«).
+      if (STOPORD.has(norm) || (wm.index > 0 && wm[0][0] !== norm[0])) continue;
+      const last = seen.get(norm);
+      seen.set(norm, index);
+      if (last !== undefined && index - last <= GENTAGELSE_AFSTAND && !flagged.has(norm)) {
+        flagged.add(norm);
         flags.push(spanFlag("gentagelse", s.start + wm.index, wm[0], `Gentagelse – “${wm[0]}” igen i samme sætning; varier?`, ranges));
       }
     }
@@ -465,6 +473,18 @@ export function analyzeClarity(text: string): ClarityReport {
     addPhrase(text, f, "floskel", "Dødt billede/kliché – sig det ligeud eller find et friskt billede.", ranges, flags, false);
   for (const [word, repl] of FREMMEDORD)
     addPhrase(text, word, "fremmedord", `Fremmedord – dansk: “${repl}”? (tjek konteksten)`, ranges, flags, true, repl);
+
+  // Undtagelser, hvor et ord på listen har en anden, almindelig betydning (målebænken 12/10).
+  const after = (f: ClarityFlag) => text.slice(f.offset + f.length, f.offset + f.length + 12);
+  const before = (f: ClarityFlag) => text.slice(Math.max(0, f.offset - 8), f.offset);
+  const ordinary = (f: ClarityFlag) => {
+    const q = f.quote.toLowerCase();
+    if (f.kind === "upraecis-maengde" && q === "en del") return /^\s+af\b/i.test(after(f));
+    if (f.kind === "omstaendeligt" && q === "efterfølgende") return /(?:^|\s)(?:den|det|de|en|et|i|og)\s+$/i.test(before(f));
+    if (f.kind === "fyldord" && q === "på en måde") return /^,?\s+(?:hvor|så|der|som|at)\b/i.test(after(f));
+    return false;
+  };
+  for (let i = flags.length - 1; i >= 0; i--) if (ordinary(flags[i])) flags.splice(i, 1);
 
   const lix =
     sentences.length && totalWords

@@ -57,6 +57,8 @@ export type Settings = {
   wordClasses: boolean;
   /** Kommatjek i stiltjekket: med startkomma, uden startkomma eller fra (7/10). */
   commaStyle: "start" | "uden" | "fra";
+  /** Stiltjekket viser også de usikre regler (»Alle forslag«, målebænken 12/10). */
+  strictStyle: boolean;
   styleCheck: boolean;
   sortBy: "date" | "name";
   newestFirst: boolean;

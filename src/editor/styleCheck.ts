@@ -123,7 +123,7 @@ const runner = ViewPlugin.fromClass(
         this.view.dispatch({ effects: setFlags.of(e.data.flags) });
         window.dispatchEvent(new Event("gt-style"));
       };
-      worker.postMessage({ id, doc: withoutOthers(this.view.state), comma });
+      worker.postMessage({ id, doc: withoutOthers(this.view.state), comma, strict });
     }
     destroy() {
       window.clearTimeout(this.timer);
@@ -139,6 +139,14 @@ export function setStyleCheck(view: EditorView, on: boolean): void {
 
 /** Kommatjekket (Indstillinger › Tekst, 7/10): "start", "uden" eller "fra". Et skift tjekker igen. */
 let comma = "start";
+/** »Alle forslag« (Indstillinger › Tekst): også de regler, der oftere tager fejl. Et skift tjekker igen. */
+let strict = false;
+export function setStrictStyle(view: EditorView, on: boolean): void {
+  if (on === strict) return;
+  strict = on;
+  view.plugin(runner)?.schedule(0);
+}
+
 export function setCommaStyle(view: EditorView, style: string): void {
   if (style === comma) return;
   comma = style;

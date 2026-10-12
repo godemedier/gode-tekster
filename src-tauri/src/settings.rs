@@ -87,6 +87,8 @@ pub struct Settings {
     /// Kommatjek i stiltjekket (grammar.ts, 7/10): "start" (med startkomma), "uden" (uden
     /// startkomma) eller "fra". Standard er med startkomma.
     pub comma_style: String,
+    /// Stiltjekket viser også de usikre regler (styleRules.ts, målebænken 12/10). Fra som standard.
+    pub strict_style: bool,
     /// `date` eller `name`.
     pub sort_by: String,
     pub newest_first: bool,
@@ -132,6 +134,7 @@ impl Default for Settings {
             word_classes: false,
             style_check: false,
             comma_style: "start".to_owned(),
+            strict_style: false,
             sort_by: "date".to_owned(),
             newest_first: true,
             folders_first: true,
