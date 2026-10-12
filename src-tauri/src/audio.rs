@@ -291,6 +291,13 @@ pub async fn pick_audio_tools(app: AppHandle) -> Result<bool, String> {
         .map_err(|_| error())? = Some(dir);
     Ok(true)
 }
+/// Er jobbet stadig åbent (stoppet, men ikke lukket eller sluppet med vinduet)?
+fn still_open(app: &AppHandle, job: &Arc<Job>) -> bool {
+    app.state::<AudioState>()
+        .jobs
+        .lock()
+        .is_ok_and(|jobs| jobs.values().any(|j| Arc::ptr_eq(j, job)))
+}
 fn job(app: &AppHandle, owner: &str, id: &str) -> Result<Arc<Job>, String> {
     app.state::<AudioState>()
         .jobs
@@ -517,7 +524,7 @@ pub async fn audio_prepare(
         let actual = samples as f64 / 32000.0;
         if actual <= 0.0
             || actual > 21600.0
-            || (actual - duration).abs() > 1.0
+            || !duration_matches(actual, duration)
             || hash_checked(&selected.source, Some(&selected.cancelled))? != stamp
             || selected.cancelled.load(Ordering::SeqCst)
         {
@@ -545,6 +552,12 @@ pub async fn audio_prepare(
     .map_err(|_| error())?
 }
 
+/// Passer den afkodede længde med ffprobes? ffprobe gætter længden ud fra bitraten for VBR-mp3
+/// og nogle m4a-filer, så en lang optagelse kan afvige mere end et sekund uden at være
+/// beskadiget. Tolerancen er derfor 3 sekunder eller 2 procent, det største af dem.
+fn duration_matches(decoded: f64, probed: f64) -> bool {
+    (decoded - probed).abs() <= (0.02 * probed.abs()).max(3.0)
+}
 /// Søg RIFF-chunks, da FFmpeg kan lægge LIST før PCM-data.
 fn wav_data(path: &Path) -> Result<(u64, u64), String> {
     let mut f = std::fs::File::open(path).map_err(|_| error())?;
@@ -806,7 +819,9 @@ pub async fn audio_transcribe(
                     });
                 },
             )?;
-            if selected.cancelled.load(Ordering::SeqCst) {
+            // Stop under et kald: et svar, der allerede er kommet, beholdes (det er færdigt og
+            // betalt), og løkken stopper øverst. Er lyden lukket, kasseres det.
+            if selected.cancelled.load(Ordering::SeqCst) && !still_open(&app, &selected) {
                 break;
             }
             // Segmenter ved pause, talerskift og senest efter 20 sekunder. Tidskoden er første ord.
@@ -996,6 +1011,15 @@ pub fn transcript_audio(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn laengden_maa_afvige_3_sekunder_eller_2_procent() {
+        assert!(duration_matches(60.0, 62.9));
+        assert!(!duration_matches(60.0, 63.5));
+        // En time: 2 % er 72 sekunder.
+        assert!(duration_matches(3600.0, 3660.0));
+        assert!(!duration_matches(3600.0, 3680.0));
+        assert!(duration_matches(10.0, 10.0));
+    }
     #[test]
     fn genoptagelse_bevarer_sprog_ogsaa_efter_gemning() {
         let mut language = None;

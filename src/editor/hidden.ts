@@ -14,6 +14,7 @@ import { FOOTNOTE_DEF } from "./inline.ts";
 import { touchesMarkers } from "./touches.ts";
 import { structureSpans } from "./structure.ts";
 import { commentSpans } from "./textSyntax.ts";
+import { findReferences } from "./references.ts";
 
 function build(state: EditorState): DecorationSet {
   const out: Range<Decoration>[] = [];
@@ -23,7 +24,9 @@ function build(state: EditorState): DecorationSet {
   const color = findColor(doc);
   for (const span of commentSpans(doc).filter(s => /^<!-- gt:lyd /.test(doc.slice(s.from, s.to)))) out.push(Decoration.replace({ block: true }).range(span.from, span.to));
   for (const span of structureSpans(doc)) out.push(Decoration.replace({ block: true }).range(span.from, span.to));
-  for (const p of [...(status ? [status] : []), ...findParked(doc), ...findClaudeBlocks(doc), ...(goal ? [goal] : []), ...(color ? [color] : [])]) {
+  // Kildelisten (ADR-0049) vises i fanen Kilder.
+  const sources = findReferences(doc);
+  for (const p of [...(status ? [status] : []), ...(sources ? [sources] : []), ...findParked(doc), ...findClaudeBlocks(doc), ...(goal ? [goal] : []), ...(color ? [color] : [])]) {
     // Blokken uden sit sidste linjeskift, så linjen efter står urørt.
     const end = doc[p.to - 1] === "\n" ? p.to - 1 : p.to;
     if (end > p.from) out.push(Decoration.replace({ block: true }).range(p.from, end));
@@ -39,13 +42,16 @@ function build(state: EditorState): DecorationSet {
  * Programmets egne ændringer af blokkene: fanerne Fraklip, Input og Fodnoter, import, ekstern
  * ændring, oprydning, gendannelse af en version, og fortryd/gentag.
  */
-const OWN = ["input.structure", "input.goal", "input.status", "input.color", "input.park", "delete.park", "input.import", "input.ai", "delete.claude", "input.note", "input.external", "delete.cleanup", "input.compare", "restore", "undo", "redo"];
+const OWN = ["input.structure", "input.references", "input.goal", "input.status", "input.color", "input.park", "delete.park", "input.import", "input.ai", "delete.claude", "input.note", "input.external", "delete.cleanup", "input.compare", "restore", "undo", "redo"];
 
 /** De skjulte blokke plus linjeskiftet foran dem, som [fra, til, fra, til, …]. */
 export function protectedRanges(state: EditorState): number[] {
   const out: number[] = [];
   state.field(hiddenBlocks).between(0, state.doc.length, (from, to) => {
-    out.push(from > 0 && state.doc.sliceString(from - 1, from) === "\n" ? from - 1 : from, to);
+    // Linjeskiftet efter en delmarkør hører også til den: ellers limer Backspace i starten af delen
+    // den første linje fast på markøren, og en overskrift dér holder op med at være markdown.
+    const opensPart = state.doc.sliceString(from, from + 12) === "<!-- gt:del " && state.doc.sliceString(to, to + 1) === "\n";
+    out.push(from > 0 && state.doc.sliceString(from - 1, from) === "\n" ? from - 1 : from, opensPart ? to + 1 : to);
   });
   return out;
 }

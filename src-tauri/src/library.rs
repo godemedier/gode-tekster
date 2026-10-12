@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
@@ -639,11 +640,18 @@ pub struct IndexEntry {
 /// Læste tekster efter sti, med (størrelse, ændret) fra sidst. Kun ændrede filer læses igen.
 type Cache = HashMap<PathBuf, (u64, u64, Meta)>;
 static INDEX: OnceLock<Mutex<Cache>> = OnceLock::new();
+/// Er indekset ændret, siden det sidst blev gemt? Så skrives `bibliotek-indeks.json` kun, når der
+/// er noget nyt (12/10: hver mappevisning gemte og fsync'ede hele indekset).
+static INDEX_DIRTY: AtomicBool = AtomicBool::new(false);
+/// Én skrivning ad gangen, så en ældre udgave af indekset aldrig når disken efter en nyere.
+static INDEX_SAVE: Mutex<()> = Mutex::new(());
 
 pub fn invalidate_meta(path: &Path) {
     if let Some(cache) = INDEX.get() {
         if let Ok(mut c) = cache.lock() {
-            c.remove(path);
+            if c.remove(path).is_some() {
+                INDEX_DIRTY.store(true, Ordering::Relaxed);
+            }
         }
     }
 }
@@ -661,6 +669,7 @@ fn cached_meta(path: &Path, meta: &fs::Metadata) -> Meta {
     if fs::metadata(path).is_ok_and(|m| (m.len(), modified_ms(&m)) == stamp) {
         if let Ok(mut c) = cache.lock() {
             c.insert(path.to_path_buf(), (stamp.0, stamp.1, value.clone()));
+            INDEX_DIRTY.store(true, Ordering::Relaxed);
         }
     }
     value
@@ -710,17 +719,28 @@ fn load_index(file: Option<&Path>) {
     }
 }
 
+/// Gemmer kun, når indekset er ændret, og skriver filen uden at holde indekset låst.
 fn save_index(file: Option<&Path>) {
     let (Some(file), Some(cache)) = (file, INDEX.get()) else {
         return;
     };
-    let Ok(c) = cache.lock() else { return };
-    let rows: Vec<(&PathBuf, u64, u64, &Meta)> = c
-        .iter()
-        .map(|(p, (len, ms, m))| (p, *len, *ms, m))
-        .collect();
-    if let Ok(json) = serde_json::to_vec(&rows) {
-        let _ = crate::files::write_atomic(file, &json);
+    let Ok(_saving) = INDEX_SAVE.lock() else {
+        return;
+    };
+    if !INDEX_DIRTY.swap(false, Ordering::Relaxed) {
+        return;
+    }
+    let json = {
+        let Ok(c) = cache.lock() else { return };
+        let rows: Vec<(&PathBuf, u64, u64, &Meta)> = c
+            .iter()
+            .map(|(p, (len, ms, m))| (p, *len, *ms, m))
+            .collect();
+        serde_json::to_vec(&rows)
+    };
+    let written = json.is_ok_and(|json| crate::files::write_atomic(file, &json).is_ok());
+    if !written {
+        INDEX_DIRTY.store(true, Ordering::Relaxed);
     }
 }
 
@@ -787,8 +807,13 @@ fn index_of(libraries: Vec<PathBuf>) -> Vec<IndexEntry> {
         });
         fresh.insert(p, (len, ms, m));
     }
+    // Nye eller ændrede filer er læst, eller filer er forsvundet: så skal indekset gemmes.
+    let changed = !todo.is_empty() || fresh.len() != known.len();
     if let Ok(mut c) = cache.lock() {
         *c = fresh;
+        if changed {
+            INDEX_DIRTY.store(true, Ordering::Relaxed);
+        }
     }
     out
 }

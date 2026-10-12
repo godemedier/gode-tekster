@@ -15,6 +15,7 @@ import type { SyntaxNode } from "@lezer/common";
 
 import { findDimmed, findFootnoteRefs, footnoteNumbers } from "./inline.ts";
 import { TextMemo } from "./touches.ts";
+import { findCitations, findReferences, formatter, type Formatter, type ReferenceBlock } from "./references.ts";
 import { tr } from "../i18n.ts";
 
 /** Dæmpet tekst i hele teksten. Flyttes med ved skrivning, findes forfra kun ved `{--` og `--}`. */
@@ -36,6 +37,20 @@ const footnoteMemo = new TextMemo(
   (n) => n,
   () => [],
 );
+
+/** Kildelisten sidst i filen (ADR-0049). Findes forfra, når en ændring rører blokken. */
+const referenceMemo = new TextMemo<ReferenceBlock | null>(
+  ["gt:kilder"],
+  (doc) => findReferences(doc),
+  (b, ch) => b && { ...b, from: ch.mapPos(b.from, 1), to: ch.mapPos(b.to, -1) },
+  (b) => (b ? [{ from: b.from, to: b.to }] : []),
+);
+const formatters = new WeakMap<ReferenceBlock, Formatter>();
+function citeFormatter(block: ReferenceBlock): Formatter {
+  let f = formatters.get(block);
+  if (!f) formatters.set(block, (f = formatter(block.refs, document.documentElement.lang === "en" ? "en" : "da")));
+  return f;
+}
 
 const hide = Decoration.replace({});
 const line = (cls: string) => Decoration.line({ class: cls });
@@ -156,6 +171,7 @@ function build(view: EditorView): DecorationSet {
   const { state } = view;
   const out: Range<Decoration>[] = [];
   const numbers = footnoteMemo.get(state.doc);
+  const sources = referenceMemo.get(state.doc);
 
   // Dæmpet tekst kan gå over flere afsnit (»Skær meget« foreslår hele afsnit), så den findes i hele
   // teksten og markeres, hvor den er synlig (personatjek 2/10: før kun inden for én linje).
@@ -351,6 +367,14 @@ function build(view: EditorView): DecorationSet {
         const n = numbers.get(f.label) ?? 0;
         out.push(Decoration.replace({ widget: new TextWidget(String(n), "gt-fnref") }).range(a, b));
       }
+      // Henvisninger til kilder: »(Hansen, 2024, s. 42)«, og rå tekst, når markøren står i dem.
+      for (const c of findCitations(l.text, l.from)) {
+        if (inCode(state, c.from)) continue;
+        const text = sources ? citeFormatter(sources).cite(c) : null;
+        if (text === null) out.push(Decoration.mark({ class: "gt-cite-unknown", attributes: { title: tr("Ukendt kilde. Tilføj den i fanen Kilder.", "Unknown source. Add it in the Sources tab.") } }).range(c.from, c.to));
+        else if (!touched(state, c.from, c.to)) out.push(Decoration.replace({ widget: new TextWidget(text, "gt-cite") }).range(c.from, c.to));
+        else out.push(mark("gt-cite-raw").range(c.from, c.to));
+      }
       pos = l.to + 1;
     }
   }
@@ -371,6 +395,7 @@ export const livePreview = ViewPlugin.fromClass(
     update(u: ViewUpdate): void {
       dimmed.advance(u);
       footnoteMemo.advance(u);
+      referenceMemo.advance(u);
       if (u.view.composing) {
         this.decorations = this.decorations.map(u.changes);
         return;
@@ -420,14 +445,15 @@ export const livePreview = ViewPlugin.fromClass(
 );
 
 export const livePreviewTheme = EditorView.theme({
+  // `# ` hænger i margenen som i iA. Tegnene skal arve linjens højde: med line-height 0 stod de en
+  // halv linje over overskriften (målt 12/10: 18 px over teksten i en ###).
   ".gt-h1, .gt-h2, .gt-h3, .gt-h4, .gt-h5, .gt-h6": { position: "relative" },
-  ".gt-hmark": { 
-    position: "absolute", 
-    right: "100%", 
+  ".gt-hmark": {
+    position: "absolute",
+    right: "100%",
     color: "var(--dæmpet)",
     fontWeight: "normal",
     whiteSpace: "pre",
-    lineHeight: "0"
   },
   ".gt-h1": { fontSize: "1.75em", lineHeight: "1.3", fontWeight: "700", paddingTop: "0.5em" },
   ".gt-h2": { fontSize: "1.35em", lineHeight: "1.35", fontWeight: "700", paddingTop: "0.9em" },
@@ -453,6 +479,9 @@ export const livePreviewTheme = EditorView.theme({
   ".gt-hr": { textAlign: "center" },
   ".gt-hr-mark": { color: "var(--pynt)", letterSpacing: "0.6em" },
   ".gt-dim": { color: "var(--dæmpet)" },
+  ".gt-cite": { color: "var(--svag)" },
+  ".gt-cite-raw": { color: "var(--svag)" },
+  ".gt-cite-unknown": { textDecoration: "underline wavy", textDecorationColor: "var(--advarsel, #c77700)", textUnderlineOffset: "3px" },
   ".gt-fnref": { fontSize: "0.7em", verticalAlign: "super", color: "var(--link)", padding: "0 1px" },
   ".gt-comment": { fontSize: "0.85em", color: "var(--dæmpet)" },
   ".gt-table": { fontSize: "0.92em" },

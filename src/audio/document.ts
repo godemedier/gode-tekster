@@ -2,7 +2,7 @@ import { commentSpans } from "../editor/textSyntax.ts";
 export type AudioSource = { audio: string; duration: number; complete: boolean };
 export function audioSource(doc: string): AudioSource | null {
   for (const span of commentSpans(doc)) {
-    const match = /^<!-- gt:lyd (.+) -->$/.exec(doc.slice(span.from, span.to));
+    const match = /^<!-- gt:lyd (.+) -->$/s.exec(doc.slice(span.from, span.to));
     if (!match) continue;
     try {
       const data = JSON.parse(match[1]);

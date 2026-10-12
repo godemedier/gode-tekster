@@ -1,7 +1,7 @@
 import { ensureSyntaxTree } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
-import { addStructurePart, moveStructurePart, structureParts, structureContext, type StructureChange } from "../editor/structure.ts";
+import { addStructurePart, reorderStructurePart, structureParts, structureContext, type StructureChange } from "../editor/structure.ts";
 import { authorshipField, restoreMovedAuthorship } from "../editor/authorship.ts";
 import { bodyEnd, bodyHeadings } from "../editor/outline.ts";
 
@@ -69,19 +69,17 @@ export function applyStructure(view: EditorView, changes: StructureChange | Stru
 
 /** Flytning bevarer både kendte forfattere og markeringen af indsat/ekstern tekst. */
 export function movePart(view: EditorView, id: string, direction: -1 | 1): boolean {
+  const index = structureParts(view.state.doc.toString()).findIndex(p => p.id === id);
+  return index >= 0 && movePartTo(view, id, index + direction);
+}
+
+/** Flyt en del til plads `target` som ét fortryd-trin (træk i overblikket). */
+export function movePartTo(view: EditorView, id: string, target: number): boolean {
   if(view.state.readOnly)return false;
-  const doc = view.state.doc.toString(), parts = structureParts(doc);
-  const index = parts.findIndex(p => p.id === id), other = parts[index + direction];
-  const change = moveStructurePart(doc, id, direction);
-  if (!change || !other) return false;
-  const [a, b] = direction < 0 ? [other, parts[index]] : [parts[index], other];
-  const regions = [
-    { from: 0, to: a.from, offset: 0 },
-    { from: a.from, to: a.to, offset: b.to - a.to },
-    { from: a.to, to: b.from, offset: (b.to - b.from) - (a.to - a.from) },
-    { from: b.from, to: b.to, offset: a.from - b.from },
-    { from: b.to, to: doc.length, offset: 0 },
-  ];
+  const doc = view.state.doc.toString();
+  const moved = reorderStructurePart(doc, id, target);
+  if (!moved) return false;
+  const { change, regions } = moved;
   const value = view.state.field(authorshipField, false);
   const map = (spans: { start: number; end: number }[]) => regions.flatMap(r => spans.map(s => ({ start: Math.max(s.start, r.from) + r.offset, end: Math.min(s.end, r.to) + r.offset })).filter(s => s.end > s.start)).sort((a,b) => a.start-b.start);
   view.dispatch({ changes: change, userEvent: "input.structure", effects: value ? restoreMovedAuthorship.of({ ...value, authors: value.authors.map(a => ({ ...a, spans: map(a.spans) })), pasted: map(value.pasted), external: map(value.external) }) : [] });

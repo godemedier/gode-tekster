@@ -1,8 +1,8 @@
 // En note på skrivebordet (ADR-0039): én .md-fil i Noter-mappen i et lille rammeløst vindue, med
 // samme editor og autosave som teksterne. Rust ejer filen (document.rs) og arkets placering (notes.rs).
 //
-// Ctrl+N laver en ny note, Ctrl+W lukker arket (en tom note efterlader ingen fil), Ctrl+D lægger
-// noten i papirkurven. Dobbeltklik på toppen ruller arket op til første linje.
+// Ctrl+N laver en ny note, Ctrl+H viser notelisten med alle noter, også de lukkede, Ctrl+W lukker
+// arket (en tom note efterlader ingen fil), Ctrl+D lægger noten i papirkurven. Dobbeltklik på toppen ruller arket op til første linje.
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -189,6 +189,7 @@ const more = button(SVG.more, tr("Mere", "More"), (b) => {
   const r = b.getBoundingClientRect();
   showMenu(Math.max(4, r.right - 200), r.bottom + 4, [
     { label: tr("Ny note (Ctrl+N)", "New note (Ctrl+N)"), run: () => void invoke("note_new") },
+    { label: tr("Noteliste (Ctrl+H)", "Note list (Ctrl+H)"), run: () => void invoke("note_list_open") },
     { label: tr("Åbn som tekst", "Open as text"), run: () => void openAsText() },
     { separator: true },
     { label: tr("Rul op (dobbeltklik på toppen)", "Roll up (double-click the top)"), run: () => void setRolled(!rolled) },
@@ -207,6 +208,7 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   if (k === "n") void invoke("note_new");
+  else if (k === "h") void invoke("note_list_open").catch((err) => showBanner(errorText(err)));
   else if (k === "w") void closeNote();
   else if (k === "d") void deleteNote();
   else return;

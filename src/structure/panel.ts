@@ -3,8 +3,9 @@ import { undo } from "@codemirror/commands";
 import { invoke } from "@tauri-apps/api/core";
 import { addStructurePart, editStructurePart, removeStructurePart, setStructureModel, structureParts, structurePlan, structureContext, type StructureChange } from "../editor/structure.ts";
 import { withoutParked } from "../editor/parked.ts";
+import { bodyEnd } from "../editor/outline.ts";
 import { MODEL_GROUPS, NARRATIVE_MODELS, narrativeModel } from "./models.ts";
-import { applyStructure, groupSelection, headingGroups, movePart, structureCandidates } from "./edit.ts";
+import { applyStructure, groupSelection, headingGroups, movePart, movePartTo, structureCandidates } from "./edit.ts";
 import { errorText, showBanner } from "../ui/banner.ts";
 import { locale, tr } from "../i18n.ts";
 
@@ -51,6 +52,8 @@ export class StructurePanel {
 
   docOpened(): void {
     this.documentGeneration++;
+    // Dialoger med positioner fra den forrige tekst må ikke kunne bruges på den nye.
+    for (const d of [this.headingDialog, this.proposalDialog, this.addDialog]) d?.close();
     this.proposal = null;
     this.selected = null;
     this.editing = false;
@@ -470,7 +473,9 @@ export class StructurePanel {
 
   private addBlank(): void {
     const text = this.view.state.doc.toString();
-    const changes = addStructurePart(text, text.length, text.length, tr("Ny del", "New part"));
+    // Før fraklip, kilder og fodnoter sidst i filen: ellers står delen uden for selve teksten.
+    const at = bodyEnd(text);
+    const changes = addStructurePart(text, at, at, tr("Ny del", "New part"));
     if (changes) {
       applyStructure(this.view, changes);
       const parts = structureParts(this.view.state.doc.toString());
@@ -501,6 +506,11 @@ export class StructurePanel {
     if (useBtn) {
       useBtn.textContent = tr(`Opret ${candidates.length} dele`, `Create ${candidates.length} parts`);
       useBtn.onclick = () => {
+        if (this.view.state.doc.toString() !== doc) {
+          showBanner(tr("Teksten er ændret, mens vinduet var åbent. Prøv igen.", "The text changed while the window was open. Try again."));
+          this.headingDialog?.close();
+          return;
+        }
         applyStructure(this.view, candidates.flatMap(c => c.changes!));
         this.headingDialog?.close();
         this.refresh();
@@ -643,10 +653,9 @@ export class StructurePanel {
       const fromIdx = parts.findIndex(p => p.id === this.dragged);
       const toIdx = parts.findIndex(p => p.id === targetId);
       if (fromIdx !== -1 && toIdx !== -1) {
-        const dir = (toIdx > fromIdx ? 1 : -1) as -1 | 1;
-        const steps = Math.abs(toIdx - fromIdx);
-        for (let s = 0; s < steps; s++) {
-          if (!movePart(this.view, this.dragged, dir)) break;
+        // Hele trækket som én ændring, så Fortryd tager det hele tilbage.
+        if (!movePartTo(this.view, this.dragged, toIdx)) {
+          showBanner(tr("Delen kan ikke flyttes dertil, fordi der står tekst uden for delene imellem.", "The part cannot be moved there because there is text outside the parts in between."));
         }
         this.selected = this.dragged;
         this.refresh();
@@ -730,8 +739,12 @@ export class StructurePanel {
       const changes: StructureChange[] = [];
       const context = structureContext(this.proposal.doc);
       const parts = structureParts(this.proposal.doc);
-      for (const p of this.proposal.value.parts) {
-        const candidate = this.proposal.candidates.find(c => c.id === p.id);
+      // I tekstens rækkefølge, ikke AI'ens: to dele, der støder op til hinanden, får ellers deres
+      // markører i forkert orden på samme sted.
+      const candidates = this.proposal.candidates;
+      const order = (id: string) => { const i = candidates.findIndex(c => c.id === id); return i < 0 ? Infinity : i; };
+      for (const p of [...this.proposal.value.parts].sort((a, b) => order(a.id) - order(b.id))) {
+        const candidate = candidates.find(c => c.id === p.id);
         if (candidate) {
           const c = addStructurePart(this.proposal.doc, candidate.from, candidate.to, candidate.title, p.role, p.note, context);
           if (c) changes.push(...c);
@@ -876,7 +889,8 @@ export class StructurePanel {
   }
 
   private refresh(): void {
-    if (this.body?.dataset.tab === "struktur" || this.body?.classList.contains("structure-panel")) {
+    // Kun når Struktur stadig er fanen: et AI-svar kan komme, efter brugeren har skiftet fane.
+    if (this.body?.dataset.tab === "struktur") {
       this.render(this.body);
     }
   }

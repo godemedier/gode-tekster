@@ -1048,3 +1048,34 @@ fjernes først efter vellykket skrivning. Fladen husker den gemte sti, så et af
 filskift kan prøves igen uden at oprette en dublet.
 **Begrundelse:** En flyttet lydfil eller skrivebeskyttet kildemappe må ikke blokere
 gemning af færdige delresultater. Tidslinks kræver fortsat lyden ved teksten.
+
+### ADR-0049 — Kilder og henvisninger i selve filen (12/10-2026)
+Afløser oplæggets `referencer.json` ved siden af hovedfilen (docs/research/2026-10-10-storyboard-og-referencer.md).
+**Beslutning:** Kildelisten står som CSL-JSON, én kilde pr. linje, i én skjult blok
+`<!-- gt:kilder … -->` sidst i filen, som fraklip og struktur. Feltnavnene er CSL's egne
+(`author`, `issued`, `container-title` …), så en eksport fra Zotero kan sættes ind uden
+oversættelse. `--`, `<` og `>` skrives som `\u`-escapes, så en titel ikke kan lukke kommentaren.
+En blok, der ikke kan læses, røres ikke. Henvisninger bruger Pandocs syntaks: `[@nøgle]`,
+`[@nøgle, s. 42]`, `[jf. @a; @b]`, `[-@nøgle]`. @ efter et bogstav er en mailadresse.
+Formateringen er APA 7 forfatter-år, skrevet i `references.ts` uden CSL-processor.
+Live preview viser henvisningen formateret, til markøren står i den. En ukendt nøgle får en
+bølget understregning. Print og Word sætter henvisningerne og lægger en litteraturliste med
+de brugte kilder sidst, med hængende indrykning på 1,27 cm. Fanen Kilder viser listen,
+indsætter henvisninger, finder brugen i teksten og har en formular med DOI-opslag. Opslaget
+går gennem Rust (`references.rs`) til doi.org med CSL-JSON som svarformat, kun https, og
+kun kendte felter med rigtig type kommer igennem. Svaret er et forslag, til brugeren gemmer.
+**Ikke valgt nu:** citeproc-js og CSL-stilfiler (stor afhængighed for én stil), Zotero-felter
+i Word, autofuldførelse ved `[@` (»/«-menuen ejer CodeMirrors autofuldførelse).
+**Revurdér hvis:** der skal flere stile end APA, eller en institution kræver en bestemt CSL-fil.
+
+### ADR-0050 — Notelisten (12/10-2026)
+Supplerer ADR-0039. **Beslutning:** Et almindeligt vindue (`noteliste`, `noteliste.html`)
+viser alle noter i Noter-mappen, også de lukkede, nyeste først, med søgning i hele teksten.
+Dobbeltklik eller Enter åbner noten på den plads, den sidst havde på denne pc (`noter.json`).
+Ctrl+H og »Noteliste« i arkets menu, menuen ved uret og springlisten åbner vinduet. Sletning
+lægger noten i Windows' papirkurv efter bekræftelse. Listen viser noterne i papirkurven, der kom
+fra Noter-mappen, og kan hente dem tilbage (`trash::os_limited`). Kommandoerne bruger kun
+filnavnet og slår det op i Noter-mappen, så listen kan ikke åbne eller slette andet.
+**Konsekvens:** Lukker man alle ark, er noterne stadig to klik væk, også uden at kende
+Win+Alt+N. Sticky Notes' synkronisering med Outlook findes ikke: noterne er filer, og OneDrive
+synker dem, hvis Dokumenter ligger der.

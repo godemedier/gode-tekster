@@ -58,3 +58,18 @@ test("ændret kodeafgrænsning giver samme skjulte områder før og efter genåb
   const ranges = (state: EditorState) => { const out: number[] = []; state.field(hiddenBlocks).between(0, state.doc.length, (a,b) => { out.push(a,b); }); return out; };
   assert.deepEqual(ranges(s), ranges(reopened));
 });
+
+test("Backspace i starten af en del lader delens første linje stå på sin egen linje", () => {
+  const text = "Indledning.\n\n## Afsnit\n\nBrødtekst.\n";
+  const at = text.indexOf("## Afsnit");
+  const marked = addStructurePart(text, at, text.length, "Del")!;
+  let d = text;
+  for (const c of [...marked].sort((a, b) => b.from - a.from)) d = d.slice(0, c.from) + c.insert + d.slice(c.to ?? c.from);
+  const s = EditorState.create({ doc: d, extensions: [hiddenBlocks] });
+  const part = structureParts(d)[0];
+  const back = s.update({ changes: { from: part.contentFrom - 1, to: part.contentFrom }, userEvent: "delete.backward" }).state.doc.toString();
+  assert.match(back, /-->\n## Afsnit/);
+  const typed = s.update({ changes: { from: part.contentFrom, insert: "Ny linje.\n" }, userEvent: "input.type" }).state.doc.toString();
+  assert.match(typed, /-->\nNy linje\.\n## Afsnit/);
+  assert.equal(structureParts(typed).length, 1);
+});

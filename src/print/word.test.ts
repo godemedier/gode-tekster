@@ -135,3 +135,13 @@ test("Word: designerens skrift afløser skabelonens", async () => {
   const same = await part("Tekst.", "word/styles.xml", { template: "laeseudgave", layout: defaultLayout("laeseudgave") });
   assert.match(same, /w:ascii="Georgia"/);
 });
+
+test("Word: henvisninger sat og litteraturliste med hængende indrykning (ADR-0049)", async () => {
+  const md = 'Tekst [@a, s. 2].\n\n<!-- gt:kilder\n[\n{"id":"a","type":"book","author":[{"family":"Aabye","given":"Ib"}],"issued":{"date-parts":[[2020]]},"title":"Bog","publisher":"Forlag"}\n]\n-->\n';
+  const xml = await bodyXml(md, true);
+  assert.match(xml, /\(Aabye, 2020, s\.\s2\)/);
+  assert.match(xml, /Litteratur/);
+  assert.match(xml, /w:hanging="720"/);
+  assert.doesNotMatch(xml, /⁤/, "mærket må ikke stå i dokumentet");
+  assert.doesNotMatch(xml, /gt:kilder/);
+});

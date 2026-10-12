@@ -122,6 +122,24 @@ fn build(exe: &Path, starred: &[PathBuf], recent: &[PathBuf]) -> windows::core::
             };
             group(crate::t!("Stjernemarkerede", "Starred"), starred)?;
             group(crate::t!("Seneste", "Recent"), recent)?;
+            // Noterne (ADR-0050): også når alle ark er lukket, og programmet ikke kører.
+            let tasks: IObjectCollection =
+                CoCreateInstance(&EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER)?;
+            for (args, title) in [
+                ("--noteliste", crate::t!("Noteliste", "Note list")),
+                ("--ny-note", crate::t!("Ny note", "New note")),
+            ] {
+                let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
+                link.SetPath(&exe)?;
+                link.SetArguments(&HSTRING::from(args))?;
+                link.SetIconLocation(&exe, 0)?;
+                let store: IPropertyStore = link.cast()?;
+                store.SetValue(&PKEY_Title, &PROPVARIANT::from(title))?;
+                store.Commit()?;
+                tasks.AddObject(&link)?;
+            }
+            let arr: IObjectArray = tasks.cast()?;
+            list.AddUserTasks(&arr)?;
             list.CommitList()
         })();
         CoUninitialize();

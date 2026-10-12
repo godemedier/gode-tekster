@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addStructurePart, editStructurePart, moveStructurePart, removeStructurePart, setStructureModel, structureParts, structurePlan } from "./structure.ts";
+import { addStructurePart, editStructurePart, moveStructurePart, reorderStructurePart, removeStructurePart, setStructureModel, structureParts, structurePlan } from "./structure.ts";
 import { withoutParked } from "./parked.ts";
 function apply(doc: string, changes: { from: number; to?: number; insert: string }[]) {
   for (const c of [...changes].sort((a,b) => b.from - a.from)) doc = doc.slice(0,c.from) + c.insert + doc.slice(c.to ?? c.from);
@@ -103,4 +103,29 @@ test("eksterne beskadigede kommentarer og uafsluttede dele krasjer ikke", () => 
   // For langt felt afvises af sikkerhedshensyn
   const tooLong = `<!-- gt:del {"version":1,"id":"s-1","title":"${"x".repeat(300)}","role":"","note":""} -->\nTekst.\n<!-- gt:slut s-1 -->\n`;
   assert.equal(structureParts(tooLong).length, 0);
+});
+
+test("en del flyttes flere pladser i én ændring, og mellemrum og linjeskift holder", () => {
+  let doc = "A\n\nB\n\nC";
+  // Tre dele, den sidste uden linjeskift sidst i filen.
+  doc = apply(doc, addStructurePart(doc, 6, doc.length, "C")!);
+  doc = apply(doc, addStructurePart(doc, 3, 6, "B")!);
+  doc = apply(doc, addStructurePart(doc, 0, 3, "A")!);
+  const parts = structureParts(doc);
+  const c = parts[2];
+  const moved = reorderStructurePart(doc, c.id, 0);
+  assert.ok(moved);
+  const after = apply(doc, [moved.change]);
+  assert.deepEqual(structureParts(after).map((p) => p.title), ["C", "A", "B"]);
+  // Ingen to markører på samme linje.
+  assert.ok(!/--><!--/.test(after), after);
+  assert.equal(reorderStructurePart(doc, c.id, 2), null);
+  assert.equal(reorderStructurePart(doc, c.id, 5), null);
+});
+
+test("linjeskiftstegn U+2028 i en titel ødelægger ikke delen", () => {
+  const doc = "Tekst.\n";
+  const marked = apply(doc, addStructurePart(doc, 0, doc.length, "Et to")!);
+  assert.ok(!marked.includes(" "));
+  assert.equal(structureParts(marked)[0].title, "Et to");
 });

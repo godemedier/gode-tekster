@@ -37,6 +37,7 @@ import JSZip from "jszip";
 import type { Token } from "markdown-it";
 
 import { bodyFor, markdownIt, SPACE_MARK, type Meta, type Template } from "./render.ts";
+import { REFERENCE_MARK } from "../editor/references.ts";
 import { defaultLayout, nativeFont, pageRows, rowEmpty, type PageFont, type PageLayout, type Part, type Row } from "./layout.ts";
 import { tr, isEnglish } from "../i18n.ts";
 
@@ -339,9 +340,13 @@ function blocks(tokens: Token[], ctx: Ctx): (Paragraph | Table)[] {
           i += 2;
           break;
         }
+        // En post i litteraturlisten: hængende indrykning på 1,27 cm, som APA foreskriver.
+        const reference = inline.content.startsWith(REFERENCE_MARK);
+        const first = inline.children?.[0];
+        if (reference && first?.type === "text") first.content = first.content.replace(REFERENCE_MARK, "");
         const list = ctx.listStack[ctx.listStack.length - 1];
         const level = ctx.listStack.length - 1;
-        const plain = !list && ctx.quote === 0;
+        const plain = !list && ctx.quote === 0 && !reference;
         // Listepunkter står tæt som i print. Luften kommer efter det sidste punkt.
         const lastItem = /^(bullet|ordered)_list_close$/.test(tokens[i + 4]?.type ?? "");
         const listSpacing = list ? { spacing: { after: lastItem ? Math.max(ctx.look.after, tw(6)) : tw(2) } } : {};
@@ -349,6 +354,7 @@ function blocks(tokens: Token[], ctx: Ctx): (Paragraph | Table)[] {
           new Paragraph({
             ...listSpacing,
             ...(ctx.look.indent && plain ? { spacing: { after: 0 }, indent: wasPlain ? { firstLine: ctx.look.indent } : undefined } : {}),
+            ...(reference ? { indent: { left: tw(36), hanging: tw(36) } } : {}),
             children: runs(inline.children ?? [], ctx.notes, ctx.quote > 0),
             style: ctx.quote > 0 ? "Citat" : undefined,
             numbering: list === "bullet" ? { reference: "punkt", level } : list === "number" ? { reference: ctx.listRefs[ctx.listRefs.length - 1] ?? "tal", level, instance: ctx.listInstance } : undefined,

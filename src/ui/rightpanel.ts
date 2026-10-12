@@ -133,6 +133,8 @@ export class RightPanel {
     // Fanerne deler kroppen. Claude-fanen tegner også selv om, når et svar kommer, og skal vide, om det er dens tur.
     const restore = preserveFocus(this.body);
     this.body.dataset.tab = tab.id;
+    // En fane må ikke efterlade sine klasser til den næste (Struktur gjorde de andre faner urullelige).
+    this.body.className = "rp-body";
     // Kun fanen Input med svar gør spalten bred (claudepanel.ts); de andre fanes er smalle.
     document.body.classList.remove("rp-wide");
     tab.render(this.body);

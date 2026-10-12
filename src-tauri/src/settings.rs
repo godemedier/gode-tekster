@@ -238,7 +238,7 @@ pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     write(&app, &settings)?;
     // Kun når valget er ændret: ellers tog hvert gem i en testkopi nøglen fra den installerede (8/10).
     if settings.start_with_windows != stored_autostart {
-        crate::autostart::apply(settings.start_with_windows);
+        crate::autostart::apply(&app, settings.start_with_windows);
     }
     // Stjerner eller sprog kan være ændret.
     crate::jumplist::refresh(&app);

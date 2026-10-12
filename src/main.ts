@@ -15,6 +15,7 @@ import { Panel } from "./ui/panels.ts";
 import { openQuick } from "./ui/quickopen.ts";
 import { clearTextBanners, errorText, hideBanner, notify, showBanner } from "./ui/banner.ts";
 import { RightPanel } from "./ui/rightpanel.ts";
+import { ReferencesPanel } from "./ui/referencesPanel.ts";
 import { onSelectionChange } from "./editor/setup.ts";
 import { Versions } from "./ui/versions.ts";
 import { setAuthorshipVisible } from "./editor/authorshipView.ts";
@@ -297,6 +298,9 @@ rightPanel.addTab({ id: "struktur", label: tr("Struktur", "Structure"), secondar
   if (structurePanel) structurePanel.render(body);
   else { body.replaceChildren(); void loadStructure().then(p => { if (body.dataset.tab === "struktur") p.render(body); }); }
 } });
+// Kilder (ADR-0049): kildelisten sidst i filen og henvisningerne [@nøgle] i teksten.
+const references = new ReferencesPanel(view, () => session?.path ?? null);
+rightPanel.addTab({ id: "kilder", label: tr("Kilder", "Sources"), secondary: false, render: (b) => references.render(b) });
 window.addEventListener("gt-group", () => { void loadStructure().then(p => { p.group(); rightPanel.show("struktur"); right.open(); }); });
 let audioPanel: import("./audio/panel.ts").AudioPanel | undefined;
 let audioLoading: Promise<void> | undefined;

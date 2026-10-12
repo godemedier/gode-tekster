@@ -12,18 +12,21 @@ gode-tekster/
 ├── server/                      tekster.godemedier.dk: opdateringer, feedback, privatliv (Node uden afhængigheder)
 ├── video/                       filmen om programmet: kilde, storyboard, stills og MP4
 ├── index.html · vite.config.ts  fladens indgang og byg
+├── note.html · noteliste.html   noterne på skrivebordet og listen over dem (ADR-0039, -0050)
 ├── src/                         fladen: TypeScript, CodeMirror 6, ingen UI-ramme
 │   ├── editor/                  CodeMirror: live preview, forfatterskab, genveje, søg, fraklip,
-│   │                            tilstande, ordtal, ordklasser, dæmpning, kilder, stiltjek (worker),
+│   │                            tilstande, ordtal, ordklasser, dæmpning, kilder fra faktatjek (sources.ts),
+│   │                            kildeliste og henvisninger [@nøgle] med APA 7 (references.ts, ADR-0049), stiltjek (worker),
 │   │                            links (Ctrl+klik), tabeller vist som tabeller (tables.ts), markeringen (wordSelection.ts)
 │   │                            fælles skannere for kode og kommentarer (textSyntax.ts)
 │   ├── ui/                      paneler, bibliotek, disposition, hurtigåbning, menu, højre spalte, seneste tekster som ark, indstillinger
-│   │                            (med AI-hjælp og Om), versioner, fanen Input, ordtal-hjørnet, genveje (F1), beskedlinje
+│   │                            (med AI-hjælp og Om), versioner, fanen Input, fanen Kilder (referencesPanel.ts), ordtal-hjørnet, genveje (F1), beskedlinje
 │   ├── commands/                »/«-kommandoer: indbyggede, egne, menuen, kørsel og tjek (ADR-0027, -0028)
 │   ├── sprog/                   stiltjek: klarhed, AI-fingeraftryk, anførselstegn
 │   ├── structure/               manuelle strukturkort, fælles metodekatalog og AI-forslag
 │   ├── audio/                   lydpanel, afspilning og Markdown-tidslinks
 │   ├── main.ts · document.ts    opstart og binding · ét åbent dokument (gem, flet udefra)
+│   ├── note.ts · noteList.ts    et ark på skrivebordet · notelisten med søgning og papirkurv (noteSearch.ts)
 │   ├── i18n.ts                  dansk og engelsk: tr("Gem", "Save")
 │   ├── settings.ts · measure.ts indstillinger · måling og scenarier i testtilstand (GT_MEASURE, GT_SCENARIE)
 │   ├── print/                   print-DOM, skabeloner, forhåndsvisning, PDF og Word
@@ -39,6 +42,8 @@ gode-tekster/
 │   ├── src/search_index.rs      vedvarende lokalt FTS5-indeks til delordssøgning
 │   ├── src/audio.rs             lydjob, afkodning, delresultater og atomisk transskriptionsgem
 │   ├── src/structure.rs         AI-strukturforslag med skemavalidering
+│   ├── src/references.rs        DOI-opslag til fanen Kilder (doi.org, CSL-JSON, kun kendte felter)
+│   ├── src/notes.rs             noterne: ark, placeringer, Win+Alt+N, notelisten og papirkurven
 │   ├── tauri.conf.json          vindue, CSP, bundle
 │   ├── capabilities/            hvad fladen må kalde
 │   ├── nsis/                    dansk installer (Danish.nsh) og afinstallation (hooks.nsh)

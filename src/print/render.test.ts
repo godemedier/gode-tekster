@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { articleHtml, danishDate, metaFor, pageCss, prepare, typography } from "./render.ts";
+import { articleHtml, danishDate, metaFor, pageCss, prepare, typography, type PrintOptions } from "./render.ts";
 import { setLangForTest } from "../i18n.ts";
 
 test("kodeeksempler bevares ved eksport, og deres overskrifter bliver ikke titel", () => {
@@ -141,4 +141,13 @@ test("på engelsk: dato, tællelinje og noter i print", () => {
   } finally {
     setLangForTest("da");
   }
+});
+
+test("henvisninger sættes, og litteraturlisten får hængende indrykning (ADR-0049)", () => {
+  const doc = 'Tekst [@a, s. 2].\n\n<!-- gt:kilder\n[\n{"id":"a","type":"book","author":[{"family":"Aabye","given":"Ib"}],"issued":{"date-parts":[[2020]]},"title":"Bog","publisher":"Forlag"}\n]\n-->\n';
+  const md = prepare(doc, false);
+  assert.ok(!md.includes("gt:kilder"));
+  assert.match(md, /Tekst \(Aabye, 2020, s\.\s2\)\./);
+  const html = articleHtml(doc, { includeDimmed: false } as PrintOptions, metaFor(doc, "a.md", ""));
+  assert.match(html, /<h2[^>]*>Litteratur<\/h2>\s*<p class="pv-ref">Aabye, I\. \(2020\)\. <em>Bog<\/em>\. Forlag\.<\/p>/);
 });

@@ -9,7 +9,7 @@ export default defineConfig(() => ({
   // To sider: programmet og noterne på skrivebordet (ADR-0039).
   build: {
     rollupOptions: {
-      input: { main: "index.html", note: "note.html" },
+      input: { main: "index.html", note: "note.html", noteliste: "noteliste.html" },
     },
   },
 

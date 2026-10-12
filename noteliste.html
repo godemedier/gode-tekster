@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Noter</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/noteList.css" />
+    <script type="module" src="/src/noteList.ts"></script>
+  </head>
+  <body class="notelist">
+    <div id="banner" role="status" aria-live="polite" hidden></div>
+    <header class="nl-top">
+      <input id="nl-search" type="search" autocomplete="off" spellcheck="false" />
+      <button type="button" id="nl-new"></button>
+    </header>
+    <main id="nl-list" role="listbox"></main>
+    <details id="nl-trash" hidden>
+      <summary></summary>
+      <div id="nl-trash-list"></div>
+    </details>
+  </body>
+</html>

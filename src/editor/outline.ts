@@ -38,7 +38,7 @@ export function bodyHeadings(doc: string): Heading[] {
 /** Hvor teksten slutter, før de skjulte blokke (fodnotedefinitioner, fraklip, Claude). */
 export function bodyEnd(doc: string): number {
   const footnote = /^\[\^[^\]\s]+\]:/m.exec(footnoteText(doc));
-  const metadata = commentSpans(doc).find(s => /^<!-- gt:(?:parkeret|claude|maal|farve)\b/.test(doc.slice(s.from, s.to)));
+  const metadata = commentSpans(doc).find(s => /^<!-- gt:(?:parkeret|claude|maal|farve|kilder)\b/.test(doc.slice(s.from, s.to)));
   return Math.min(footnote?.index ?? doc.length, metadata?.from ?? doc.length);
 }
 

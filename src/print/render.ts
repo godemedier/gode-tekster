@@ -11,6 +11,7 @@ import { withoutParked } from "../editor/parked.ts";
 import { headings } from "../editor/outline.ts";
 import { outsideCode } from "../editor/textSyntax.ts";
 import { resolveDimmed } from "../editor/inline.ts";
+import { REFERENCE_MARK, resolveCitations } from "../editor/references.ts";
 import { count, formatCount } from "../editor/count.ts";
 import { danishDate, longDate } from "../editor/dates.ts";
 import { tr, isEnglish } from "../i18n.ts";
@@ -58,11 +59,13 @@ export function pageMargins(t: Template, layout?: PageLayout): Margins {
  */
 export const SPACE_MARK = "\u2063";
 
-/** Teksten, som den skal trykkes: uden fraklip og (som standard) uden dæmpet tekst. */
+/** Teksten, som den skal trykkes: uden fraklip, (som standard) uden dæmpet tekst og med henvisningerne sat. */
 export function prepare(markdown: string, includeDimmed: boolean): string {
   let md = withoutParked(markdown);
   md = resolveDimmed(md, includeDimmed);
-  return outsideCode(md, (part) => typography(part).replace(/\n(?:[ \t]*\n){2,}(?=\S)/g, `\n\n${SPACE_MARK}\n\n`).replace(/\n{3,}/g, "\n\n")).trimEnd();
+  md = outsideCode(md, (part) => typography(part).replace(/\n(?:[ \t]*\n){2,}(?=\S)/g, `\n\n${SPACE_MARK}\n\n`).replace(/\n{3,}/g, "\n\n")).trimEnd();
+  // Henvisninger og litteraturliste (ADR-0049). Kilderne står i hele filen, ikke i det, der trykkes.
+  return resolveCitations(markdown, md, isEnglish() ? "en" : "da").trimEnd();
 }
 
 /** Hårde mellemrum og tankestreg, som en sætter ville gøre (ADR-0012). Intervaller røres ikke. */
@@ -204,6 +207,7 @@ export function articleHtml(markdown: string, opts: PrintOptions, meta: Meta, im
   const html = markdownIt(imageUrl, opts.images !== false)
     .render(bodyFor(markdown, opts.includeDimmed, meta))
     .replaceAll(`<p>${SPACE_MARK}</p>`, '<p class="luft" aria-hidden="true"></p>')
+    .replaceAll(`<p>${REFERENCE_MARK}`, '<p class="pv-ref">')
     // Et afsnit med kun et billede bliver en figur, der må gå ud i margenen.
     .replace(/<p><span class="pv-fig">([\s\S]*?)<\/span><\/p>/g, '<figure class="pv-wide pv-fig">$1</figure>')
     // Et afsnit, der kun var et billede, står tomt, når billederne er fravalgt.

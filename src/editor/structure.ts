@@ -5,11 +5,13 @@ export type StructurePart = { id: string; title: string; role: string; note: str
 export type StructurePlan = { model: string; from: number; to: number };
 export type StructureChange = { from: number; to?: number; insert: string };
 const ID = /^[a-zA-Z0-9_-]{1,80}$/;
-const encode = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+// U+2028/U+2029 escapes også: JSON.stringify lader dem stå, og så kunne mønstrene ikke læse delen.
+const encode = (value: unknown) =>
+  JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 
 export function structurePlan(doc: string): StructurePlan | null {
   for (const span of commentSpans(doc)) {
-    const match = /^<!-- gt:struktur (.+) -->$/.exec(doc.slice(span.from, span.to));
+    const match = /^<!-- gt:struktur (.+) -->$/s.exec(doc.slice(span.from, span.to));
     if (!match) continue;
     try {
       const data = JSON.parse(match[1]);
@@ -26,7 +28,7 @@ export function structureParts(doc: string): StructurePart[] {
   let pending: Omit<StructurePart, "to" | "contentTo"> | null = null;
   for (const span of commentSpans(doc)) {
     const raw = doc.slice(span.from, span.to);
-    const start = /^<!-- gt:del (.+) -->$/.exec(raw);
+    const start = /^<!-- gt:del (.+) -->$/s.exec(raw);
     if (start) {
       // Indlejrede/defekte dele fortolkes aldrig som flytbare områder.
       if (pending) { pending = null; continue; }
@@ -93,10 +95,42 @@ export function removeStructurePart(doc: string, id: string): StructureChange[] 
 }
 
 export function moveStructurePart(doc: string, id: string, direction: -1 | 1): StructureChange | null {
-  const parts = structureParts(doc), index = parts.findIndex(p => p.id === id), next = index + direction;
-  if (index < 0 || next < 0 || next >= parts.length) return null;
-  const [a, b] = direction === -1 ? [parts[next], parts[index]] : [parts[index], parts[next]];
+  const parts = structureParts(doc), index = parts.findIndex(p => p.id === id);
+  return reorderStructurePart(doc, id, index + direction, parts)?.change ?? null;
+}
+
+/** Et stykke af den gamle tekst og hvor langt det er flyttet (til forfatterskabet). */
+export type MovedRegion = { from: number; to: number; offset: number };
+
+/**
+ * Flyt en del til plads `target` i én ændring, så et træk over flere pladser er ét fortryd-trin.
+ * Mellemrummene mellem delene bliver stående. En del uden linjeskift sidst i filen får et, når den
+ * flyttes op, så to markører aldrig havner på samme linje.
+ */
+export function reorderStructurePart(doc: string, id: string, target: number, parts = structureParts(doc)): { change: StructureChange; regions: MovedRegion[] } | null {
+  const from = parts.findIndex(p => p.id === id);
+  if (from < 0 || target < 0 || target >= parts.length || target === from) return null;
+  const slots = parts.slice(Math.min(from, target), Math.max(from, target) + 1);
+  const gaps = slots.slice(0, -1).map((p, i) => ({ from: p.to, to: slots[i + 1].from }));
   // Ugrupperet tekst må ikke blive flyttet med uden brugerens viden.
-  if (doc.slice(a.to, b.from).trim()) return null;
-  return { from: a.from, to: b.to, insert: doc.slice(b.from, b.to) + doc.slice(a.to, b.from) + doc.slice(a.from, a.to) };
+  if (gaps.some(g => doc.slice(g.from, g.to).trim())) return null;
+  const order = slots.map((_, i) => i);
+  const [moved] = order.splice(from - Math.min(from, target), 1);
+  order.splice(target - Math.min(from, target), 0, moved);
+  const start = slots[0].from, end = slots[slots.length - 1].to;
+  const regions: MovedRegion[] = [{ from: 0, to: start, offset: 0 }];
+  let text = "";
+  order.forEach((k, j) => {
+    const p = slots[k];
+    regions.push({ from: p.from, to: p.to, offset: start + text.length - p.from });
+    text += doc.slice(p.from, p.to);
+    if (j < order.length - 1 && !text.endsWith("\n")) text += "\n";
+    const g = gaps[j];
+    if (g) {
+      regions.push({ from: g.from, to: g.to, offset: start + text.length - g.from });
+      text += doc.slice(g.from, g.to);
+    }
+  });
+  regions.push({ from: end, to: doc.length, offset: text.length - (end - start) });
+  return { change: { from: start, to: end, insert: text }, regions };
 }

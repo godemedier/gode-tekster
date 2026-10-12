@@ -30,6 +30,7 @@ mod media;
 mod merge;
 mod mistral;
 mod notes;
+mod references;
 mod ro;
 mod seal;
 mod search;
@@ -104,6 +105,13 @@ fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         true,
         None::<&str>,
     )?;
+    let liste = MenuItem::with_id(
+        app,
+        "noteliste",
+        t!("Noteliste", "Note list"),
+        true,
+        None::<&str>,
+    )?;
     let skjul = MenuItem::with_id(
         app,
         "skjul-noter",
@@ -112,7 +120,7 @@ fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         None::<&str>,
     )?;
     let streg = tauri::menu::PredefinedMenuItem::separator(app)?;
-    Menu::with_items(app, &[&ny, &alle, &skjul, &streg, &vis, &afslut])
+    Menu::with_items(app, &[&ny, &liste, &alle, &skjul, &streg, &vis, &afslut])
 }
 
 /// Skiftes sproget i indstillingerne, følger menuen på ikonet med.
@@ -123,6 +131,34 @@ pub(crate) fn refresh_tray(app: &AppHandle) {
 }
 
 const TRAY_ID: &str = "gode-tekster";
+
+/// Nødlukning af et ekstra vindue (12/10): en flade, der hænger, kunne ellers aldrig lukkes, og
+/// lyden blev aldrig sluppet (audio::release_owner kører først, når vinduet er væk). Efter 10 s
+/// spørges fladen. Svarer den inden 5 s, har den selv holdt vinduet åbent (en gemfejl eller en
+/// lyd i gang), og så røres det ikke. Kun et vindue, der stadig findes og ikke svarer, lukkes.
+fn close_if_hung(app: AppHandle, label: String) {
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(10));
+        let Some(w) = app.get_webview_window(&label) else {
+            return;
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let asked = w.eval_with_callback("1", move |_| {
+            let _ = tx.send(());
+        });
+        if asked.is_ok() && rx.recv_timeout(Duration::from_secs(5)).is_ok() {
+            return;
+        }
+        if let Some(w) = app.get_webview_window(&label) {
+            applog::write(
+                &app,
+                &format!("vinduet {label} svarede ikke og blev lukket"),
+            );
+            windows::forget(&app, &label);
+            let _ = w.destroy();
+        }
+    });
+}
 
 /// F11: fuld skærm til og fra. Returnerer den nye tilstand.
 #[tauri::command]
@@ -143,6 +179,11 @@ pub fn run() -> tauri::Result<()> {
         // Single-instance først: et dobbeltklik på en fil, mens programmet kører, åbner den i det
         // vindue, der allerede findes (ADR-0014).
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            // Springlistens opgaver (jumplist.rs): notelisten og en ny note.
+            if let Some(task) = argv.iter().skip(1).find_map(|a| notes::task_of(a)) {
+                notes::run_task(app, task);
+                return;
+            }
             // Ét vindue pr. tekst (3/10): er filen åben, hentes dens vindue. Har hovedvinduet
             // allerede en tekst, får filen sit eget vindue; ellers åbnes den i hovedvinduet.
             if let Some(arg) = argv.iter().skip(1).find(|a| !a.starts_with("--")) {
@@ -247,6 +288,14 @@ pub fn run() -> tauri::Result<()> {
             notes::note_roll,
             notes::note_state,
             notes::note_as_text,
+            notes::notes_list,
+            notes::note_open,
+            notes::note_trash,
+            notes::notes_trashed,
+            notes::note_restore,
+            notes::note_list_open,
+            notes::note_list_close,
+            references::lookup_doi,
             library::library_index,
             library::set_status,
             session::recent_documents,
@@ -295,7 +344,7 @@ pub fn run() -> tauri::Result<()> {
             ro::recover(&handle);
             jumplist::refresh(&handle);
             welcome::detect(&handle);
-            autostart::repair(settings::load(&handle).start_with_windows);
+            autostart::repair(&handle, settings::load(&handle).start_with_windows);
             updater::start(&handle);
             // Kun i testkørsler: GT_PANIK=1 går ned efter 3 s, så spørgsmålet om at sende fejlloggen
             // kan prøves ved næste start (4/10).
@@ -347,6 +396,12 @@ pub fn run() -> tauri::Result<()> {
                         tauri::async_runtime::spawn(async move { notes::show_all(&app) });
                     }
                     "skjul-noter" => notes::hide_all(app),
+                    "noteliste" => {
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = notes::show_list(&app);
+                        });
+                    }
                     // Alle vinduer gemmer først og kalder så `quit_app`. Fejl afbryder afslutningen.
                     "afslut" => windows::request_quit(app.clone()),
                     _ => {}
@@ -370,9 +425,14 @@ pub fn run() -> tauri::Result<()> {
 
             // Startet ved login (ADR-0014): bliv skjult, til brugeren åbner en fil eller klikker
             // på ikonet.
-            let hidden = autostart::started_hidden();
+            // Startet fra springlistens »Noteliste« eller »Ny note«: kun det, ikke hovedvinduet.
+            let task = std::env::args().find_map(|a| notes::task_of(&a));
+            let hidden = autostart::started_hidden() || task.is_some();
             if hidden {
                 webview_visible(&handle, false);
+            }
+            if let Some(task) = task {
+                notes::run_task(&handle, task);
             }
             // Nødtimer: viser vinduet, selv hvis fladen aldrig melder klar.
             std::thread::spawn(move || {
@@ -391,7 +451,8 @@ pub fn run() -> tauri::Result<()> {
         })
         .on_window_event(|window, event| {
             // Luk skjuler hovedvinduet. Programmet bliver kørende, så næste åbning er varm (ADR-0014).
-            // Et ekstra vindue gemmer først og lukker så helt (close_window).
+            // Et ekstra vindue gemmer først og lukker så helt (close_window). Hænger fladen, lukkes
+            // det efter 10-15 s alligevel (close_if_hung).
             match event {
                 // Hovedvinduet: fladen gemmer og skjuler selv (close_window). Første gang forklarer
                 // den, at programmet bliver klar i baggrunden (delbar udgave 3/10).
@@ -399,10 +460,13 @@ pub fn run() -> tauri::Result<()> {
                     api.prevent_close();
                     let _ = window.emit_to("main", "close-requested", ());
                 }
+                // Notelisten har intet at gemme og lukker bare.
+                WindowEvent::CloseRequested { .. } if window.label() == notes::LIST => {}
                 WindowEvent::CloseRequested { api, .. } => {
                     api.prevent_close();
                     let label = window.label().to_owned();
                     let _ = window.emit_to(label.as_str(), "close-requested", ());
+                    close_if_hung(window.app_handle().clone(), label);
                 }
                 WindowEvent::Destroyed => {
                     audio::release_owner(window.app_handle(), window.label());
