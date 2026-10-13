@@ -741,6 +741,8 @@ body.rp-wide.right-pinned { --hoejre: var(--rp-bred); }
 .lp-toggle:hover { background: var(--hover, rgba(0,0,0,0.04)); }
 .lp-toggle[aria-pressed="false"] { opacity: 0.45; }
 .lp-toggle[aria-pressed="false"] .lp-name { text-decoration: line-through; }
+.lp-sample.lp-toggle { width: auto; margin: 0; padding: 0 2px; }
+.lp-sample.lp-toggle[aria-pressed="false"] { text-decoration: line-through; }
 
 /* Stavning i fanen Sprog (5/10). */
 .lp-spell-head { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }

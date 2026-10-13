@@ -7,7 +7,7 @@ import type { EditorView } from "@codemirror/view";
 import { invoke } from "@tauri-apps/api/core";
 import { settings, updateSettings, type Settings } from "../settings.ts";
 import { errorText, showBanner } from "./banner.ts";
-import { currentFlags, currentLix, categoryOf, mask, type Flag } from "../editor/styleCheck.ts";
+import { currentDensity, currentFlags, currentLix, categoryOf, mask, type Flag } from "../editor/styleCheck.ts";
 
 type SpellError = { from: number; to: number; word: string; suggestions: string[] };
 import { wordClassCounts, type WordClass } from "../editor/wordclasses.ts";
@@ -29,7 +29,7 @@ const STYLE: [string, string, string][] = [
   ["grammatik", "Grammatik", "nutids-r, kongruens, komma og dobbelte ord"],
   ["stryg", "Floskler og fyld", "kan strøges"],
   ["enklere", "Tunge ord", "kan siges enklere"],
-  ["saetning", "Tunge sætninger", "lange sætninger, passiv og navneordsstil"],
+  ["saetning", "Tunge sætninger", "lange sætninger, svagt anslag og gentagelser"],
   ["hus", "Lyder som AI", "vendinger, der afslører maskinskrevet tekst"],
 ];
 
@@ -321,17 +321,28 @@ export class LanguagePanel {
   private styleCheck(): HTMLElement[] {
     const flags = currentFlags();
     const lix = currentLix();
+    // Hver kategori slås til og fra med et klik på navnet, som ordklasserne (fase 1, 13/10).
+    const hiddenNow = new Set(settings().hiddenStyle ?? []);
     const out: HTMLElement[] = STYLE.map(([cat, name, what]) => {
+      const off = hiddenNow.has(cat);
       const mine = flags.filter((f) => categoryOf(f.kind) === cat);
       const row = document.createElement("div");
       row.className = "lp-legend";
-      const sample = document.createElement("span");
-      sample.className = `lp-sample gt-style gt-style-${cat}`;
+      const sample = document.createElement("button");
+      sample.type = "button";
+      sample.className = `lp-sample lp-toggle gt-style gt-style-${cat}`;
+      sample.setAttribute("aria-pressed", String(!off));
       sample.textContent = name;
-      row.title = what;
+      sample.title = off ? `Vis ${name.toLowerCase()} igen` : `Skjul ${name.toLowerCase()}: ${what}`;
+      sample.addEventListener("click", () => {
+        const next = new Set(settings().hiddenStyle ?? []);
+        if (next.has(cat)) next.delete(cat);
+        else next.add(cat);
+        this.set({ hiddenStyle: [...next] });
+      });
       const n = document.createElement("span");
       n.className = "lp-count";
-      n.textContent = String(mine.length);
+      n.textContent = off ? "slået fra" : String(mine.length);
       row.append(sample, n);
       if (mine.length) {
         const next = document.createElement("button");
@@ -345,6 +356,14 @@ export class LanguagePanel {
       return row;
     });
     if (lix) out.push(hint(`LIX ${Math.round(lix.lix)}: ${lix.label}.`));
+    // Passiv og navneordsstil er et mål for hele teksten, ikke fund i teksten (fase 1, 13/10).
+    const d = currentDensity();
+    if (d && d.sentences >= 5) {
+      const pct = (n: number) => Math.round((n / d.sentences) * 100);
+      const p = hint(`Passiv i ${pct(d.passive)} % af sætningerne, navneordsstil i ${pct(d.nominal)} %.`);
+      p.title = "Et passivt udsagn er sjældent forkert, men mange gør teksten tung. Spørg, hvem der gør noget. Navneordsstil er sætninger med mindst tre tunge navneord på -ning, -else, -tion eller -hed. Kan nogle af dem blive udsagnsord?";
+      out.push(p);
+    }
     if (!flags.length && !lix) out.push(hint("Stiltjekket læser teksten …"));
     return out;
   }

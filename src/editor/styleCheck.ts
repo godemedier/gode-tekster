@@ -10,24 +10,46 @@
 import { StateEffect, StateField, type EditorState, type Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 
-import { categoryOf, type Flag } from "./styleRules.ts";
+import { categoryOf, type Density, type Flag } from "./styleRules.ts";
 import { authorshipField } from "./authorship.ts";
 import { tr } from "../i18n.ts";
 
 const SUGGESTION = tr("Forslag", "Suggestion");
 
-export { analyze, categoryOf, mask, type Flag } from "./styleRules.ts";
+export { analyze, categoryOf, mask, type Category, type Density, type Flag } from "./styleRules.ts";
 
 // --- i editoren ----------------------------------------------------------------------------------
 
 let enabled = false;
 let lastLix: { lix: number; label: string } | null = null;
 let lastFlags: Flag[] = [];
+let lastDensity: Density | null = null;
+/** Alle fund fra analysen, før skjulte kategorier og afviste fund er trukket fra. */
+let allFlags: Flag[] = [];
 const setFlags = StateEffect.define<Flag[]>();
+
+/** Kategorier, der er slået fra i fanen Sprog (indstillingen hiddenStyle, fase 1 13/10). */
+let hidden = new Set<string>();
+/**
+ * Fund, der er afvist med »Ikke nyttigt«: regel og ord. Samme ord med samme regel vises ikke igen,
+ * så længe programmet kører. Tælleren pr. regel gemmes i indstillingerne (styleNotUseful).
+ */
+const dismissed = new Set<string>();
+const dismissKey = (kind: string, text: string) => `${kind}|${text.toLowerCase()}`;
+
+/** Det, der skal vises af et sæt fund: ikke skjulte kategorier, ikke afviste fund. */
+function visible(flags: Flag[], doc: { sliceString(from: number, to: number): string }): Flag[] {
+  return flags.filter((f) => !hidden.has(categoryOf(f.kind)) && !dismissed.has(dismissKey(f.kind, doc.sliceString(f.from, f.to))));
+}
 
 /** Fundene fra den seneste analyse, til fanen Sprog (tom, når stiltjekket er slået fra). */
 export function currentFlags(): Flag[] {
   return enabled ? lastFlags : [];
+}
+
+/** Passiv og navneordsstil for hele teksten (fase 1, 13/10), til fanen Sprog. */
+export function currentDensity(): Density | null {
+  return enabled ? lastDensity : null;
 }
 
 /** LIX for den seneste analyse, til ordtalshjørnet (kun når stiltjekket er slået til). */
@@ -57,15 +79,43 @@ const field = StateField.define<DecorationSet>({
 /**
  * Fundet ved `pos`, med dets plads nu (flyttet med teksten siden analysen), til højreklik (9/10).
  */
-export function flagAt(state: EditorState, pos: number): { from: number; to: number; message: string; replacement?: string } | null {
-  let hit: { from: number; to: number; message: string; replacement?: string } | null = null;
+export function flagAt(state: EditorState, pos: number): { from: number; to: number; kind: string; message: string; replacement?: string } | null {
+  let hit: { from: number; to: number; kind: string; message: string; replacement?: string } | null = null;
   state.field(field, false)?.between(pos, pos, (from, to, deco) => {
     const f = (deco.spec as { flag?: Flag }).flag;
     if (!f || pos < from || pos > to) return;
-    hit = { from, to, message: f.message, replacement: f.replacement ?? undefined };
+    hit = { from, to, kind: f.kind, message: f.message, replacement: f.replacement ?? undefined };
     return false;
   });
   return hit;
+}
+
+/**
+ * »Ikke nyttigt« (højreklik): fundet og alle med samme regel og samme ord forsvinder. Kalderen
+ * tæller reglen op i indstillingerne (contextMenu.ts).
+ */
+export function dismissFlag(view: EditorView, flag: { from: number; to: number; kind: string }): void {
+  dismissed.add(dismissKey(flag.kind, view.state.sliceDoc(flag.from, flag.to)));
+  redraw(view);
+}
+
+/** Kategorierne, der ikke vises. Tegner om med det samme, uden ny analyse. */
+export function setHiddenStyle(view: EditorView, categories: readonly string[]): void {
+  const next = new Set(categories);
+  if (next.size === hidden.size && [...next].every((c) => hidden.has(c))) return;
+  hidden = next;
+  redraw(view);
+}
+
+/** Teksten, analysen sidst blev vist på. Er den ændret, passer positionerne i allFlags ikke længere. */
+let lastShownDoc: EditorState["doc"] | null = null;
+function redraw(view: EditorView): void {
+  if (!enabled) return;
+  // Er teksten ændret siden analysen, passer positionerne ikke: analysér igen.
+  if (lastShownDoc !== view.state.doc) return void view.plugin(runner)?.schedule(0);
+  lastFlags = visible(allFlags, view.state.doc);
+  view.dispatch({ effects: setFlags.of(lastFlags) });
+  window.dispatchEvent(new Event("gt-style"));
 }
 
 /** Teksten med »andres tekst« blanket ud: stiltjekket retter ikke i citater og kilders ord. */
@@ -108,19 +158,24 @@ const runner = ViewPlugin.fromClass(
       if (!enabled) {
         lastLix = null;
         lastFlags = [];
+        allFlags = [];
+        lastDensity = null;
         if (this.shown) this.view.dispatch({ effects: setFlags.of([]) });
         this.shown = false;
         return;
       }
       const doc = this.view.state.doc;
       worker ??= new Worker(new URL("./styleWorker.ts", import.meta.url), { type: "module" });
-      worker.onmessage = (e: MessageEvent<{ id: number; flags: Flag[]; lix: number; lixLabel: string }>) => {
+      worker.onmessage = (e: MessageEvent<{ id: number; flags: Flag[]; lix: number; lixLabel: string; density: Density }>) => {
         // Et svar på en ældre udgave af teksten kastes væk; en ny kørsel er allerede på vej.
         if (e.data.id !== generation || this.view.state.doc !== doc || !enabled) return;
         lastLix = { lix: e.data.lix, label: e.data.lixLabel };
-        lastFlags = e.data.flags;
+        lastDensity = e.data.density;
+        allFlags = e.data.flags;
+        lastFlags = visible(allFlags, doc);
+        lastShownDoc = doc;
         this.shown = true;
-        this.view.dispatch({ effects: setFlags.of(e.data.flags) });
+        this.view.dispatch({ effects: setFlags.of(lastFlags) });
         window.dispatchEvent(new Event("gt-style"));
       };
       worker.postMessage({ id, doc: withoutOthers(this.view.state), comma, strict });

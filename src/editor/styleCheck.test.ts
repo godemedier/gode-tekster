@@ -10,21 +10,31 @@ test("markdown, kode og skjulte blokke analyseres ikke, men positionerne passer"
   assert.ok(!m.includes("**") && !m.includes("kode"));
 });
 
-test("fyldord streges, kancellisprog får et enklere ord, »blev træt« er ikke passiv", () => {
+test("fyldord streges, kancellisprog får et enklere ord", () => {
   const doc = "Det var faktisk sådan, at vi med henblik på sagen gik. Han blev træt. Sagen blev afgjort.";
   const { flags } = analyze(doc, undefined, undefined, true);
   const by = (k: string) => flags.find((f) => f.kind === k);
   assert.equal(doc.slice(by("fyldord")!.from, by("fyldord")!.to), "faktisk");
   assert.equal(categoryOf("fyldord"), "stryg");
   assert.equal(by("omstaendeligt")!.replacement, "for at");
-  const passive = flags.filter((f) => f.kind === "passiv").map((f) => doc.slice(f.from, f.to));
-  assert.ok(!passive.some((p) => p.includes("træt")), JSON.stringify(passive));
-  assert.ok(passive.some((p) => p.includes("afgjort")), JSON.stringify(passive));
+});
+
+test("passiv og navneordsstil er et mål for hele teksten, ikke fund (fase 1, 13/10)", () => {
+  const doc = "Han blev træt. Sagen blev afgjort. Vurderingen af implementeringen og ledelsens forventning tog tid. Vi gik hjem.";
+  const { flags, density } = analyze(doc, undefined, undefined, true);
+  assert.ok(!flags.some((f) => f.kind === "passiv" || f.kind === "nominalisering"));
+  // »blev træt« er ikke passiv, »blev afgjort« er.
+  assert.deepEqual(density, { sentences: 4, passive: 1, nominal: 1 });
+});
+
+test("passiv i et citat tæller ikke med", () => {
+  const { density } = analyze("Han sagde: »Sagen blev afgjort i går.« Vi gik hjem.", undefined, undefined, true);
+  assert.equal(density.passive, 0);
 });
 
 test("som standard kun de regler, der sjældent tager fejl (målebænken 12/10)", () => {
   const doc = "Det var faktisk sådan, at vi med henblik på sagen gik; Sagen blev afgjort.";
   const kinds = (strict: boolean) => new Set(analyze(doc, undefined, undefined, strict).flags.map((f) => f.kind));
-  assert.ok(kinds(true).has("fyldord") && kinds(true).has("passiv"));
+  assert.ok(kinds(true).has("fyldord"));
   assert.deepEqual([...kinds(false)], ["hus:semikolon"]);
 });

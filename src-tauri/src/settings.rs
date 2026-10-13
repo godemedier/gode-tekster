@@ -89,6 +89,10 @@ pub struct Settings {
     pub comma_style: String,
     /// Stiltjekket viser også de usikre regler (styleRules.ts, målebænken 12/10). Fra som standard.
     pub strict_style: bool,
+    /// Stiltjekkets kategorier, der er slået fra i fanen Sprog (styleCheck.ts, fase 1 13/10).
+    pub hidden_style: Vec<String>,
+    /// Antal »Ikke nyttigt« pr. regel. Kun lokalt, til næste måling af reglerne (ADR-0051).
+    pub style_not_useful: std::collections::BTreeMap<String, u32>,
     /// `date` eller `name`.
     pub sort_by: String,
     pub newest_first: bool,
@@ -135,6 +139,8 @@ impl Default for Settings {
             style_check: false,
             comma_style: "start".to_owned(),
             strict_style: false,
+            hidden_style: Vec::new(),
+            style_not_useful: std::collections::BTreeMap::new(),
             sort_by: "date".to_owned(),
             newest_first: true,
             folders_first: true,

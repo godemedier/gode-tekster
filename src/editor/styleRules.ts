@@ -6,7 +6,14 @@ import { analyzeAiTells } from "../sprog/aitells.ts";
 import { grammarFlags, type Agreement } from "./grammar.ts";
 
 export type Flag = { from: number; to: number; kind: string; message: string; replacement?: string };
-type Category = "stryg" | "enklere" | "saetning" | "hus" | "grammatik";
+export type Category = "stryg" | "enklere" | "saetning" | "hus" | "grammatik";
+
+/**
+ * Passiv og navneordsstil er et mål for hele teksten, ikke et fund pr. sætning (fase 1, 13/10).
+ * Forskningen støtter dem kun svagt (Balling 2013/2018), og målebænken fandt 10-15 % nyttige fund
+ * for passiv. En passiv sætning er sjældent forkert. Mange er et tegn på tung tekst.
+ */
+export type Density = { sentences: number; passive: number; nominal: number };
 
 const CATEGORY: Partial<Record<ClarityKind, Category>> = {
   floskel: "stryg",
@@ -18,8 +25,6 @@ const CATEGORY: Partial<Record<ClarityKind, Category>> = {
   "vis-ikke-fortael": "enklere",
   lang: "saetning",
   "meget-lang": "saetning",
-  passiv: "saetning",
-  nominalisering: "saetning",
   "svagt-anslag": "saetning",
   "tung-optakt": "saetning",
   adverbier: "saetning",
@@ -62,12 +67,17 @@ export function plainMessage(message: string): string {
 const STANDARD = new Set(["floskel", "hus:vag-kilde", "hus:semikolon", "hus:tusindtal", "hus:title-case", "hus:emoji-punkt", "hus:fed-punkt"]);
 export const isStandard = (kind: string): boolean => kind.startsWith("grammatik:") || STANDARD.has(kind);
 
-export function analyze(doc: string, words?: GrammarWords, comma?: string, strict = false): { flags: Flag[]; lix: number; lixLabel: string } {
+export function analyze(doc: string, words?: GrammarWords, comma?: string, strict = false): { flags: Flag[]; lix: number; lixLabel: string; density: Density } {
   const text = mask(doc);
   const clarity = analyzeClarity(text);
   const flags: Flag[] = [];
+  // Højst ét passiv- og ét navneordsfund pr. sætning (clarity.ts), så tallene er sætninger.
+  const density: Density = { sentences: clarity.sentences, passive: 0, nominal: 0 };
   for (const f of clarity.flags) {
-    if (f.inQuote || !CATEGORY[f.kind]) continue;
+    if (f.inQuote) continue;
+    if (f.kind === "passiv") density.passive++;
+    if (f.kind === "nominalisering") density.nominal++;
+    if (!CATEGORY[f.kind]) continue;
     flags.push({ from: f.offset, to: f.offset + f.length, kind: f.kind, message: plainMessage(f.message), replacement: (f as { replacement?: string }).replacement });
   }
   // Syv vendinger står både som floskel og som AI-ord (»kaste lys over«). Ét fund pr. sted.
@@ -77,7 +87,7 @@ export function analyze(doc: string, words?: GrammarWords, comma?: string, stric
     flags.push({ from: f.offset, to: f.offset + f.length, kind: `hus:${f.kind}`, message: plainMessage(f.message), replacement: f.replacement });
   }
   if (words) flags.push(...grammarFlags(text, words.verbs, words.agree, words.adjectives, words.nouns, comma, words.adverbs));
-  return { flags: strict ? flags : flags.filter((f) => isStandard(f.kind)), lix: clarity.lix, lixLabel: clarity.lixLabel };
+  return { flags: strict ? flags : flags.filter((f) => isStandard(f.kind)), lix: clarity.lix, lixLabel: clarity.lixLabel, density };
 }
 
 export function categoryOf(kind: string): Category {

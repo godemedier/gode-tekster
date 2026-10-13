@@ -6,7 +6,8 @@
 
 import type { EditorView } from "@codemirror/view";
 
-import { flagAt } from "../editor/styleCheck.ts";
+import { dismissFlag, flagAt } from "../editor/styleCheck.ts";
+import { settings, updateSettings } from "../settings.ts";
 import { tableMenuAt } from "../editor/tables.ts";
 import { selectionGroups } from "../editor/selectionToolbar.ts";
 import type { MenuItem } from "./menu.ts";
@@ -129,6 +130,17 @@ export function installContextMenu(view: EditorView): void {
           }),
         );
       }
+      // Fase 1 (13/10): fundet og samme ord med samme regel forsvinder, og reglen tælles op. Tallet
+      // bliver på pc'en og bruges ved næste måling af reglerne (ADR-0051).
+      out.finding.push(
+        add(tr("Ikke nyttigt", "Not helpful"), () => {
+          dismissFlag(view, flag);
+          const counts = { ...(settings().styleNotUseful ?? {}) };
+          counts[flag.kind] = (counts[flag.kind] ?? 0) + 1;
+          void updateSettings({ styleNotUseful: counts });
+          view.focus();
+        }),
+      );
     }
 
     // En tabelcelle: tabellens punkter som undermenu, og intet andet.

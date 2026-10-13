@@ -59,6 +59,10 @@ export type Settings = {
   commaStyle: "start" | "uden" | "fra";
   /** Stiltjekket viser også de usikre regler (»Alle forslag«, målebænken 12/10). */
   strictStyle: boolean;
+  /** Stiltjekkets kategorier, der er slået fra i fanen Sprog (fase 1, 13/10). */
+  hiddenStyle: string[];
+  /** Hvor mange gange hver regel er afvist med »Ikke nyttigt«. Bliver på pc'en, ingen telemetri. */
+  styleNotUseful: Record<string, number>;
   styleCheck: boolean;
   sortBy: "date" | "name";
   newestFirst: boolean;

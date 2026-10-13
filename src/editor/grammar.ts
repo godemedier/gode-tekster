@@ -20,6 +20,8 @@ const PRONOUNS = new Set(["jeg", "du", "han", "hun", "vi", "man"]);
 /** Uregelmæssige par: nutid → navnemåde. »ved« er udeladt: efter »kunne« er det oftest et forholdsord. */
 const IRREGULAR: Record<string, string> = { har: "have", er: "være", gør: "gøre" };
 const PRESENT_OF: Record<string, string> = { have: "har", være: "er", gøre: "gør", vide: "ved" };
+/** Datid af de uregelmæssige. Står sætningen i datid, er »jeg have været« oftest »havde« (målebænken 12/10). */
+const PAST_OF: Record<string, string> = { have: "havde", være: "var", gøre: "gjorde", vide: "vidste" };
 /** Navneord, der staves som et udsagnsord i nutid. Efter »at« som bindeord kan de være rigtige. */
 const AGENT_NOUNS = new Set([
   "lærer", "maler", "sælger", "køber", "læser", "skriver", "leder", "ejer", "spiller", "løber",
@@ -33,6 +35,15 @@ const SUBJECTS = new Set(["jeg", "du", "han", "hun", "vi", "man", "de", "den", "
 const DOUBLES = new Set(["og", "med", "en", "et", "at", "som", "af"]);
 
 type Word = { text: string; low: string; from: number; to: number };
+
+/** Står et andet udsagnsord end `w` i datid i samme sætning? Kun de sikre former i PAST_FINITE. */
+function pastSentence(text: string, w: Word): boolean {
+  const start = Math.max(...[".", "!", "?", "\n"].map((c) => text.lastIndexOf(c, w.from))) + 1;
+  const ends = [".", "!", "?", "\n"].map((c) => text.indexOf(c, w.to)).filter((n) => n >= 0);
+  const sentence = text.slice(start, ends.length ? Math.min(...ends) : text.length).toLowerCase();
+  // »så« er oftest biord (»så kom han«), ikke datid af »se«.
+  return [...sentence.matchAll(/\p{L}+/gu)].some((m) => m[0] !== "så" && PAST_FINITE.has(m[0]));
+}
 
 /** Følg store bogstaver: »Lære« bliver til »Lærer«, ikke »lærer«. */
 function keepCase(original: string, next: string): string {
@@ -109,7 +120,15 @@ export function grammarFlags(
         k--;
       }
       const present = PRESENT_OF[w.low] ?? (verbs.has(w.low) && verbs.has(`${w.low}r`) ? `${w.low}r` : null);
-      if (present && !inverted && !modalBefore) flag(w, "nutid", `Efter »${prev.text}« skal udsagnsordet stå i nutid: »${present}«.`, present);
+      if (present && !inverted && !modalBefore) {
+        // Står et andet udsagnsord i sætningen i datid, kan nutid være forkert tid: foreslå datid,
+        // når den kendes, og nævn ellers begge.
+        const past = pastSentence(text, w);
+        const pastForm = PAST_OF[w.low];
+        if (past && pastForm) flag(w, "nutid", `Udsagnsordet skal bøjes. Sætningen står i datid: »${pastForm}« (eller »${present}«).`, pastForm);
+        else if (past) flag(w, "nutid", `Udsagnsordet skal bøjes: »${present}« i nutid, eller datid som resten af sætningen.`, present);
+        else flag(w, "nutid", `Efter »${prev.text}« skal udsagnsordet stå i nutid: »${present}«.`, present);
+      }
     }
   }
   text0 = text;
@@ -135,8 +154,9 @@ const E_OPTIONAL = new Set(["ny", "fri"]);
 const SMALL_WORDS = new Set(["i", "på", "til", "med", "for", "af", "om", "fra", "ved", "og", "eller", "men", "at", "som", "der", "er", "var", "har", "havde", "bliver", "blev", "kan", "skal", "vil", "nu", "her", "der", "da", "når"]);
 /** Navneord, hvor træbankens køn er forkert eller begge køn er rigtige (fundet i korpusset 7/10). */
 const GENDER_UNSURE = new Set(["boykot", "match", "spand", "tidsfordriv", "alternativ", "kollektiv", "del", "standard", "race"]);
-/** »en enkelt undtagelse«: enkelt = én, ikke t-formen af »enkel«. */
+/** »en enkelt undtagelse«: enkelt = én, ikke t-formen af »enkel«. Bestemt form er »det enkelte menneske«. */
 const NOT_T_FORM = new Set(["enkelt"]);
+const OWN_DEFINITE: Record<string, string> = { enkelt: "enkelte" };
 const DEFINITE = new Set(["den", "det", "de", "denne", "dette", "disse", "min", "mit", "mine", "din", "dit", "dine", "sin", "sit", "sine", "vores", "jeres", "deres", "hans", "hendes"]);
 
 /** Tillægsord med regelmæssig endelse, der ikke står i træbanken med t-form: vigtig → vigtigt, vigtige. */
@@ -193,6 +213,11 @@ function agreementFlags(
     const startOfSentence = before === undefined || !joined(before, det);
     const pronoun = ["den", "det", "de"].includes(det.low) && !startOfSentence && !ARTICLE_AFTER.has(before.low);
     if (DEFINITE.has(det.low) && adj(w1) && noun(w2) && !pronoun) {
+      const own = OWN_DEFINITE[w1.low];
+      if (own) {
+        flag(w1, "bestemt", `Efter »${det.text}« står tillægsordet i bestemt form: »${own}«.`, own);
+        continue;
+      }
       const base = agree.a[w1.low] ? w1.low : tToBase.get(w1.low) ?? (adjectives.has(w1.low) ? w1.low : undefined);
       const forms = base ? formsOf(base) : null;
       if (forms && w1.low !== forms[1] && !E_OPTIONAL.has(w1.low)) flag(w1, "bestemt", `Efter »${det.text}« står tillægsordet i bestemt form: »${forms[1]}«.`, forms[1]);

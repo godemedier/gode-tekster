@@ -22,6 +22,18 @@ test("nutid efter jeg, du, han, hun, vi og man", () => {
   assert.deepEqual(fix("Vi lærer meget."), []);
 });
 
+test("nutid: står sætningen i datid, foreslås datid (målebænken 12/10)", () => {
+  assert.deepEqual(fix("Modellen kom til mig, efter jeg have været inde i data."), ["have→havde"]);
+  assert.deepEqual(fix("Det gik godt, fordi jeg være forberedt."), ["være→var"]);
+  // Datid i en anden sætning tæller ikke, og »så« er biord.
+  assert.deepEqual(fix("Han kom. Nu jeg have tid."), ["have→har"]);
+  assert.deepEqual(fix("Og så jeg have tid."), ["have→har"]);
+  // Kendes datid ikke, foreslås nutid stadig, men beskeden nævner datid.
+  const [f] = grammarFlags("Det var sjovt, men vi lære meget.", verbs);
+  assert.equal(f.replacement, "lærer");
+  assert.match(f.message, /datid/);
+});
+
 test("omvendt ordstilling er rigtig og markeres ikke", () => {
   assert.deepEqual(fix("Kan vi lære det?"), []);
   assert.deepEqual(fix("I morgen skal jeg skrive."), []);
@@ -67,6 +79,12 @@ test("kongruens: køn, t-form og bestemt form", () => {
   assert.deepEqual(fixK("Vi bor i det stor hus."), ["stor→store"]);
   assert.deepEqual(fixK("Det er et stort hus og en stor bil."), []);
   assert.deepEqual(fixK("Det er en vigtig sag og et vigtig problem."), ["vigtig→vigtigt"]);
+});
+
+test("kongruens: »det enkelt menneske« → »enkelte«, ikke »enkle« (målebænken 12/10)", () => {
+  assert.deepEqual(fixK("Det er til gode for det enkelt menneske."), ["enkelt→enkelte"]);
+  assert.deepEqual(fixK("Det er til gode for det enkelte menneske."), []);
+  assert.deepEqual(fixK("Der var en enkelt undtagelse."), []);
 });
 
 test("kongruens: navne og ukendte ord markeres ikke", () => {
