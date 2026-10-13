@@ -216,5 +216,7 @@ export const styleCheckTheme = EditorView.theme({
   ".gt-style-saetning": { backgroundColor: "var(--fund)", borderRadius: "2px" },
   // Grammatik som i Word: en blå bølget streg (7/10).
   ".gt-style-grammatik": { textDecoration: "underline wavy var(--link)", textDecorationThickness: "1px", textUnderlineOffset: "4px" },
-  ".gt-style-hus": { textDecoration: "underline wavy var(--fejl)", textDecorationThickness: "1px", textUnderlineOffset: "4px" },
+  // Husets regler er råd, ikke fejl: rød bølge betyder stavefejl. Rav og prikker som Words
+  // »forfiningsforslag« (13/10, Troels).
+  ".gt-style-hus": { textDecoration: "underline dotted var(--advarsel)", textDecorationThickness: "2px", textUnderlineOffset: "4px" },
 });
