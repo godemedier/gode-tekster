@@ -105,9 +105,10 @@ pub fn audio_recoveries(app: AppHandle) -> Vec<String> {
         })
         .collect()
 }
-#[tauri::command]
-pub fn audio_recover(app: AppHandle, id: String) -> Result<String, String> {
-    if !job_folder(&id) || !audio_recoveries(app.clone()).contains(&id) {
+/// Mappen med en nødkopi fra en tidligere session. Kun en rigtig mappe under `audio-jobs`, som
+/// intet aktivt job ejer.
+fn recovery_folder(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
+    if !job_folder(id) || !audio_recoveries(app.clone()).iter().any(|r| r == id) {
         return Err(error());
     }
     let root = app
@@ -117,16 +118,74 @@ pub fn audio_recover(app: AppHandle, id: String) -> Result<String, String> {
         .join("audio-jobs")
         .canonicalize()
         .map_err(|_| error())?;
-    let path = root
-        .join(id)
-        .join("recovery.md")
-        .canonicalize()
-        .map_err(|_| error())?;
-    if !path.starts_with(root) {
+    let folder = root.join(id);
+    if !std::fs::symlink_metadata(&folder).is_ok_and(|m| m.is_dir() && !m.is_symlink())
+        || folder.canonicalize().map_err(|_| error())? != folder
+    {
         return Err(error());
     }
-    crate::document::choose(&app, &path);
-    Ok(path.to_string_lossy().into_owned())
+    Ok(folder)
+}
+/// Filnavnet, Gem-dialogen foreslår: optagelsens navn fra metadataen, ellers »Transskription.md«.
+fn recovery_name(text: &str) -> String {
+    text.lines()
+        .next()
+        .and_then(|l| l.strip_prefix("<!-- gt:lyd "))
+        .and_then(|l| l.strip_suffix(" -->"))
+        .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+        .and_then(|v| v.get("audio")?.as_str().map(str::to_owned))
+        .filter(|a| !a.contains(['/', '\\', ':']))
+        .and_then(|a| {
+            Path::new(&a)
+                .file_stem()
+                .map(|s| format!("{}.transskription.md", s.to_string_lossy()))
+        })
+        .unwrap_or_else(|| "Transskription.md".to_owned())
+}
+/// En nødkopi gemmes, hvor brugeren vælger, og ryddes så væk. Den åbnes aldrig i den skjulte
+/// jobmappe, for dér ville rettelserne forsvinde med næste oprydning.
+#[tauri::command]
+pub async fn audio_recover(app: AppHandle, id: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder = recovery_folder(&app, &id)?;
+        let text = std::fs::read_to_string(folder.join("recovery.md")).map_err(|_| error())?;
+        use tauri_plugin_dialog::DialogExt;
+        let picked = app
+            .dialog()
+            .file()
+            .set_title(t!("Gem gendannet transskription", "Save recovered transcript"))
+            .set_file_name(recovery_name(&text))
+            .add_filter("Markdown", &["md"])
+            .blocking_save_file()
+            .and_then(|p| p.into_path().ok());
+        let Some(target) = picked else {
+            return Ok(None);
+        };
+        crate::files::write_atomic_new(&target, text.as_bytes()).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AlreadyExists {
+                t!("Filen findes allerede. Vælg et nyt navn, så den eksisterende tekst bliver bevaret.", "The file already exists. Choose a new name to keep the existing text.").to_owned()
+            } else {
+                t!("Transskriptionen kunne ikke gemmes. Vælg en mappe med plads og skriverettigheder.", "Could not save the transcript. Choose a writable folder with enough space.").to_owned()
+            }
+        })?;
+        let _ = std::fs::remove_dir_all(&folder);
+        crate::document::choose(&app, &target);
+        Ok(Some(target.to_string_lossy().into_owned()))
+    })
+    .await
+    .map_err(|_| error())?
+}
+/// Sletter en nødkopi fra en tidligere session. `audio_discard` kan kun kassere det åbne jobs.
+#[tauri::command]
+pub fn audio_forget_recovery(app: AppHandle, id: String) -> Result<(), String> {
+    let folder = recovery_folder(&app, &id)?;
+    std::fs::remove_dir_all(folder).map_err(|_| {
+        t!(
+            "Den ugemte transskription kunne ikke slettes. Prøv igen.",
+            "The unsaved transcript could not be deleted. Try again."
+        )
+        .to_owned()
+    })
 }
 #[tauri::command]
 pub fn audio_discard(app: AppHandle, window: tauri::Window, id: String) -> Result<(), String> {
@@ -682,7 +741,7 @@ pub fn close_audio(app: AppHandle, window: tauri::Window, id: String) -> Result<
         .remove(&id);
     Ok(())
 }
-fn link(name: &str) -> String {
+pub(crate) fn link(name: &str) -> String {
     name.bytes()
         .map(|b| {
             if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
@@ -693,11 +752,11 @@ fn link(name: &str) -> String {
         })
         .collect()
 }
-fn time(ms: u64) -> String {
+pub(crate) fn time(ms: u64) -> String {
     let sec = ms / 1000;
     format!("{:02}:{:02}:{:02}", sec / 3600, sec / 60 % 60, sec % 60)
 }
-fn escape_text(text: &str) -> String {
+pub(crate) fn escape_text(text: &str) -> String {
     let mut out = String::new();
     for ch in text.chars() {
         if "\\`*_{}[]<>#!|".contains(ch) {
@@ -1038,6 +1097,17 @@ mod tests {
         assert_eq!(wav_data(&path).unwrap(), (44, pcm.len() as u64));
         std::fs::write(&path, b"broken").unwrap();
         assert!(wav_data(&path).is_err());
+    }
+    #[test]
+    fn noedkopien_foreslaar_optagelsens_navn() {
+        let head = r#"<!-- gt:lyd {"version":1,"audio":"møde 3.m4a","duration":12.5} -->"#;
+        assert_eq!(
+            recovery_name(&format!("{head}\n# Transskription\n")),
+            "møde 3.transskription.md"
+        );
+        let sti = r#"<!-- gt:lyd {"audio":"..\\x.wav"} -->"#;
+        assert_eq!(recovery_name(sti), "Transskription.md");
+        assert_eq!(recovery_name("# Bare tekst"), "Transskription.md");
     }
     #[test]
     fn links_og_tidskoder_er_sikre_ogsaa_efter_en_time() {

@@ -44,7 +44,7 @@ gode-tekster/
 │   ├── src/audio.rs             lydjob, afkodning, delresultater og atomisk transskriptionsgem
 │   ├── src/structure.rs         AI-strukturforslag med skemavalidering
 │   ├── src/references.rs        DOI-opslag til fanen Kilder (doi.org, CSL-JSON, kun kendte felter)
-│   ├── src/notes.rs             noterne: ark, placeringer, Win+Alt+N, notelisten og papirkurven
+│   ├── src/notes.rs             noterne: ark, placeringer, Win+Alt+N, notelisten, papirkurven og det forvarmede ark (ADR-0052)
 │   ├── tauri.conf.json          vindue, CSP, bundle
 │   ├── capabilities/            hvad fladen må kalde
 │   ├── nsis/                    dansk installer (Danish.nsh) og afinstallation (hooks.nsh)

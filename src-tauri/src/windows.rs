@@ -193,6 +193,8 @@ pub async fn close_window(app: AppHandle, window: tauri::WebviewWindow) {
 /// afslutte processen, mens et vindue stadig har ugemte rettelser.
 #[tauri::command]
 pub fn request_quit(app: AppHandle) {
+    // Det forvarmede ark har ingen note og ville aldrig svare (ADR-0052).
+    crate::notes::drop_spare(&app);
     let labels: HashSet<String> = app.webview_windows().keys().cloned().collect();
     if let Ok(mut q) = app.state::<WindowState>().quitting.lock() {
         *q = Some(labels);

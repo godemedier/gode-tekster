@@ -1098,3 +1098,28 @@ to bindeord i træk i kommatjekket, decimaltal i tusindtalsreglen, gentagelse ku
 hinanden og ikke for navne, samt ord og forslag, der oftere var forkerte end rigtige.
 **Revurdér:** når en regel er omskrevet (fx passiv som tæthed for hele teksten, kløvning i stedet
 for svagt anslag), måles den igen og kan komme på listen.
+**Tilføjet 13/10 (fase 1):** passiv og navneordsstil er ikke længere fund i teksten. Fanen Sprog
+viser dem som andel af sætningerne (`density` fra `analyze`). Hvert fund har »Ikke nyttigt« i
+højreklikmenuen: samme regel og samme ord forsvinder, så længe programmet kører, og reglen tælles op
+i `styleNotUseful` i settings.json. Tallet forlader aldrig pc'en, men kan bruges ved næste måling.
+Hver kategori slås fra med et klik på navnet i fanen Sprog (`hiddenStyle`).
+
+### ADR-0052 — Et forvarmet ark til næste note (13/10-2026)
+Supplerer ADR-0039. **Baggrund:** En ny note tog 0,7-1,0 s i release (én måling 3,4 s) og
+7-14 s, når flere ark startede samtidig med hovedvinduet. Tiden går med at starte WebView2 og
+indlæse editoren, ikke med filen.
+**Beslutning:** Programmet holder ét skjult ark klar (`notes.rs`, `SpareSlot`): editoren er
+indlæst, men arket har ingen fil. Det er hverken i `labels`, `hwnds` eller `noter.json`, så det
+ikke findes i notelisten, i Win+D, i »Vis alle noter« eller ved næste start, og der ligger ingen
+tom fil på disken. Fladen spørger med `note_spare`, om den skal vente, og venter så på
+»note-claim«. En ny note (Win+Alt+N, Ctrl+N, en note uden plads på denne pc) tager arket, når
+fladen har meldt klar, og ellers laves et ark som før. En note med en gemt størrelse bruger det
+ikke: størrelsen skal gives ved oprettelsen (set_size på et skjult rammeløst ark lægger
+titellinjen oveni). Svarer arket ikke inden for 4 s, lukkes det, og noten får et nyt ark.
+Afslut lukker arket, før vinduerne bliver spurgt, for det har intet at gemme.
+**Lav prioritet:** Det næste ark varmes op 3 s efter, at en ny note er vist. Ved start først efter
+20 s, og kun når noterne er i brug på denne pc (`noter.json` er ikke tom). Begge venter, til
+intet andet ark er ved at komme frem. Testscenarierne (`GT_SCENARIE`) får ingen ark, fordi de
+regner med »note-1«, »note-2« i rækkefølge.
+**Konsekvens:** Cirka 30 MB hukommelse, så længe programmet kører og noterne er i brug. Den
+første note efter start kan stadig være kold, hvis den kommer inden for de første 20 s.

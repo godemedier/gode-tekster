@@ -35,3 +35,33 @@ test("gemt transskription genåbnes uden ny fil efter et afvist filskift", async
     else Reflect.deleteProperty(globalThis, "window");
   }
 });
+
+test("nødkopi fra en tidligere session gemmes et nyt sted og kan slettes", async () => {
+  const calls: string[] = [], opened: string[] = [];
+  let recoveries = ["1-1760000000000-2", "1-1760000000001-3"];
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {
+    __TAURI_INTERNALS__: { invoke: async (command: string, args: { id?: string }) => {
+      calls.push(command);
+      if (command === "audio_recover") { recoveries = recoveries.filter(r => r !== args.id); return "C:\test\møde.transskription.md"; }
+      if (command === "audio_forget_recovery") { recoveries = recoveries.filter(r => r !== args.id); return null; }
+      if (command === "audio_recoveries") return recoveries;
+      throw new Error(command);
+    } },
+  } });
+  const panel = Object.assign(Object.create(AudioPanel.prototype), {
+    body: null, recoveries, open: async (path: string) => { opened.push(path); },
+  }) as { recover(id: string): Promise<void>; forget(id: string): Promise<void>; recoveries: string[] };
+  try {
+    await panel.recover("1-1760000000000-2");
+    // Den gemte kopi åbnes fra det sted, brugeren valgte, ikke fra den skjulte jobmappe.
+    assert.deepEqual(opened, ["C:\test\møde.transskription.md"]);
+    assert.deepEqual(panel.recoveries, ["1-1760000000001-3"]);
+    await panel.forget("1-1760000000001-3");
+    assert.deepEqual(panel.recoveries, []);
+    assert.deepEqual(calls, ["audio_recover", "audio_recoveries", "audio_forget_recovery", "audio_recoveries"]);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "window", previous);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
+});

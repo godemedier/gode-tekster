@@ -57,7 +57,7 @@ impl CodexTranscriptCollector {
             start_ms: adjusted_start,
             end_ms: adjusted_end,
             text: trimmed.to_owned(),
-            speaker,
+            speaker: speaker.as_deref().and_then(speaker_label),
         });
     }
 
@@ -92,6 +92,15 @@ impl CodexTranscriptCollector {
             serde_json::from_str(json_str).map_err(|e| format!("Ugyldig JSON: {e}"))?;
         let event_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("");
         if event_type == "input_transcript.added" {
+            // Kun det, der blev sagt i optagelsen. Modellens egen tale hører ikke til teksten.
+            let role = val
+                .get("role")
+                .or_else(|| val.get("item").and_then(|i| i.get("role")))
+                .and_then(|r| r.as_str())
+                .unwrap_or("user");
+            if role != "user" {
+                return Ok(false);
+            }
             let start = val.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0);
             let end = val.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(start);
             let speaker = val
@@ -118,12 +127,13 @@ impl CodexTranscriptCollector {
     }
 
     /// Genererer færdig Markdown med klikbare tidskoder og metadataheader.
+    /// Metadataens `duration` er sekunder, som i Gemini-vejen (`audio::metadata`) og `audioSource`.
     pub fn to_markdown(&self, audio_name: &str, duration_ms: u64, complete: bool) -> String {
         let mut out = String::new();
         let meta = serde_json::json!({
             "version": 1,
             "audio": audio_name,
-            "duration": duration_ms,
+            "duration": duration_ms as f64 / 1000.0,
             "provider": "codex",
             "model": DEFAULT_MODEL,
             "complete": complete,
@@ -140,29 +150,19 @@ impl CodexTranscriptCollector {
         let flush = |block: &mut Vec<&InputTranscriptEvent>, out: &mut String| {
             if let Some(first) = block.first() {
                 let ms = first.start_ms;
-                let sec = ms / 1000;
-                let time_str = format!("{:02}:{:02}:{:02}", sec / 3600, sec / 60 % 60, sec % 60);
-                let safe_link = audio_name
-                    .bytes()
-                    .map(|b| {
-                        if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
-                            (b as char).to_string()
-                        } else {
-                            format!("%{b:02X}")
-                        }
-                    })
-                    .collect::<String>();
                 out.push_str(&format!(
-                    "[{time_str}]({safe_link}#t={:.3})",
+                    "[{}]({}#t={:.3})",
+                    crate::audio::time(ms),
+                    crate::audio::link(audio_name),
                     ms as f64 / 1000.0
                 ));
                 if let Some(speaker) = &first.speaker {
-                    out.push_str(&format!(" **{speaker}**"));
+                    out.push_str(&format!(" **{}**", crate::audio::escape_text(speaker)));
                 }
                 out.push_str("\n\n");
                 let text = block
                     .iter()
-                    .map(|e| e.text.as_str())
+                    .map(|e| crate::audio::escape_text(&e.text))
                     .collect::<Vec<_>>()
                     .join(" ");
                 out.push_str(&text);
@@ -186,6 +186,13 @@ impl CodexTranscriptCollector {
 
         out
     }
+}
+
+/// Talernavnet kommer udefra. Kun en kort, enkelt linje uden styretegn bruges, ellers ingen taler.
+fn speaker_label(raw: &str) -> Option<String> {
+    let label = raw.trim();
+    (!label.is_empty() && label.chars().count() <= 40 && !label.chars().any(char::is_control))
+        .then(|| label.to_owned())
 }
 
 #[cfg(test)]
@@ -259,5 +266,69 @@ mod tests {
         assert!(md.contains("**Taler 2**"));
         assert!(md.contains("Hej fra person et."));
         assert!(md.contains("Goddag fra person to."));
+    }
+
+    #[test]
+    fn varighed_i_metadata_er_sekunder_som_i_gemini_vejen() {
+        let mut collector = CodexTranscriptCollector::new(0);
+        collector.add_input_transcript(0, 1000, "Hej.".to_owned());
+        let md = collector.to_markdown("optagelse.wav", 3_665_500, true);
+        assert!(md.contains("\"duration\":3665.5"), "{md}");
+    }
+
+    #[test]
+    fn tekst_og_taler_escapes_som_markdown() {
+        let mut collector = CodexTranscriptCollector::new(0);
+        collector.add_input_transcript_with_speaker(
+            0,
+            1000,
+            "<img src=x> *fed* [link](y) # ikke overskrift".to_owned(),
+            Some("**Ole**".to_owned()),
+        );
+        let md = collector.to_markdown("a.wav", 2000, true);
+        let body = md.split_once("-->").map(|(_, b)| b).unwrap_or("");
+        assert!(!body.replace(r"\<", "").contains('<'), "{body}");
+        assert!(body.contains(r"\<img src=x\> \*fed\* \[link\](y) \# ikke overskrift"));
+        assert!(body.contains(r"**\*\*Ole\*\***"));
+    }
+
+    #[test]
+    fn talerfilter_afviser_lange_og_flerlinjede_navne() {
+        let mut collector = CodexTranscriptCollector::new(0);
+        collector.add_input_transcript_with_speaker(
+            0,
+            1000,
+            "En.".to_owned(),
+            Some("Taler 1\n# Overskrift".to_owned()),
+        );
+        collector.add_input_transcript_with_speaker(
+            1100,
+            2000,
+            "To.".to_owned(),
+            Some("x".repeat(41)),
+        );
+        collector.add_input_transcript_with_speaker(
+            2100,
+            3000,
+            "Tre.".to_owned(),
+            Some("  Taler 2  ".to_owned()),
+        );
+        let speakers: Vec<_> = collector
+            .events()
+            .iter()
+            .map(|e| e.speaker.as_deref())
+            .collect();
+        assert_eq!(speakers, [None, None, Some("Taler 2")]);
+    }
+
+    #[test]
+    fn modellens_egen_tale_kommer_ikke_med() {
+        let mut collector = CodexTranscriptCollector::new(0);
+        let assistant = r#"{"type":"input_transcript.added","start_ms":0,"end_ms":900,"item":{"role":"assistant","text":"Hvordan kan jeg hjælpe?"}}"#;
+        let user = r#"{"type":"input_transcript.added","start_ms":1000,"end_ms":2000,"role":"user","text":"Hej"}"#;
+        assert!(!collector.parse_data_channel_message(assistant).unwrap());
+        assert!(collector.parse_data_channel_message(user).unwrap());
+        assert_eq!(collector.events().len(), 1);
+        assert_eq!(collector.events()[0].text, "Hej");
     }
 }

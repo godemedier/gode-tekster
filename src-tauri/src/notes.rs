@@ -44,6 +44,59 @@ pub struct NotesState {
     hwnds: Mutex<HashMap<String, isize>>,
     /// Vindue → hvornår det blev bestilt, så loggen viser, hvor længe et ark er om at komme frem.
     asked: Mutex<HashMap<String, std::time::Instant>>,
+    /// Det forvarmede, skjulte ark uden note (ADR-0052).
+    spare: Mutex<SpareSlot>,
+}
+
+/// Det forvarmede ark (ADR-0052): et skjult notevindue, hvor editoren allerede er indlæst, så en ny
+/// note kan vises med det samme. Det har ingen fil, og indtil det tages i brug, er det hverken i
+/// `labels`, `hwnds` eller placeringerne, så det aldrig tæller som en note.
+#[derive(Debug, Default)]
+pub(crate) struct SpareSlot {
+    label: Option<String>,
+    /// Fladen har meldt, at den venter (`note_spare`). Før det tages arket ikke i brug.
+    ready: bool,
+}
+
+impl SpareSlot {
+    /// Reserver pladsen til et nyt forvarmet ark. Falsk, hvis der allerede er et.
+    fn reserve(&mut self, label: &str) -> bool {
+        if self.label.is_some() {
+            return false;
+        }
+        self.label = Some(label.to_owned());
+        self.ready = false;
+        true
+    }
+
+    fn is(&self, label: &str) -> bool {
+        self.label.as_deref() == Some(label)
+    }
+
+    /// Arkets flade venter på en note. Sandt, hvis vinduet er det forvarmede.
+    fn mark_ready(&mut self, label: &str) -> bool {
+        let is = self.is(label);
+        if is {
+            self.ready = true;
+        }
+        is
+    }
+
+    /// Tag arket i brug, hvis det er klar. Bagefter er pladsen tom.
+    fn claim(&mut self) -> Option<String> {
+        if !self.ready {
+            return None;
+        }
+        self.ready = false;
+        self.label.take()
+    }
+
+    /// Arket er væk (lukket ved Afslut, eller oprettelsen fejlede).
+    fn release(&mut self, label: &str) {
+        if self.is(label) {
+            *self = Self::default();
+        }
+    }
 }
 
 /// Et rullet ark er kun toppen: 36 px (logiske).
@@ -197,21 +250,15 @@ fn open_window(app: &AppHandle, path: &Path, focus: bool) -> Result<(), String> 
         crate::windows::focus(app, &label);
         return Ok(());
     }
-    let state = app.state::<NotesState>();
-    let label = format!("note-{}", state.next.fetch_add(1, Ordering::SeqCst) + 1);
-    if let Ok(mut a) = state.asked.lock() {
-        a.insert(label.clone(), std::time::Instant::now());
-    }
     let place = with_places(app, |p| p.get(&key(path)).cloned()).flatten();
-    crate::windows::set_pending(app, &label, path);
-    if let Ok(mut l) = state.labels.lock() {
-        l.insert(label.clone(), path.to_path_buf());
+    // En note uden plads på denne pc (en ny) får det forvarmede ark: det har standardstørrelsen.
+    // En note med en gemt størrelse kan ikke bruge det, for set_size på et skjult rammeløst ark
+    // lægger titellinjen oveni (se nedenfor).
+    if place.is_none() && claim_spare(app, path, focus) {
+        return Ok(());
     }
-    if focus {
-        if let Ok(mut f) = state.focus_on_ready.lock() {
-            f.insert(label.clone());
-        }
-    }
+    let label = next_label(app);
+    adopt(app, &label, path, focus);
     let on_top = place.as_ref().is_some_and(|p| p.on_top);
     // Størrelsen gives ved oprettelsen. Sat bagefter på det skjulte, rammeløse ark lagde Windows en
     // usynlig titellinje oveni (30 px ved 100 %), så arket voksede, hver gang det kom frem igen
@@ -229,12 +276,209 @@ fn open_window(app: &AppHandle, path: &Path, focus: bool) -> Result<(), String> 
         };
         (f64::from(p.w) / scale, h)
     });
-    let w = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("note.html".into()))
-        .title(
-            path.file_stem()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default(),
-        )
+    let w = build_sheet(app, &label, &title_of_path(path), size, on_top)?;
+    remember_hwnd(app, &label, &w);
+    match place.filter(|p| on_screen(&w, p.x, p.y)) {
+        Some(p) => {
+            let _ = w.set_position(PhysicalPosition::new(p.x, p.y));
+            // Størrelsen er givet ved oprettelsen (`size` ovenfor).
+        }
+        None => cascade(app, &w),
+    }
+    remember_place(app, path, &w);
+    Ok(())
+}
+
+fn next_label(app: &AppHandle) -> String {
+    let n = app
+        .state::<NotesState>()
+        .next
+        .fetch_add(1, Ordering::SeqCst)
+        + 1;
+    format!("note-{n}")
+}
+
+/// Vinduet viser noten nu: det henter den selv (`take_pending`), når fladen er klar.
+fn adopt(app: &AppHandle, label: &str, path: &Path, focus: bool) {
+    let state = app.state::<NotesState>();
+    if let Ok(mut a) = state.asked.lock() {
+        a.insert(label.to_owned(), std::time::Instant::now());
+    }
+    crate::windows::set_pending(app, label, path);
+    if let Ok(mut l) = state.labels.lock() {
+        l.insert(label.to_owned(), path.to_path_buf());
+    }
+    if focus {
+        if let Ok(mut f) = state.focus_on_ready.lock() {
+            f.insert(label.to_owned());
+        }
+    }
+}
+
+// --- Det forvarmede ark (ADR-0052) --------------------------------------------------------------
+
+/// Hvor længe et taget ark må være om at vise noten, før det opgives, og noten får et nyt ark.
+const SPARE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// Vis noten i det forvarmede ark, hvis der er et, der er klar. Falsk: lav et nyt ark som før.
+fn claim_spare(app: &AppHandle, path: &Path, focus: bool) -> bool {
+    let Some(label) = app
+        .state::<NotesState>()
+        .spare
+        .lock()
+        .ok()
+        .and_then(|mut s| s.claim())
+    else {
+        return false;
+    };
+    let Some(w) = app.get_webview_window(&label) else {
+        return false;
+    };
+    adopt(app, &label, path, focus);
+    let _ = w.set_title(&title_of_path(path));
+    remember_hwnd(app, &label, &w);
+    cascade(app, &w);
+    remember_place(app, path, &w);
+    // Først nu: noten skal ligge klar (`set_pending`), når fladen spørger efter den.
+    if w.emit_to(label.as_str(), "note-claim", ()).is_err() {
+        give_up_spare(app, &label, path, focus);
+        return true;
+    }
+    // Svarer arket ikke, lukkes det, og noten får et nyt. Ellers kunne en ny note forsvinde.
+    let app = app.clone();
+    let path = path.to_path_buf();
+    std::thread::spawn(move || {
+        std::thread::sleep(SPARE_TIMEOUT);
+        let waiting = app
+            .state::<NotesState>()
+            .asked
+            .lock()
+            .is_ok_and(|a| a.contains_key(&label));
+        if waiting {
+            give_up_spare(&app, &label, &path, focus);
+        }
+    });
+    true
+}
+
+/// Det forvarmede ark svarede ikke: luk det, og vis noten i et nyt ark.
+fn give_up_spare(app: &AppHandle, label: &str, path: &Path, focus: bool) {
+    crate::applog::write(app, "forvarmet ark svarede ikke, nyt ark i stedet");
+    if let Ok(mut a) = app.state::<NotesState>().asked.lock() {
+        a.remove(label);
+    }
+    if let Ok(mut f) = app.state::<NotesState>().focus_on_ready.lock() {
+        f.remove(label);
+    }
+    forget(app, label);
+    if let Some(w) = app.get_webview_window(label) {
+        let _ = w.destroy();
+    }
+    // Pladsen er tom nu, så `open_window` laver et almindeligt ark. Placeringen er gemt, så det
+    // får den samme plads og størrelse.
+    if let Err(e) = open_window(app, path, focus) {
+        crate::applog::write(app, &format!("ny note: {e}"));
+    }
+}
+
+/// Varm et ark op om `delay`, når ingen andre ark er ved at starte. Lav prioritet: hovedvinduet og
+/// arkene fra sidst skal ikke dele opstarten med det (7-14 s, da de startede samtidig 12/10).
+pub fn warm_spare_later(app: &AppHandle, delay: std::time::Duration) {
+    // Testscenarierne regner med »note-1«, »note-2« … i rækkefølge (measure.ts).
+    if std::env::var("GT_SCENARIE").is_ok_and(|v| !v.is_empty()) {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(delay);
+        // Vent, til ingen ark er ved at komme frem, højst et minut.
+        for _ in 0..60 {
+            let idle = app
+                .state::<NotesState>()
+                .asked
+                .lock()
+                .is_ok_and(|a| a.is_empty());
+            if idle {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+        warm_spare(&app);
+    });
+}
+
+/// Ved start: kun når noterne er i brug på denne pc. Ellers koster arket hukommelse for intet.
+pub fn warm_spare_at_start(app: &AppHandle) {
+    let in_use = with_places(app, |p| !p.is_empty()).unwrap_or(false);
+    if in_use {
+        warm_spare_later(app, std::time::Duration::from_secs(20));
+    }
+}
+
+fn warm_spare(app: &AppHandle) {
+    let label = next_label(app);
+    let reserved = app
+        .state::<NotesState>()
+        .spare
+        .lock()
+        .is_ok_and(|mut s| s.reserve(&label));
+    if !reserved {
+        return;
+    }
+    if let Err(e) = build_sheet(app, &label, "", (WIDTH, HEIGHT), false) {
+        crate::applog::write(app, &format!("forvarmet ark: {e}"));
+        if let Ok(mut s) = app.state::<NotesState>().spare.lock() {
+            s.release(&label);
+        }
+    }
+}
+
+/// Afslut: det forvarmede ark har intet at gemme og lukkes, før vinduerne bliver spurgt.
+pub fn drop_spare(app: &AppHandle) {
+    let label = app
+        .state::<NotesState>()
+        .spare
+        .lock()
+        .ok()
+        .and_then(|mut s| std::mem::take(&mut *s).label);
+    if let Some(w) = label.and_then(|l| app.get_webview_window(&l)) {
+        let _ = w.destroy();
+    }
+}
+
+fn is_spare(app: &AppHandle, label: &str) -> bool {
+    app.state::<NotesState>()
+        .spare
+        .lock()
+        .is_ok_and(|s| s.is(label))
+}
+
+/// Fladen i et ark uden note spørger, om den skal vente på en (det forvarmede ark). Sandt: vent på
+/// »note-claim«, og spørg så efter noten igen (`initial_document`).
+#[tauri::command]
+pub fn note_spare(app: AppHandle, window: tauri::WebviewWindow) -> bool {
+    app.state::<NotesState>()
+        .spare
+        .lock()
+        .is_ok_and(|mut s| s.mark_ready(window.label()))
+}
+
+fn title_of_path(path: &Path) -> String {
+    path.file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// Et skjult, rammeløst ark. Det vises først, når fladen melder klar (`ready`).
+fn build_sheet(
+    app: &AppHandle,
+    label: &str,
+    title: &str,
+    size: (f64, f64),
+    on_top: bool,
+) -> Result<tauri::WebviewWindow, String> {
+    let w = WebviewWindowBuilder::new(app, label, WebviewUrl::App("note.html".into()))
+        .title(title)
         .decorations(false)
         .shadow(true)
         .skip_taskbar(true)
@@ -249,17 +493,21 @@ fn open_window(app: &AppHandle, path: &Path, focus: bool) -> Result<(), String> 
         .build()
         .map_err(|e| e.to_string())?;
     hide_from_alt_tab(&w);
+    Ok(w)
+}
+
+/// Arket er en note nu: `desktop.rs` skal kunne finde det (Win+D).
+fn remember_hwnd(app: &AppHandle, label: &str, w: &tauri::WebviewWindow) {
     #[cfg(windows)]
-    if let (Ok(hwnd), Ok(mut h)) = (w.hwnd(), state.hwnds.lock()) {
-        h.insert(label.clone(), hwnd.0 as isize);
+    if let (Ok(hwnd), Ok(mut h)) = (w.hwnd(), app.state::<NotesState>().hwnds.lock()) {
+        h.insert(label.to_owned(), hwnd.0 as isize);
     }
-    match place.filter(|p| on_screen(&w, p.x, p.y)) {
-        Some(p) => {
-            let _ = w.set_position(PhysicalPosition::new(p.x, p.y));
-            // Størrelsen er givet ved oprettelsen (`size` ovenfor).
-        }
-        None => cascade(app, &w),
-    }
+    #[cfg(not(windows))]
+    let _ = (app, label, w);
+}
+
+/// Noten er fremme: gem placeringen, så den kommer igen samme sted.
+fn remember_place(app: &AppHandle, path: &Path, w: &tauri::WebviewWindow) {
     // Vinduet spørges, FØR låsen tages: spørgsmålet går til hovedtråden, og den venter på samme
     // lås, når et flyt skal gemmes (`moved`). Ellers låser programmet fast (8/10).
     let pos = w.outer_position().unwrap_or_default();
@@ -276,7 +524,6 @@ fn open_window(app: &AppHandle, path: &Path, focus: bool) -> Result<(), String> 
         });
         entry.open = true;
     });
-    Ok(())
 }
 
 /// Et nyt ark lægges øverst til højre på den skærm, musen er på, lidt forskudt for hvert ark.
@@ -368,6 +615,10 @@ pub fn ready(app: &AppHandle, label: &str) {
             app,
             &format!("note klar efter {} ms", t.elapsed().as_millis()),
         );
+    }
+    if focus {
+        // Noten er brugt: varm det næste ark op, når denne er fremme.
+        warm_spare_later(app, std::time::Duration::from_secs(3));
     }
     if let Some(w) = app.get_webview_window(label) {
         let _ = w.show();
@@ -586,6 +837,9 @@ pub fn destroyed(app: &AppHandle, label: &str) {
     if let Ok(mut h) = state.hwnds.lock() {
         h.remove(label);
     };
+    if let Ok(mut s) = state.spare.lock() {
+        s.release(label);
+    };
 }
 
 /// Vindueshåndtagene på arkene, der er åbne (`desktop.rs`).
@@ -600,7 +854,7 @@ pub fn handles(app: &AppHandle) -> Vec<isize> {
 /// Menuen ved uret: hent alle noter frem, også dem, der var lukket ned, men stod fremme sidst.
 pub fn show_all(app: &AppHandle) {
     for (label, w) in app.webview_windows() {
-        if is_note(&label) {
+        if is_note(&label) && !is_spare(app, &label) {
             let _ = w.show();
         }
     }
@@ -1051,5 +1305,37 @@ mod list_tests {
         assert_eq!(color_of("<!-- gt:farve vaerdi=<script> -->"), None);
         assert_eq!(visible_text("A <!-- åben"), "A");
         assert_eq!(title_of("\n\n   \n"), "");
+    }
+
+    #[test]
+    fn forvarmet_ark_tages_kun_i_brug_naar_det_er_klar() {
+        let mut slot = SpareSlot::default();
+        assert!(slot.reserve("note-4"));
+        // Kun ét ad gangen.
+        assert!(!slot.reserve("note-5"));
+        // Fladen er ikke indlæst endnu: noten får et nyt ark.
+        assert_eq!(slot.claim(), None);
+        // Et almindeligt ark uden note (fil slettet) skal ikke vente.
+        assert!(!slot.mark_ready("note-1"));
+        assert!(slot.mark_ready("note-4"));
+        assert_eq!(slot.claim().as_deref(), Some("note-4"));
+        // Taget i brug: det er en note nu, ikke længere det forvarmede ark.
+        assert!(!slot.is("note-4"));
+        assert_eq!(slot.claim(), None);
+        assert!(slot.reserve("note-6"));
+    }
+
+    #[test]
+    fn forvarmet_ark_der_lukkes_frigiver_pladsen() {
+        let mut slot = SpareSlot::default();
+        assert!(slot.reserve("note-2"));
+        assert!(slot.mark_ready("note-2"));
+        // Et andet ark, der lukkes, rører ikke pladsen.
+        slot.release("note-1");
+        assert!(slot.is("note-2"));
+        slot.release("note-2");
+        assert!(!slot.is("note-2"));
+        assert_eq!(slot.claim(), None);
+        assert!(slot.reserve("note-3"));
     }
 }

@@ -1,6 +1,8 @@
 // En note på skrivebordet (ADR-0039): én .md-fil i Noter-mappen i et lille rammeløst vindue, med
 // samme editor og autosave som teksterne. Rust ejer filen (document.rs) og arkets placering (notes.rs).
 //
+// En ny note vises i et forvarmet, skjult ark, når der er et (ADR-0052).
+//
 // Ctrl+N laver en ny note, Ctrl+H viser notelisten med alle noter, også de lukkede, Ctrl+W lukker
 // arket (en tom note efterlader ingen fil), Ctrl+D lægger noten i papirkurven. Dobbeltklik på toppen ruller arket op til første linje.
 
@@ -65,10 +67,24 @@ function button(svg: string, label: string, run: (b: HTMLButtonElement) => void,
 
 // --- teksten -----------------------------------------------------------------------------------
 
-const dto = await invoke<DocumentDto | null>("initial_document").catch((e) => {
+// Det forvarmede ark (ADR-0052) har ingen note endnu: det venter skjult med editoren klar, til Rust
+// giver det en (»note-claim«). Der lyttes, før der spørges, så beskeden ikke kan gå tabt.
+let claimed = () => {};
+const claim = new Promise<void>((resolve) => (claimed = resolve));
+const stopClaim = await getCurrentWebviewWindow().listen("note-claim", () => claimed());
+const initial = () => invoke<DocumentDto | null>("initial_document").catch((e) => {
   showBanner(errorText(e));
   return null;
 });
+let dto = await initial();
+if (!dto && await invoke<boolean>("note_spare").catch(() => false)) {
+  await claim;
+  // Indstillingerne kan være ændret, mens arket ventede.
+  await reloadSettings();
+  applySettings();
+  dto = await initial();
+}
+stopClaim();
 let session: DocumentSession | null = null;
 let lookTimer: number | undefined;
 if (dto) session = DocumentSession.load(view, dto, () => changed());

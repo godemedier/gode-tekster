@@ -295,6 +295,7 @@ pub fn run() -> tauri::Result<()> {
             notes::note_restore,
             notes::note_list_open,
             notes::note_list_close,
+            notes::note_spare,
             references::lookup_doi,
             library::library_index,
             library::set_status,
@@ -332,6 +333,7 @@ pub fn run() -> tauri::Result<()> {
             audio::audio_recoveries,
             audio::audio_recover,
             audio::audio_discard,
+            audio::audio_forget_recovery,
             commands::ai_design_command,
         ])
         .setup(|app| {
@@ -422,6 +424,8 @@ pub fn run() -> tauri::Result<()> {
                 let app = handle.clone();
                 tauri::async_runtime::spawn(async move { notes::restore(&app) });
             }
+            // Et skjult ark, så næste Win+Alt+N er øjeblikkelig (ADR-0052). Efter opstarten.
+            notes::warm_spare_at_start(&handle);
 
             // Startet ved login (ADR-0014): bliv skjult, til brugeren åbner en fil eller klikker
             // på ikonet.

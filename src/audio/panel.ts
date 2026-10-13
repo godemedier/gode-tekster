@@ -52,7 +52,11 @@ export class AudioPanel {
     if(this.recoveries.length) {
       const details=document.createElement("details"),summary=document.createElement("summary");
       summary.textContent=tr(`Ugemte transskriptioner (${this.recoveries.length})`,`Unsaved transcripts (${this.recoveries.length})`);details.append(summary);
-      for(const id of this.recoveries)details.append(button(tr("Gendan fra ","Recover from ")+new Date(Number(id.split('-')[1])).toLocaleString(),()=>void invoke<string>("audio_recover",{id}).then(path=>this.open(path)).catch(e=>showBanner(errorText(e)))));
+      for(const id of this.recoveries) {
+        const when=new Date(Number(id.split('-')[1])).toLocaleString(), row=document.createElement("div");row.className="structure-tools";
+        row.append(note(when),button(tr("Gem …","Save …"),()=>void this.recover(id)),button(tr("Slet …","Delete …"),()=>showBanner(tr(`Slet den ugemte transskription fra ${when}? Den kan ikke hentes tilbage.`,`Delete the unsaved transcript from ${when}? It cannot be recovered.`),[{label:tr("Slet","Delete"),run:()=>void this.forget(id)}],{closable:true})));
+        details.append(row);
+      }
       body.append(details);
     }
     if (this.info) {
@@ -93,6 +97,16 @@ export class AudioPanel {
     }));
   }
   private refresh():void { if(this.body?.dataset.tab==="lyd")this.render(this.body); }
+  private async reloadRecoveries():Promise<void> { this.recoveries=await invoke<string[]>("audio_recoveries");this.refresh(); }
+  /** Nødkopien gemmes, hvor brugeren vælger, og åbnes derfra. Aldrig i den skjulte jobmappe. */
+  private async recover(id:string):Promise<void> {
+    try { const path=await invoke<string|null>("audio_recover",{id});if(!path)return;await this.reloadRecoveries();await this.open(path); }
+    catch(e){showBanner(errorText(e));}
+  }
+  private async forget(id:string):Promise<void> {
+    try { await invoke("audio_forget_recovery",{id});await this.reloadRecoveries(); }
+    catch(e){showBanner(errorText(e));}
+  }
   private updateElapsed(): void {
     const elapsed = this.controls.querySelector(".audio-elapsed");
     if (!elapsed) return;
