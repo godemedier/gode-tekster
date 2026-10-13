@@ -56,9 +56,10 @@ export function plainMessage(message: string): string {
  * Reglerne, der vises som standard. Målt 12/10 på 1.774 redigerede fagbladsartikler med en
  * redaktørs vurdering af stikprøver (scripts/stiltjek-maal.mjs, docs/research/2026-10-12-stiltjek-plan.md):
  * kun regler, hvor mindst 70 % af fundene var nyttige. Resten vises kun med »Alle forslag«
- * (indstillingen strictStyle). En ny regel er uden for listen, til den er målt.
+ * (indstillingen strictStyle). En ny regel er uden for listen, til den er målt. Floskel og vag kilde
+ * fik 65 % (13 af 20), men kun 2-3 af 20 var forkerte, resten var tvivl. Taget med 12/10.
  */
-const STANDARD = new Set(["hus:semikolon", "hus:tusindtal", "hus:title-case", "hus:emoji-punkt", "hus:fed-punkt"]);
+const STANDARD = new Set(["floskel", "hus:vag-kilde", "hus:semikolon", "hus:tusindtal", "hus:title-case", "hus:emoji-punkt", "hus:fed-punkt"]);
 export const isStandard = (kind: string): boolean => kind.startsWith("grammatik:") || STANDARD.has(kind);
 
 export function analyze(doc: string, words?: GrammarWords, comma?: string, strict = false): { flags: Flag[]; lix: number; lixLabel: string } {

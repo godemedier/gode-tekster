@@ -1088,7 +1088,8 @@ Før rettelserne gav stiltjekket 34,8 fund pr. 1.000 ord, og de fleste regler ra
 skribenter retter efter falske fund, og at redigeret dansk har 0,2-0,5 % fejl.
 **Beslutning:** En regel vises kun som standard, når mindst 70 % af dens fund var nyttige.
 Listen er en tilladelsesliste i `styleRules.ts` (`isStandard`): grammatikken, semikolon,
-tusindtal og husets mekaniske regler. Alt andet vises med indstillingen »Alle forslag«
+tusindtal og husets mekaniske regler. Floskel og vag kilde er også med: de fik 65 % (13 af 20),
+men kun 2-3 af 20 var forkerte, og resten var tvivl. Med 20 stikprøver skiller ét fund ikke. Alt andet vises med indstillingen »Alle forslag«
 (`strictStyle`). En ny regel er uden for listen, til den er målt. Målebænken måler altid alle
 regler, og vurderingerne genbruges på stikprøvens id, så kun nye fund skal vurderes.
 **Rettet samtidig:** citater med ”…” og replikker med tankestreg springes over, ASCII-`\b` i

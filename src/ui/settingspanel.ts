@@ -215,8 +215,8 @@ export class SettingsPanel {
     // eller også dem, der ofte rammer god dansk.
     const strictness = choices(
       [
-        { value: "sikre", label: tr("Sikre fund", "Reliable"), title: tr("Kun regler, der sjældent tager fejl: grammatik, komma og husets tegnsætning", "Only rules that are rarely wrong: grammar, commas and house punctuation") },
-        { value: "alle", label: tr("Alle forslag", "All suggestions"), title: tr("Også lange sætninger, passiv, floskler og ordvalg. De rammer oftere god dansk", "Also long sentences, passive voice, clichés and word choice. These hit good Danish more often") },
+        { value: "sikre", label: tr("Sikre fund", "Reliable"), title: tr("Kun regler, der sjældent tager fejl: grammatik, komma, tegnsætning, floskler og kilder uden navn", "Only rules that are rarely wrong: grammar, commas, punctuation, clichés and unnamed sources") },
+        { value: "alle", label: tr("Alle forslag", "All suggestions"), title: tr("Også lange sætninger, passiv, gentagelser og ordvalg. De rammer oftere god dansk", "Also long sentences, passive voice, repetition and word choice. These hit good Danish more often") },
       ],
       s.strictStyle ? "alle" : "sikre",
       (v) => set({ strictStyle: v === "alle" }),
