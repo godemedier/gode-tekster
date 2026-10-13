@@ -493,6 +493,8 @@ fn build_sheet(
         .build()
         .map_err(|e| e.to_string())?;
     hide_from_alt_tab(&w);
+    #[cfg(windows)]
+    crate::contextmenu::install(&w);
     Ok(w)
 }
 
@@ -1239,13 +1241,18 @@ pub fn show_list(app: &AppHandle) -> Result<(), String> {
         let _ = w.set_focus();
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, LIST, WebviewUrl::App("noteliste.html".into()))
+    let w = WebviewWindowBuilder::new(app, LIST, WebviewUrl::App("noteliste.html".into()))
         .title(t!("Noter", "Notes"))
         .inner_size(400.0, 600.0)
         .min_inner_size(300.0, 320.0)
         .disable_drag_drop_handler()
         .build()
         .map_err(|e| e.to_string())?;
+    // Højreklik uden browserens punkter (contextmenu.rs), som i hovedvinduet.
+    #[cfg(windows)]
+    crate::contextmenu::install(&w);
+    #[cfg(not(windows))]
+    let _ = w;
     Ok(())
 }
 

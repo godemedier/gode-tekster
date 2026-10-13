@@ -1,5 +1,7 @@
 //! Højreklik i programmet (2/10): WebView2's egen menu havde browserens punkter som
 //! »Skriveretning«, »Flere værktøjer« og »Inspicer«. Kun det, et skriveprogram skal bruge, bliver.
+//! Windows' stemmeskrivning (Win+H) lå inde i »Flere værktøjer« og røg med. Den løftes nu op i
+//! menuen, og undermenuen fjernes (13/10). Noterne og notelisten får samme menu.
 //!
 //! Fra 9/10 bygges menuen færdig her: lige før den vises, spørges fladen (`window.__gtMenu`,
 //! ui/contextMenu.ts), hvad der står under musen. Et fund fra stil- og kommatjekket kommer øverst
@@ -23,6 +25,16 @@ const KEEP: &[&str] = &[
 
 pub fn keep(name: &str) -> bool {
     KEEP.contains(&name)
+}
+
+/// Undermenuer, hvis gode punkter løftes op i menuen, før undermenuen fjernes.
+const LIFT: &[&str] = &["moreTools"];
+
+/// Et punkt fra en løftet undermenu. Stemmeskrivningen har intet navn i WebView2 (»other«), men
+/// er et almindeligt punkt. »Skriveretning« hedder også »other«, men er en undermenu og ligger
+/// udenfor. »Del« og »Inspicer« ryger som i resten af menuen (målt 13/10 i en note).
+pub fn keep_lifted(name: &str, is_command: bool) -> bool {
+    keep(name) || (name == "other" && is_command)
 }
 
 /// Hvilke skillestreger skal væk: først, sidst og to i træk. `separators[i]` er sand for en streg.
@@ -347,7 +359,8 @@ unsafe fn prune(
 ) -> windows::core::Result<()> {
     use webview2_com::CoTaskMemPWSTR;
     use webview2_com::Microsoft::Web::WebView2::Win32::{
-        COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR,
+        COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND,
+        COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR,
     };
     use windows::core::PWSTR;
 
@@ -382,8 +395,35 @@ unsafe fn prune(
                 );
             }
         }
-        if !keep(&name) {
-            unsafe { items.RemoveValueAtIndex(i)? };
+        if keep(&name) {
+            continue;
+        }
+        // Undermenuens gode punkter kommer op på dens plads (stemmeskrivningen i »Flere værktøjer«).
+        let mut lifted = Vec::new();
+        if LIFT.contains(&name.as_str()) {
+            let children = unsafe { items.GetValueAtIndex(i)?.Children()? };
+            let mut m = 0u32;
+            unsafe { children.Count(&mut m)? };
+            for k in (0..m).rev() {
+                let child = unsafe { children.GetValueAtIndex(k)? };
+                let mut child_name = PWSTR::null();
+                let mut child_kind = COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND::default();
+                unsafe { child.Name(&mut child_name)? };
+                unsafe { child.Kind(&mut child_kind)? };
+                let child_name = CoTaskMemPWSTR::from(child_name).to_string();
+                unsafe { children.RemoveValueAtIndex(k)? };
+                if keep_lifted(
+                    &child_name,
+                    child_kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND,
+                ) {
+                    lifted.push(child);
+                }
+            }
+        }
+        unsafe { items.RemoveValueAtIndex(i)? };
+        // `lifted` står bagfra, så hvert punkt indsat på plads `i` skubber de andre ned i rækkefølge.
+        for child in &lifted {
+            unsafe { items.InsertValueAtIndex(i, child)? };
         }
     }
     tidy_separators(items)
@@ -428,6 +468,15 @@ mod tests {
                 && !keep("moreTools")
                 && !keep("print")
         );
+    }
+
+    #[test]
+    fn stemmeskrivning_loeftes_op() {
+        // »Flere værktøjer« fjernes, men indholdet løftes op og filtreres som resten.
+        assert!(LIFT.contains(&"moreTools") && !keep("moreTools"));
+        assert!(keep_lifted("other", true));
+        assert!(!keep_lifted("other", false) && !keep_lifted("share", true));
+        assert!(!keep_lifted("inspectElement", true));
     }
 
     #[test]

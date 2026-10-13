@@ -157,15 +157,20 @@ pub fn start(app: &AppHandle) {
         return;
     }
     let app = app.clone();
+    // Første tjek 15 s efter start (før: 2 minutter, 13/10), når vinduerne er oppe. Startes
+    // programmet ved login, er nettet ikke altid klar endnu: et fejlet tjek prøves igen efter 10
+    // minutter i stedet for at vente seks timer.
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_secs(2 * 60));
+        std::thread::sleep(Duration::from_secs(15));
         loop {
+            let mut wait = 6 * 60 * 60;
             if crate::settings::load(&app).check_updates {
                 if let Err(e) = check(&app) {
                     crate::applog::write(&app, &format!("opdatering: {e}"));
+                    wait = 10 * 60;
                 }
             }
-            std::thread::sleep(Duration::from_secs(6 * 60 * 60));
+            std::thread::sleep(Duration::from_secs(wait));
         }
     });
 }
