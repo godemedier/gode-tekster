@@ -1,0 +1,10 @@
+# Synkroniseringen (ADR-0054): kernen deles af serveren og Gode Tekster, serveren kører i Coolify.
+[workspace]
+members = ["kerne", "server"]
+resolver = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true

@@ -11,7 +11,7 @@
     "tauri": "tauri",
     "test": "npm run test:ts && npm run test:rs",
     "test:ts": "tsc --noEmit && node --test",
-    "test:rs": "cargo test --manifest-path src-tauri/Cargo.toml --quiet",
+    "test:rs": "cargo test --manifest-path src-tauri/Cargo.toml --quiet && cargo test --manifest-path synk/Cargo.toml --workspace --quiet",
     "prepare": "lefthook install"
   },
   "dependencies": {

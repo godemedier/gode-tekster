@@ -46,3 +46,6 @@ tests/private/
 # opdatering kommer fra Gode Medier. Nøglen har en backup uden for repoet.
 .updater/
 HANDOFF-ARKIV.md
+
+# Synkens workspace bygger her
+synk/target

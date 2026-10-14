@@ -41,9 +41,12 @@ const rustStaged = files.some(f => /\.rs$|(^|\/)Cargo\.(toml|lock)$/.test(f));
 if (rustStaged && existsSync("src-tauri/Cargo.toml")) {
   if (!have("cargo --version")) failures.push("RUST: cargo findes ikke i denne shell. Rust-koden kan ikke tjekkes.\nInstallér med 'winget install Rustlang.Rustup', og start en ny shell.");
   else {
-    const m = "--manifest-path src-tauri/Cargo.toml";
-    const f = sh(`cargo fmt ${m} --check`); if (!f.ok) failures.push("RUST-FORMATERING (koer 'cargo fmt " + m + "'):\n" + f.out);
-    const c = sh(`cargo clippy ${m} --all-targets --quiet -- -D warnings`); if (!c.ok) failures.push("RUST-LINT (clippy):\n" + c.out);
+    // Appen og synkens workspace (synk/, ADR-0054, 14/10).
+    for (const [m, all] of [["--manifest-path src-tauri/Cargo.toml", ""], ["--manifest-path synk/Cargo.toml", " --all"]]) {
+      if (!existsSync(m.split(" ")[1])) continue;
+      const f = sh(`cargo fmt ${m}${all} --check`); if (!f.ok) failures.push("RUST-FORMATERING (koer 'cargo fmt " + m + all + "'):\n" + f.out);
+      const c = sh(`cargo clippy ${m}${all ? " --workspace" : ""} --all-targets --quiet -- -D warnings`); if (!c.ok) failures.push("RUST-LINT (clippy):\n" + c.out);
+    }
   }
 }
 // 4) KODEMOENSTRE (SAST) - kun aendrede kodefiler. VERIFICÉR flags mod 'semgrep --help'. --metrics off af privatshensyn.
