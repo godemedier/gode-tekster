@@ -10,6 +10,10 @@ gode-tekster/
 │   ├── struktur.md              denne fil
 │   └── billeder/                skærmbilleder til README
 ├── server/                      tekster.godemedier.dk: opdateringer, feedback, privatliv (Node uden afhængigheder)
+├── synk/                        synkroniseringen af Dokumenter (ADR-0054), eget Cargo-workspace
+│   ├── kerne/                   stiregler (NFC, Windows-navne), filter, protokol, beslutningstabel, serverens lager (feature store)
+│   ├── server/                  synk.godemedier.dk: axum om lageret, enheder og parring, SSE »der er nyt«
+│   └── Dockerfile               til Coolify (Dockerfile /synk/Dockerfile, watch path synk/**)
 ├── video/                       filmen om programmet: kilde, storyboard, stills og MP4
 ├── index.html · vite.config.ts  fladens indgang og byg
 ├── note.html · noteliste.html   noterne på skrivebordet og listen over dem (ADR-0039, -0050)
@@ -44,6 +48,10 @@ gode-tekster/
 │   ├── src/audio.rs             lydjob, afkodning, delresultater og atomisk transskriptionsgem
 │   ├── src/structure.rs         AI-strukturforslag med skemavalidering
 │   ├── src/references.rs        DOI-opslag til fanen Kilder (doi.org, CSL-JSON, kun kendte felter)
+│   ├── src/synk/                synken: engine (én runde), state (basen pr. fil), transport (HTTPS), service (baggrund
+│   │                            og kommandoer), sim (simulationstesten, GT_SIM_FORLOEB=500 for en lang kørsel)
+│   ├── src/net.rs               TLS: Windows' egen på pc'en, rustls på telefonen (ADR-0053)
+│   ├── gen/android/             Android-projektet (ADR-0053). keystore.properties er gitignoreret
 │   ├── src/notes.rs             noterne: ark, placeringer, Win+Alt+N, notelisten, papirkurven og det forvarmede ark (ADR-0052)
 │   ├── tauri.conf.json          vindue, CSP, bundle
 │   ├── capabilities/            hvad fladen må kalde

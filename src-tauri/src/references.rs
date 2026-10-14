@@ -152,7 +152,6 @@ pub fn sanitize(raw: &Value) -> Option<Value> {
 }
 
 fn agent() -> ureq::Agent {
-    use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
     ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(15)))
         .https_only(true)
@@ -162,12 +161,7 @@ fn agent() -> ureq::Agent {
             env!("CARGO_PKG_VERSION"),
             " (kildeopslag)"
         ))
-        .tls_config(
-            TlsConfig::builder()
-                .provider(TlsProvider::NativeTls)
-                .root_certs(RootCerts::PlatformVerifier)
-                .build(),
-        )
+        .tls_config(crate::net::tls_config())
         .build()
         .into()
 }

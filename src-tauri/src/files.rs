@@ -285,7 +285,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<(String, Encoding)> {
 }
 
 /// Ensretter til `\n` og finder det hyppigste linjeskift. Ingen linjeskift → LF.
-fn normalize_eol(raw: &str) -> (String, Eol, bool) {
+pub(crate) fn normalize_eol(raw: &str) -> (String, Eol, bool) {
     let (mut lf, mut crlf, mut cr) = (0usize, 0usize, 0usize);
     let mut out = String::with_capacity(raw.len());
     let mut chars = raw.chars().peekable();
@@ -547,6 +547,31 @@ fn replace_existing(target: &Path, tmp: &Path, guard: &dyn Fn() -> Result<()>) -
 #[cfg(not(windows))]
 fn replace_existing(target: &Path, tmp: &Path, _guard: &dyn Fn() -> Result<()>) -> Result<()> {
     fs::rename(tmp, target).map_err(FileError::from)
+}
+
+/// Læg en fil eller mappe i papirkurven. Fejlen er rå, kalderen sætter ord på.
+#[cfg(windows)]
+pub(crate) fn to_trash(path: &Path) -> std::result::Result<(), String> {
+    trash::delete(path).map_err(|e| e.to_string())
+}
+
+/// Telefonen har ingen papirkurv: filen flyttes til `.papirkurv` ved siden af, så en sletning
+/// kan fortrydes i hånden (Android-forsøget 14/10). Findes navnet dér, får det et tidsstempel.
+#[cfg(not(windows))]
+pub(crate) fn to_trash(path: &Path) -> std::result::Result<(), String> {
+    let parent = path.parent().ok_or("ingen mappe")?;
+    let name = path.file_name().ok_or("intet navn")?;
+    let bin = parent.join(".papirkurv");
+    fs::create_dir_all(&bin).map_err(|e| e.to_string())?;
+    let mut target = bin.join(name);
+    if target.exists() {
+        let secs = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or_default();
+        target = bin.join(format!("{secs} {}", name.to_string_lossy()));
+    }
+    fs::rename(path, &target).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

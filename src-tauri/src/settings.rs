@@ -243,6 +243,7 @@ pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     };
     // Sproget først: write sender settings-changed, og vinduerne spørger så om sproget (main.ts).
     crate::i18n::apply(&settings.language);
+    #[cfg(desktop)]
     crate::refresh_tray(&app);
     write(&app, &settings)?;
     // Kun når valget er ændret: ellers tog hvert gem i en testkopi nøglen fra den installerede (8/10).
@@ -284,16 +285,7 @@ pub fn set_audio_tools(app: &AppHandle, dir: &std::path::Path) -> Result<(), Str
 /// »Tilføj mappe …«: Brugeren vælger selv mappen i Windows' mappevælger. Returnerer den nye liste.
 #[tauri::command]
 pub async fn add_library(app: AppHandle) -> Result<Vec<PathBuf>, String> {
-    use tauri_plugin_dialog::DialogExt;
-    let picked = app
-        .dialog()
-        .file()
-        .set_title(t!(
-            "Vælg en mappe til biblioteket",
-            "Choose a folder for the library"
-        ))
-        .blocking_pick_folder()
-        .and_then(|p| p.into_path().ok());
+    let picked = pick_folder(&app)?;
     let mut settings = load(&app);
     if let Some(dir) = picked {
         let known = settings.libraries.iter().any(|l| {
@@ -306,6 +298,40 @@ pub async fn add_library(app: AppHandle) -> Result<Vec<PathBuf>, String> {
         }
     }
     Ok(settings.libraries)
+}
+
+/// Dokumenter. På telefonen er det en mappe i appens eget lager: Androids fælles lager er langsomt
+/// til mange filer og tillader ikke den hårde link, et nyt gem bruger (files::write_atomic_new).
+/// Synkroniseringen skal senere fylde den (docs/plans/2026-10-14-egen-synk-og-dokumenter.md).
+pub(crate) fn documents_dir(app: &AppHandle) -> tauri::Result<PathBuf> {
+    #[cfg(desktop)]
+    return app.path().document_dir();
+    #[cfg(mobile)]
+    return Ok(app.path().app_data_dir()?.join("Dokumenter"));
+}
+
+#[cfg(desktop)]
+fn pick_folder(app: &AppHandle) -> Result<Option<PathBuf>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    Ok(app
+        .dialog()
+        .file()
+        .set_title(t!(
+            "Vælg en mappe til biblioteket",
+            "Choose a folder for the library"
+        ))
+        .blocking_pick_folder()
+        .and_then(|p| p.into_path().ok()))
+}
+
+/// Telefonen har ingen mappevælger. Dens bibliotek er appens egen mappe (welcome.rs).
+#[cfg(mobile)]
+fn pick_folder(_app: &AppHandle) -> Result<Option<PathBuf>, String> {
+    Err(t!(
+        "På telefonen bruger Gode Tekster sin egen mappe.",
+        "On the phone, Gode Tekster uses its own folder."
+    )
+    .to_owned())
 }
 
 /// Fjern et bibliotek fra listen. Mappen selv røres ikke.

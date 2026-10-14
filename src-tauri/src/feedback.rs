@@ -42,17 +42,11 @@ fn marker(app: &AppHandle) -> Option<PathBuf> {
 }
 
 fn agent() -> ureq::Agent {
-    use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
     ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(20)))
         .http_status_as_error(false)
         .user_agent(concat!("GodeTekster/", env!("CARGO_PKG_VERSION")))
-        .tls_config(
-            TlsConfig::builder()
-                .provider(TlsProvider::NativeTls)
-                .root_certs(RootCerts::PlatformVerifier)
-                .build(),
-        )
+        .tls_config(crate::net::tls_config())
         .build()
         .into()
 }

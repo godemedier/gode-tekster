@@ -25,6 +25,7 @@ import { setBullet, setMarkMode } from "./editor/livePreview.ts";
 import { FeedbackDialog } from "./ui/feedbackDialog.ts";
 import { LanguagePanel } from "./ui/languagePanel.ts";
 import { SettingsPanel, fontStack } from "./ui/settingspanel.ts";
+import { SynkPanel, installSynkNotices } from "./ui/synkPanel.ts";
 import { setLineLength } from "./ui/lineWidth.ts";
 import { followTheme } from "./ui/theme.ts";
 import { installContextMenu } from "./ui/contextMenu.ts";
@@ -245,6 +246,17 @@ settingsPanel.addTab({
     commandsPanel.refresh();
   },
 });
+// Synk af Dokumenter (ADR-0054): en fane i Indstillinger, og konflikter som banner overalt.
+const synkPanel = new SynkPanel();
+settingsPanel.addTab({
+  id: "synk",
+  label: tr("Synk", "Sync"),
+  mount: (host) => {
+    host.replaceChildren(synkPanel.el);
+    void synkPanel.refresh();
+  },
+});
+installSynkNotices();
 // Højreklik på en markering › »Gem som skabelon …«: fanen Kommandoer med forslaget klar (9/10).
 window.addEventListener("gt-template-from-selection", () => {
   if (!settingsPanel.isOpen) settingsPanel.open("kommandoer");
@@ -294,7 +306,8 @@ const loadStructure = () => structureLoading ??= import("./structure/panel.ts").
   if(ok)rightPanel.show("struktur");
   return ok;
 }));
-rightPanel.addTab({ id: "struktur", label: tr("Struktur", "Structure"), secondary: false, render: (body) => {
+// Struktur står i gruppen til højre med Sprog og Input, ikke med Fraklip og Fodnoter (14/10).
+rightPanel.addTab({ id: "struktur", label: tr("Struktur", "Structure"), secondary: true, render: (body) => {
   if (structurePanel) structurePanel.render(body);
   else { body.replaceChildren(); void loadStructure().then(p => { if (body.dataset.tab === "struktur") p.render(body); }); }
 } });
@@ -859,6 +872,10 @@ window.addEventListener("keydown", (e) => {
 // --- gem og ændringer udefra -------------------------------------------------------------------
 
 window.addEventListener("blur", () => void session?.flush());
+// Telefonen: skift af app giver ingen blur, og Android kan lukke processen bagefter uden varsel.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") void session?.flush();
+});
 window.addEventListener("gt-save-now", () => void session?.flush());
 // Når vinduet får fokus igen: notify kan have tabt en hændelse (research), så tjek selv.
 window.addEventListener("focus", () => {

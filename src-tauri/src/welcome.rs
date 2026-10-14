@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 const WELCOME: &str = include_str!("../welcome/velkommen.md");
 const GUIDE: &str = include_str!("../welcome/vejledning.md");
@@ -44,7 +44,9 @@ pub fn prepare(app: &AppHandle) -> Option<PathBuf> {
     if !FIRST_RUN.get().copied().unwrap_or(false) || DONE.set(()).is_err() {
         return None;
     }
-    let dir = app.path().document_dir().ok()?.join("Gode Tekster");
+    let dir = crate::settings::documents_dir(app)
+        .ok()?
+        .join("Gode Tekster");
     match write_texts(&dir, crate::i18n::english()) {
         Ok(welcome) => {
             crate::settings::add_library_path(app, &dir);

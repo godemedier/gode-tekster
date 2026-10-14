@@ -170,7 +170,7 @@ fn notes_dir(app: &AppHandle) -> Result<PathBuf, String> {
             return Ok(dir);
         }
     }
-    let docs = app.path().document_dir().map_err(|e| {
+    let docs = crate::settings::documents_dir(app).map_err(|e| {
         format!(
             "{}: {e}",
             t!(
@@ -215,7 +215,7 @@ fn new_file(dir: &Path) -> Result<PathBuf, String> {
 }
 
 #[cfg(windows)]
-fn local_stamp() -> String {
+pub(crate) fn local_stamp() -> String {
     use windows_sys::Win32::System::SystemInformation::GetLocalTime;
     // SAFETY: GetLocalTime skriver kun i den SYSTEMTIME, den får.
     let t = unsafe {
@@ -229,9 +229,29 @@ fn local_stamp() -> String {
     )
 }
 
+/// Uden Windows' lokale tid: UTC ud fra uret (telefonen, 14/10). Tidszonen er ikke kendt her.
 #[cfg(not(windows))]
-fn local_stamp() -> String {
-    "note".to_owned()
+pub(crate) fn local_stamp() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or_default();
+    // Dage siden 1970 til en kalenderdato (Howard Hinnants algoritme).
+    let (days, rest) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}.{:02}",
+        rest / 3600,
+        rest % 3600 / 60
+    )
 }
 
 /// En ny, tom note med markøren klar (Win+Alt+N, Ctrl+N i en note, menuen ved uret).
@@ -477,6 +497,27 @@ fn build_sheet(
     size: (f64, f64),
     on_top: bool,
 ) -> Result<tauri::WebviewWindow, String> {
+    #[cfg(mobile)]
+    {
+        let _ = (app, label, title, size, on_top);
+        Err(t!(
+            "Noter i egne vinduer findes kun på pc'en.",
+            "Notes in their own windows are only on the PC."
+        )
+        .to_owned())
+    }
+    #[cfg(desktop)]
+    build_sheet_desktop(app, label, title, size, on_top)
+}
+
+#[cfg(desktop)]
+fn build_sheet_desktop(
+    app: &AppHandle,
+    label: &str,
+    title: &str,
+    size: (f64, f64),
+    on_top: bool,
+) -> Result<tauri::WebviewWindow, String> {
     let w = WebviewWindowBuilder::new(app, label, WebviewUrl::App("note.html".into()))
         .title(title)
         .decorations(false)
@@ -707,25 +748,29 @@ pub fn note_close(app: AppHandle, window: tauri::WebviewWindow, empty: bool) {
 #[tauri::command]
 pub async fn confirm_note_delete(app: AppHandle, window: tauri::WebviewWindow) -> bool {
     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
-    app.dialog()
+    let dialog = app
+        .dialog()
         .message(t!(
             "Vil du lægge noten i papirkurven?",
             "Move this note to the Recycle Bin?"
         ))
         .title(t!("Slet note", "Delete note"))
-        .parent(&window)
         .buttons(MessageDialogButtons::OkCancelCustom(
             t!("Læg i papirkurven", "Move to Recycle Bin").into(),
             t!("Behold noten", "Keep note").into(),
-        ))
-        .blocking_show()
+        ));
+    #[cfg(desktop)]
+    let dialog = dialog.parent(&window);
+    #[cfg(mobile)]
+    let _ = window;
+    dialog.blocking_show()
 }
 
 #[tauri::command]
 pub fn note_delete(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), String> {
     let label = window.label().to_owned();
     if let Some(path) = path_of(&app, &label) {
-        trash::delete(&path).map_err(|e| {
+        crate::files::to_trash(&path).map_err(|e| {
             format!(
                 "{}: {e}",
                 t!(
@@ -745,6 +790,7 @@ pub fn note_delete(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), S
 /// Hold arket øverst over andre vinduer, eller lad det være.
 #[tauri::command]
 pub fn note_on_top(app: AppHandle, window: tauri::WebviewWindow, on: bool) {
+    #[cfg(desktop)]
     let _ = window.set_always_on_top(on);
     hide_from_alt_tab(&window);
     #[cfg(windows)]
@@ -1088,19 +1134,22 @@ pub async fn note_trash(
 ) -> Result<bool, String> {
     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
     let path = note_path(&app, &path)?;
-    let sure = app
+    let dialog = app
         .dialog()
         .message(t!(
             "Vil du lægge noten i papirkurven? Du kan hente den igen under Papirkurven i listen.",
             "Move this note to the Recycle Bin? You can get it back under Recycle Bin in the list."
         ))
         .title(t!("Slet note", "Delete note"))
-        .parent(&window)
         .buttons(MessageDialogButtons::OkCancelCustom(
             t!("Læg i papirkurven", "Move to Recycle Bin").into(),
             t!("Behold noten", "Keep note").into(),
-        ))
-        .blocking_show();
+        ));
+    #[cfg(desktop)]
+    let dialog = dialog.parent(&window);
+    #[cfg(mobile)]
+    let _ = window;
+    let sure = dialog.blocking_show();
     if !sure {
         return Ok(false);
     }
@@ -1116,7 +1165,7 @@ pub async fn note_trash(
             let _ = w.destroy();
         }
     }
-    trash::delete(&path).map_err(|e| {
+    crate::files::to_trash(&path).map_err(|e| {
         format!(
             "{}: {e}",
             t!(
@@ -1144,7 +1193,18 @@ fn same_dir(a: &Path, b: &Path) -> bool {
 }
 
 #[cfg(windows)]
-fn trashed_notes(dir: &Path) -> Result<Vec<trash::TrashItem>, String> {
+type TrashItem = trash::TrashItem;
+
+/// Uden for Windows er der ingen papirkurv at liste (telefonen, 14/10). Felterne er dem, der bruges.
+#[cfg(not(windows))]
+struct TrashItem {
+    id: std::ffi::OsString,
+    name: std::ffi::OsString,
+    time_deleted: i64,
+}
+
+#[cfg(windows)]
+fn trashed_notes(dir: &Path) -> Result<Vec<TrashItem>, String> {
     let items = trash::os_limited::list().map_err(|e| e.to_string())?;
     Ok(items
         .into_iter()
@@ -1158,7 +1218,7 @@ fn trashed_notes(dir: &Path) -> Result<Vec<trash::TrashItem>, String> {
 }
 
 #[cfg(not(windows))]
-fn trashed_notes(_dir: &Path) -> Result<Vec<trash::TrashItem>, String> {
+fn trashed_notes(_dir: &Path) -> Result<Vec<TrashItem>, String> {
     Ok(Vec::new())
 }
 
@@ -1236,6 +1296,7 @@ pub fn changed(app: &AppHandle) {
 /// Vis notelisten: hent den frem, eller lav vinduet.
 pub fn show_list(app: &AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window(LIST) {
+        #[cfg(desktop)]
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();

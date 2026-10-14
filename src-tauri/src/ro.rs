@@ -24,7 +24,10 @@ fn marker(app: &AppHandle) -> Option<PathBuf> {
 /// Slå Ro på til eller fra for vinduet. Kører uden for hovedtråden, fordi radio-kaldet venter.
 #[tauri::command(async)]
 pub fn ro_set(app: AppHandle, window: tauri::WebviewWindow, on: bool) -> bool {
+    #[cfg(desktop)]
     let _ = window.set_fullscreen(on);
+    #[cfg(mobile)]
+    let _ = window;
     if !on {
         wifi_back(&app);
     } else if crate::settings::load(&app).ro_wifi {

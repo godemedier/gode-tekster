@@ -108,7 +108,9 @@ export class RightPanel {
   }
 
   private renderTabs(): void {
-    const buttons = this.tabs.map((t) => {
+    // De primære faner først, så grupperne ikke afhænger af, i hvilken rækkefølge modulerne tilføjer dem.
+    const ordered = [...this.tabs.filter((t) => !t.secondary), ...this.tabs.filter((t) => t.secondary)];
+    const buttons = ordered.map((t) => {
       const b = document.createElement("button");
       b.type = "button";
       b.setAttribute("role", "tab");
@@ -118,7 +120,7 @@ export class RightPanel {
       b.addEventListener("click", () => this.show(t.id));
       return b;
     });
-    const first = this.tabs.findIndex((t) => t.secondary);
+    const first = ordered.findIndex((t) => t.secondary);
     if (first > 0) {
       const gap = document.createElement("span");
       gap.style.flexGrow = "1";

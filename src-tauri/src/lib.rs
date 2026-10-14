@@ -1,3 +1,7 @@
+// Telefonen (Android-forsøget 14/10) kompilerer pc'ens moduler med, men bruger ikke alle. Gaten
+// kører clippy mod Windows, hvor intet af det er dødt.
+#![cfg_attr(mobile, allow(dead_code, unused_imports, unused_variables))]
+
 // Først: `t!` (i18n.rs) kan kun bruges i moduler, der står efter det.
 #[macro_use]
 pub mod i18n;
@@ -29,6 +33,7 @@ mod library;
 mod media;
 mod merge;
 mod mistral;
+mod net;
 mod notes;
 mod references;
 mod ro;
@@ -39,6 +44,7 @@ mod session;
 mod settings;
 mod spelling;
 mod structure;
+mod synk;
 mod textmeta;
 mod updater;
 mod watcher;
@@ -47,7 +53,9 @@ mod windows;
 
 use std::time::{Duration, Instant};
 
+#[cfg(desktop)]
 use tauri::menu::{Menu, MenuItem};
+#[cfg(desktop)]
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 
@@ -73,6 +81,7 @@ pub(crate) fn show_main(app: &AppHandle) {
             let _ = w.show();
             return;
         }
+        #[cfg(desktop)]
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
@@ -80,6 +89,7 @@ pub(crate) fn show_main(app: &AppHandle) {
 }
 
 /// Menuen på ikonet ved uret, i programmets sprog.
+#[cfg(desktop)]
 fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let vis = MenuItem::with_id(
         app,
@@ -124,12 +134,14 @@ fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
 }
 
 /// Skiftes sproget i indstillingerne, følger menuen på ikonet med.
+#[cfg(desktop)]
 pub(crate) fn refresh_tray(app: &AppHandle) {
     if let (Some(tray), Ok(menu)) = (app.tray_by_id(TRAY_ID), tray_menu(app)) {
         let _ = tray.set_menu(Some(menu));
     }
 }
 
+#[cfg(desktop)]
 const TRAY_ID: &str = "gode-tekster";
 
 /// Nødlukning af et ekstra vindue (12/10): en flade, der hænger, kunne ellers aldrig lukkes, og
@@ -164,8 +176,70 @@ fn close_if_hung(app: AppHandle, label: String) {
 #[tauri::command]
 fn toggle_fullscreen(window: tauri::WebviewWindow) -> bool {
     let on = !window.is_fullscreen().unwrap_or(false);
+    #[cfg(desktop)]
     let _ = window.set_fullscreen(on);
     on
+}
+
+/// Indgangen på telefonen (Android-forsøget 14/10). Android kalder den uden en `main`, der kan
+/// tage imod en fejl, så den skrives i loggen.
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn mobile_main() {
+    if let Err(e) = run() {
+        eprintln!("Gode Tekster kunne ikke starte: {e}");
+    }
+}
+
+/// Det, kun pc'en har: ikonet ved uret, højreklikmenuen, noterne på skrivebordet og Win+Alt+N.
+#[cfg(desktop)]
+fn desktop_setup(app: &mut tauri::App, handle: &AppHandle) -> tauri::Result<()> {
+    let menu = tray_menu(handle)?;
+    let mut tray = TrayIconBuilder::with_id(TRAY_ID)
+        .tooltip("Gode Tekster")
+        .menu(&menu)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "vis" => show_main(app),
+            "ny-note" => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = notes::new_note(&app);
+                });
+            }
+            "vis-noter" => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move { notes::show_all(&app) });
+            }
+            "skjul-noter" => notes::hide_all(app),
+            "noteliste" => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = notes::show_list(&app);
+                });
+            }
+            // Alle vinduer gemmer først og kalder så `quit_app`. Fejl afbryder afslutningen.
+            "afslut" => windows::request_quit(app.clone()),
+            _ => {}
+        });
+    #[cfg(windows)]
+    if let Some(w) = app.get_webview_window("main") {
+        contextmenu::install(&w);
+    }
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?;
+
+    // Noterne (ADR-0039): Win+Alt+N, og arkene fra sidst kommer igen.
+    notes::hotkey(handle.clone());
+    desktop::watch(handle.clone());
+    {
+        let app = handle.clone();
+        tauri::async_runtime::spawn(async move { notes::restore(&app) });
+    }
+    // Et skjult ark, så næste Win+Alt+N er øjeblikkelig (ADR-0052). Efter opstarten.
+    notes::warm_spare_at_start(handle);
+
+    Ok(())
 }
 
 /// Starter programmet. Fejl sendes op til `main`, der afslutter med en kode
@@ -175,36 +249,38 @@ pub fn run() -> tauri::Result<()> {
     if std::env::args().any(|a| a == updater::AFTER_UPDATE) {
         std::thread::sleep(Duration::from_secs(2));
     }
-    let app = tauri::Builder::default()
-        // Single-instance først: et dobbeltklik på en fil, mens programmet kører, åbner den i det
-        // vindue, der allerede findes (ADR-0014).
-        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-            // Springlistens opgaver (jumplist.rs): notelisten og en ny note.
-            if let Some(task) = argv.iter().skip(1).find_map(|a| notes::task_of(a)) {
-                notes::run_task(app, task);
+    let builder = tauri::Builder::default();
+    // Single-instance først: et dobbeltklik på en fil, mens programmet kører, åbner den i det
+    // vindue, der allerede findes (ADR-0014). Telefonen har kun ét program og ét vindue.
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+        // Springlistens opgaver (jumplist.rs): notelisten og en ny note.
+        if let Some(task) = argv.iter().skip(1).find_map(|a| notes::task_of(a)) {
+            notes::run_task(app, task);
+            return;
+        }
+        // Ét vindue pr. tekst (3/10): er filen åben, hentes dens vindue. Har hovedvinduet
+        // allerede en tekst, får filen sit eget vindue; ellers åbnes den i hovedvinduet.
+        if let Some(arg) = argv.iter().skip(1).find(|a| !a.starts_with("--")) {
+            let path = document::arg_path(arg, std::path::Path::new(&cwd));
+            if let Some(label) = windows::window_with(app, &path) {
+                windows::focus(app, &label);
                 return;
             }
-            // Ét vindue pr. tekst (3/10): er filen åben, hentes dens vindue. Har hovedvinduet
-            // allerede en tekst, får filen sit eget vindue; ellers åbnes den i hovedvinduet.
-            if let Some(arg) = argv.iter().skip(1).find(|a| !a.starts_with("--")) {
-                let path = document::arg_path(arg, std::path::Path::new(&cwd));
-                if let Some(label) = windows::window_with(app, &path) {
-                    windows::focus(app, &label);
-                    return;
-                }
-                document::choose(app, &path);
-                if windows::main_is_busy(app) {
-                    // Uden for hovedtråden: ellers låser oprettelsen af vinduet fast (Tauri på Windows).
-                    let app = app.clone();
-                    tauri::async_runtime::spawn(async move {
-                        let _ = windows::open_window(&app, Some(path));
-                    });
-                    return;
-                }
-                let _ = app.emit_to("main", "open-path", path.to_string_lossy().into_owned());
+            document::choose(app, &path);
+            if windows::main_is_busy(app) {
+                // Uden for hovedtråden: ellers låser oprettelsen af vinduet fast (Tauri på Windows).
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = windows::open_window(&app, Some(path));
+                });
+                return;
             }
-            show_main(app);
-        }))
+            let _ = app.emit_to("main", "open-path", path.to_string_lossy().into_owned());
+        }
+        show_main(app);
+    }));
+    let app = builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(document::AppState::new(started))
@@ -214,6 +290,7 @@ pub fn run() -> tauri::Result<()> {
         .manage(audio::AudioState::default())
         .manage(notes::NotesState::default())
         .manage(windows::WindowState::default())
+        .manage(synk::service::SynkState::default())
         .invoke_handler(tauri::generate_handler![
             document::open_document,
             document::initial_document,
@@ -335,6 +412,14 @@ pub fn run() -> tauri::Result<()> {
             audio::audio_discard,
             audio::audio_forget_recovery,
             commands::ai_design_command,
+            synk::service::synk_status,
+            synk::service::synk_connect,
+            synk::service::synk_preview,
+            synk::service::synk_start,
+            synk::service::synk_now,
+            synk::service::synk_allow_deletes,
+            synk::service::synk_pairing_code,
+            synk::service::synk_disconnect,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -344,10 +429,13 @@ pub fn run() -> tauri::Result<()> {
             let handle2 = handle.clone();
             tauri::async_runtime::spawn_blocking(move || spelling::import_ia_dictionary(&handle2));
             ro::recover(&handle);
-            jumplist::refresh(&handle);
             welcome::detect(&handle);
-            autostart::repair(&handle, settings::load(&handle).start_with_windows);
-            updater::start(&handle);
+            #[cfg(desktop)]
+            {
+                jumplist::refresh(&handle);
+                autostart::repair(&handle, settings::load(&handle).start_with_windows);
+                updater::start(&handle);
+            }
             // Kun i testkørsler: GT_PANIK=1 går ned efter 3 s, så spørgsmålet om at sende fejlloggen
             // kan prøves ved næste start (4/10).
             if std::env::var("GT_TEST").is_ok() && std::env::var("GT_PANIK").is_ok() {
@@ -359,6 +447,8 @@ pub fn run() -> tauri::Result<()> {
             applog::write(&handle, "start");
             audio::cleanup(&handle);
             library::allow_library_images(&handle);
+            // Synken af Dokumenter (ADR-0054), hvis enheden er forbundet.
+            synk::service::start(&handle);
 
             // Historikken (ADR-0009). Kan den ikke åbnes, kører programmet videre uden versioner.
             if let Ok(dir) = app.path().app_local_data_dir() {
@@ -381,51 +471,8 @@ pub fn run() -> tauri::Result<()> {
                 }
             }
 
-            let menu = tray_menu(&handle)?;
-            let mut tray = TrayIconBuilder::with_id(TRAY_ID)
-                .tooltip("Gode Tekster")
-                .menu(&menu)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "vis" => show_main(app),
-                    "ny-note" => {
-                        let app = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            let _ = notes::new_note(&app);
-                        });
-                    }
-                    "vis-noter" => {
-                        let app = app.clone();
-                        tauri::async_runtime::spawn(async move { notes::show_all(&app) });
-                    }
-                    "skjul-noter" => notes::hide_all(app),
-                    "noteliste" => {
-                        let app = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            let _ = notes::show_list(&app);
-                        });
-                    }
-                    // Alle vinduer gemmer først og kalder så `quit_app`. Fejl afbryder afslutningen.
-                    "afslut" => windows::request_quit(app.clone()),
-                    _ => {}
-                });
-            #[cfg(windows)]
-            if let Some(w) = app.get_webview_window("main") {
-                contextmenu::install(&w);
-            }
-            if let Some(icon) = app.default_window_icon() {
-                tray = tray.icon(icon.clone());
-            }
-            tray.build(app)?;
-
-            // Noterne (ADR-0039): Win+Alt+N, og arkene fra sidst kommer igen.
-            notes::hotkey(handle.clone());
-            desktop::watch(handle.clone());
-            {
-                let app = handle.clone();
-                tauri::async_runtime::spawn(async move { notes::restore(&app) });
-            }
-            // Et skjult ark, så næste Win+Alt+N er øjeblikkelig (ADR-0052). Efter opstarten.
-            notes::warm_spare_at_start(&handle);
+            #[cfg(desktop)]
+            desktop_setup(app, &handle)?;
 
             // Startet ved login (ADR-0014): bliv skjult, til brugeren åbner en fil eller klikker
             // på ikonet.

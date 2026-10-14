@@ -157,6 +157,7 @@ mærker og gå i stykker ved enhver redigering udefra.
 er ingen server og ingen database at sende til. Fejl skrives i en lokal logfil i
 `<data>\log`, uden tekstindhold.
 **Revurdér først hvis:** programmet nogensinde får flere brugere end én.
+**Delvist afløst af ADR-0054 (14/10):** synken får en server. Telemetri er stadig fravalgt.
 
 ### ADR-0007 — Biblioteker frem for hele arbejdsmappen (2/10-2026)
 **Beslutning:** mappetræet viser kun mapper, brugeren selv tilføjer. Husets kontraktfiler vises
@@ -1123,3 +1124,72 @@ intet andet ark er ved at komme frem. Testscenarierne (`GT_SCENARIE`) får ingen
 regner med »note-1«, »note-2« i rækkefølge.
 **Konsekvens:** Cirka 30 MB hukommelse, så længe programmet kører og noterne er i brug. Den
 første note efter start kan stadig være kold, hvis den kommer inden for de første 20 s.
+
+### ADR-0053 — Android: samme kerne, desktopdele bag `cfg(desktop)` (14/10-2026)
+Afløser fravalget »Kun Windows« for telefonens del (STRATEGI, ikke-mål). Plan:
+`docs/plans/2026-10-10-mobil-hele-appen.md`. Prøvet på en Pixel 9a (Android 16).
+**Beslutning:** Samme crate og samme flade bygges til `aarch64-linux-android` med Tauri 2
+(`src-tauri/gen/android`). Det, kun pc'en har, er gated: ikonet ved uret, single-instance,
+Win+Alt+N, noter i egne vinduer, autostart, springliste og opdatering (`desktop_setup` i
+`lib.rs`, `#[cfg(desktop)]`). Kommandoerne findes stadig på telefonen og svarer med en dansk
+fejl, så fladen ikke går i stykker. PDF, mappevælger og noteark giver fejl. Papirkurven er
+`.papirkurv` ved siden af filen (`files::to_trash`). TLS er rustls med indbyggede rødder på
+telefonen og Windows' egen på pc'en (`net.rs`). Dokumenter er på telefonen
+`app_data_dir/Dokumenter` (`settings::documents_dir`), ikke Androids fælles lager: det er
+langsomt til mange filer og tillader ikke den hårde link, et nyt gem bruger. Teksten gemmes
+også ved `visibilitychange`, fordi Android lukker processen uden `RunEvent::Exit`.
+`MainActivity.kt` polstrer for statuslinje og tastatur (edge-to-edge håndhæves fra Android 15).
+Releasebyg signeres med `.updater/android-gode-tekster.jks` (gitignoreret, med i den natlige
+backup). Uden den nøgle kan en ny udgave ikke lægges oven på den gamle.
+**Alternativ der tabte:** en separat mobilcrate. To kopier af fil- og gemmelogikken, der kan
+glide fra hinanden.
+**Konsekvens:** Gaten kører clippy mod Windows. En Android-regression fanges først af
+`cargo check --target aarch64-linux-android`. Fladen er stadig pc'ens. En egentlig mobilflade
+er næste skridt. Uden Windows' Udviklertilstand kan `tauri android build` ikke lave sit symlink.
+Så bygges Rust i hånden, `.so` kopieres til `jniLibs`, og Gradle køres uden rust-opgaven.
+**Revurdér først hvis:** telefonens skriveoplevelse i WebView ikke kan bringes i orden
+(plan: native editor som reference).
+
+### ADR-0054 — Egen synk af Dokumenter via husets server (14/10-2026)
+Afløser ADR-0006 for synkens del. Oplæg og research:
+`docs/plans/2026-10-14-egen-synk-og-dokumenter.md`. Brugeren sagde ja til alle fem beslutninger 14/10.
+**Beslutning:**
+- **Skillelinjen:** Dokumenter er skribentens egne tekster. Arbejdsmapper, hvor agenter skriver,
+  synkes ikke.
+- **Omfang:** hele `Documents`, men kun `.md` og `.txt` plus billeder i `medier`-mapper. Loft
+  20 MB pr. fil. Junctions følges aldrig (Windows lægger `Billeder`, `Musik` og `Videoer` i
+  Dokumenter som junctions til profilens mapper).
+- **Server:** `synk.godemedier.dk`, egen Coolify-app ved siden af `tekster.godemedier.dk`, som
+  beholder sin profil (»intet gemmes«). SQLite plus blobs navngivet efter blake3. Al skrivning er
+  compare-and-swap mod en kendt revision. Serveren fletter aldrig. Gravsten i mindst 180 dage.
+  Restic hver nat til fsn1.
+- **Konflikter:** trevejsfletning, når ændringerne rører hvert sit afsnit (stille, med fortryd i
+  synkloggen). Samme afsnit: serverens version i filen, den lokale som
+  `Navn (konflikt fra <enhed> <dato tid>).md`, og et banner med sammenligning.
+- **Sikkerhed:** én nøgle pr. enhed (kun hashen på serveren), i Credential Manager på pc'en og
+  i appens egen database på telefonen (privat for appen). Ingen ende-til-ende-kryptering i første version: browseren og søgningen kræver, at
+  serveren kan læse teksten.
+**Alternativer der tabte:** OneDrive eller iCloud (to synkmotorer på samme filer, ingen fletning
+i vores hænder), Syncthing (kun konfliktkopier, Android-appen lukket 12/2024), CRDT som Yjs eller
+Automerge (virker kun, når al redigering går gennem den, og iA Writer og Claude skriver i filerne).
+**Konsekvens:** Rækkefølgen er server og pc-motor med simulationstest, før telefonen kobles på,
+og browseren til sidst. Bliver synken nogensinde åben for andre, gælder styringspakken.
+
+### ADR-0055 — Telefonen får sin egen enkle flade uden markdown-tegn (14/10-2026)
+Supplerer ADR-0053. Research: `docs/research/2026-10-14-mobil-skriveapps.md`.
+**Baggrund:** Pc'ens flade på telefonen var alt for meget skrivebord: sidepaneler, seks faner,
+genvejstaster og synlige markdown-tegn. Brugerens krav: enklere, og markdown-tegn vises aldrig.
+**Beslutning:** Android åbner `mobile.html` (`src-tauri/tauri.android.conf.json`), ikke
+`index.html`. To skærme: **Tekster** (søgefelt, liste med titel, første linje og dato, knappen +)
+og **Skriv** (teksten i fuld bredde, tilbage, titel, »Gemt« og ⋮). Over tastaturet står én række:
+Aa (brødtekst, overskrift, underoverskrift, citat), fed, kursiv, punktliste, fortryd, gentag og
+luk tastaturet. Alt andet ligger i ⋮-menuen som et ark fra bunden. Systemets tilbage går fra
+Skriv til listen (historikken i WebView'en). Editoren kører med visningen »skjul« (ADR-0033):
+tegnene vises heller ikke ved markøren, i modsætning til Bear og Obsidian. Forfatterskab og
+stiltjek vises ikke. Trykflader er mindst 48 px. Filen er den samme markdown som på pc'en.
+**Ikke på telefonen i første omgang:** højre spalte (fraklip, fodnoter, kilder, struktur, sprog,
+input), AI, versioner, print, eksport, noter i egne vinduer.
+**Alternativ der tabte:** iA Writers model, hvor markdown vises på alle platforme. Brugeren vil
+ikke se tegnene. Bear og Obsidian viser dem ved markøren, hvilket giver linjehop.
+**Revurdér først hvis:** Gboard-komposition ved skjulte tegn giver tabte eller dobbelte bogstaver.
+Så er en native editor næste skridt (ADR-0053).

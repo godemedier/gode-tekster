@@ -343,7 +343,7 @@ function aboutLine(): HTMLElement {
   return box;
 }
 
-function linkButton(label: string, run: () => void): HTMLButtonElement {
+export function linkButton(label: string, run: () => void): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
   b.className = "settings-link";
@@ -549,7 +549,7 @@ function tabbar(items: Tab[], current: string, change: (id: string) => void): HT
   return nav;
 }
 
-function panel(...children: HTMLElement[]): HTMLElement {
+export function panel(...children: HTMLElement[]): HTMLElement {
   const p = document.createElement("div");
   p.className = "st-panel";
   p.setAttribute("role", "tabpanel");
@@ -557,7 +557,7 @@ function panel(...children: HTMLElement[]): HTMLElement {
   return p;
 }
 
-function group(title: string | null, ...rows: HTMLElement[]): HTMLElement {
+export function group(title: string | null, ...rows: HTMLElement[]): HTMLElement {
   const g = document.createElement("div");
   g.className = "st-group";
   if (title) {
@@ -570,7 +570,7 @@ function group(title: string | null, ...rows: HTMLElement[]): HTMLElement {
 }
 
 /** Én indstilling: navnet til venstre, valget til højre. `wide`: valget får sin egen linje. */
-function row(label: string | HTMLElement, control: HTMLElement, opts: { hint?: string; wide?: boolean } = {}): HTMLElement {
+export function row(label: string | HTMLElement, control: HTMLElement, opts: { hint?: string; wide?: boolean } = {}): HTMLElement {
   const r = document.createElement("div");
   r.className = opts.wide ? "st-row st-wide" : "st-row";
   const left = document.createElement("div");

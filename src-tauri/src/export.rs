@@ -176,6 +176,21 @@ pub async fn export_pdf(
     Ok(target.to_string_lossy().into_owned())
 }
 
+/// Uden WebView2 er der ingen PDF fra siden endnu (telefonen, 14/10).
+#[cfg(not(windows))]
+fn print_to_pdf(
+    _wv: &tauri::webview::PlatformWebview,
+    _path: &std::path::Path,
+    _m: &Margins,
+    _tx: std::sync::mpsc::Sender<Result<(), String>>,
+) -> Result<(), String> {
+    Err(t!(
+        "PDF findes kun på pc'en indtil videre.",
+        "PDF is only available on the PC for now."
+    )
+    .to_owned())
+}
+
 #[cfg(windows)]
 fn print_to_pdf(
     wv: &tauri::webview::PlatformWebview,

@@ -80,16 +80,10 @@ fn verify(bytes: &[u8], signature_b64: &str) -> Result<(), String> {
 }
 
 fn agent() -> ureq::Agent {
-    use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
     ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(300)))
         .user_agent(concat!("GodeTekster/", env!("CARGO_PKG_VERSION")))
-        .tls_config(
-            TlsConfig::builder()
-                .provider(TlsProvider::NativeTls)
-                .root_certs(RootCerts::PlatformVerifier)
-                .build(),
-        )
+        .tls_config(crate::net::tls_config())
         .build()
         .into()
 }

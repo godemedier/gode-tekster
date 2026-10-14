@@ -750,7 +750,6 @@ fn public_https(url: &str) -> bool {
 }
 
 fn agent() -> ureq::Agent {
-    use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
     ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(20)))
         // Redirects følges i hånden, så hvert hop efterprøves (L-610).
@@ -758,12 +757,7 @@ fn agent() -> ureq::Agent {
         .max_redirects_will_error(false)
         // Neutral: siden, der tjekkes, skal ikke kunne se, hvem der faktatjekker den.
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        .tls_config(
-            TlsConfig::builder()
-                .provider(TlsProvider::NativeTls)
-                .root_certs(RootCerts::PlatformVerifier)
-                .build(),
-        )
+        .tls_config(crate::net::tls_config())
         .build()
         .into()
 }

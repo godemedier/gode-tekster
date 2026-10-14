@@ -80,6 +80,7 @@ pub fn focus(app: &AppHandle, label: &str) {
         return;
     }
     if let Some(w) = app.get_webview_window(label) {
+        #[cfg(desktop)]
         let _ = w.unminimize();
         let _ = w.show();
         if !std::env::var("GT_TEST").is_ok_and(|v| v == "1") {

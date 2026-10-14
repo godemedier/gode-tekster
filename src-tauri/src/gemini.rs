@@ -41,16 +41,10 @@ pub fn has_key() -> bool {
 
 /// HTTPS med Windows' egne certifikater. Bruges også af mistral.rs.
 pub(crate) fn agent(timeout: Duration) -> ureq::Agent {
-    use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
     ureq::Agent::config_builder()
         .timeout_global(Some(timeout))
         .http_status_as_error(false)
-        .tls_config(
-            TlsConfig::builder()
-                .provider(TlsProvider::NativeTls)
-                .root_certs(RootCerts::PlatformVerifier)
-                .build(),
-        )
+        .tls_config(crate::net::tls_config())
         .build()
         .into()
 }

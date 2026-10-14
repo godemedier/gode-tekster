@@ -113,8 +113,9 @@ Fælles for de bedste skriveprogrammer, og det, brugerne hader, når det brydes 
   »Manuskript« (til redaktører, fonde og forlag) og »Læseudgave«.
 
 **Ikke-mål:**
-- Ingen sky og ingen synkronisering. Filerne ligger i mapper på pc'en.
-- Kun Windows. Ingen Mac.
+- Ingen sky for andre end skribenten selv. Synk af egne Dokumenter mellem pc, telefon og
+  browser via egen server er besluttet 14/10 (ADR-0054). Filerne er stadig sandheden.
+- Windows og Android (ADR-0053). Ingen Mac.
 - Modellen formulerer aldrig ny tekst, heller ikke »bedre« sætninger. Den må vise research,
   som skribenten selv vælger at tage med eller ej.
 
@@ -160,5 +161,7 @@ TypeScript 2/10, så skjulte mapper aldrig læses).
 
 ## Persondata
 
-Ingen andres persondata ud over det, skribenten selv skriver i sine tekster. Programmet har ingen
-server, intet login og deler intet. Styringspakken fra `standard\templates\styring\` gælder ikke.
+Ingen andres persondata ud over det, skribenten selv skriver i sine tekster. Programmet deler
+intet. Synken (ADR-0054) lægger skribentens egne tekster på Gode Mediers egen server med login
+for én bruger. Styringspakken fra `standard\templates\styring\` gælder ikke, så længe det er sådan.
+Får andre end den ene bruger en konto, gælder den.

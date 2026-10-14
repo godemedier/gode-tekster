@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 use crate::claude::data_block;
 
@@ -63,7 +63,7 @@ fn planned_dir(app: &AppHandle) -> Result<PathBuf, String> {
             return Ok(dir);
         }
     }
-    let documents = app.path().document_dir().map_err(|e| {
+    let documents = crate::settings::documents_dir(app).map_err(|e| {
         t!(
             format!("Mappen Dokumenter blev ikke fundet: {e}"),
             format!("The Documents folder was not found: {e}")
@@ -305,7 +305,7 @@ pub async fn command_save(
 #[tauri::command]
 pub async fn command_delete(app: AppHandle, path: String) -> Result<(), String> {
     let file = inside(&planned_dir(&app)?, Path::new(&path))?;
-    trash::delete(&file).map_err(|e| {
+    crate::files::to_trash(&file).map_err(|e| {
         t!(
             format!("Kunne ikke lægge i papirkurven: {e}"),
             format!("Could not move to the Recycle Bin: {e}")

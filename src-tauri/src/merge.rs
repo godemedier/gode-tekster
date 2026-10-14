@@ -205,6 +205,32 @@ pub fn merge(base: &str, mine: &str, theirs: &str) -> Merge {
     }
 }
 
+/// Læg ændringer fra [`merge`] ind i `text` (synken fletter uden editor, ADR-0054). Positionerne
+/// er UTF-16 som editorens. Ændringerne må ikke overlappe.
+pub(crate) fn apply(text: &str, changes: &[Change]) -> String {
+    // Byte-position for hver UTF-16-position, også den sidste.
+    let mut byte_at = Vec::with_capacity(text.len() + 1);
+    for (i, c) in text.char_indices() {
+        for _ in 0..c.len_utf16() {
+            byte_at.push(i);
+        }
+    }
+    byte_at.push(text.len());
+    let at = |u: usize| byte_at.get(u).copied().unwrap_or(text.len());
+    let mut sorted: Vec<&Change> = changes.iter().collect();
+    sorted.sort_by_key(|c| c.from);
+    let mut out = String::with_capacity(text.len());
+    let mut done = 0;
+    for c in sorted {
+        let (from, to) = (at(c.from).max(done), at(c.to).max(done));
+        out.push_str(&text[done..from]);
+        out.push_str(&c.insert);
+        done = to;
+    }
+    out.push_str(&text[done..]);
+    out
+}
+
 /// Async, så diffen ikke kører på Rusts hovedtråd, der også tegner vinduet.
 #[tauri::command]
 pub async fn merge_texts(base: String, mine: String, theirs: String) -> Merge {
@@ -411,5 +437,20 @@ mod tests {
         assert_eq!(e.len(), 2, "{e:?}");
         assert_eq!(e[0].insert, "6");
         assert_eq!(e[1].insert, "faldt meget");
+    }
+
+    #[test]
+    fn synkens_apply_svarer_til_editorens() {
+        let base = "Første afsnit 😀 om æbler.\n\nAndet afsnit.\n\nTredje.\n";
+        let mine = "Første afsnit 😀 om pærer.\n\nAndet afsnit.\n\nTredje.\n";
+        let theirs = "Første afsnit 😀 om æbler.\n\nAndet afsnit.\n\nTredje og sidste 🎉.\n";
+        let m = merge(base, mine, theirs);
+        assert!(!m.conflict);
+        let got = super::apply(mine, &m.changes);
+        assert_eq!(got, apply(mine, &m.changes));
+        assert_eq!(
+            got,
+            "Første afsnit 😀 om pærer.\n\nAndet afsnit.\n\nTredje og sidste 🎉.\n"
+        );
     }
 }

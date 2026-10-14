@@ -861,8 +861,9 @@ pub fn blank_text(app: &AppHandle, last: Option<&Path>) -> Option<PathBuf> {
         .map(Path::to_path_buf)
         .or_else(|| libs.iter().find(|l| l.is_dir()).cloned())
         .or_else(|| {
-            use tauri::Manager;
-            let d = app.path().document_dir().ok()?.join("Gode Tekster");
+            let d = crate::settings::documents_dir(app)
+                .ok()?
+                .join("Gode Tekster");
             fs::create_dir_all(&d).ok()?;
             settings::add_library_path(app, &d);
             Some(d)
@@ -1008,7 +1009,7 @@ pub async fn delete_entry(app: AppHandle, path: String) -> Result<(), String> {
         )
         .to_owned());
     }
-    trash::delete(&p).map_err(|e| {
+    crate::files::to_trash(&p).map_err(|e| {
         t!(
             format!("Kunne ikke lægge i papirkurven: {e}"),
             format!("Could not move to the Recycle Bin: {e}")
