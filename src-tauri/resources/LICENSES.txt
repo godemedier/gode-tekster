@@ -718,7 +718,7 @@ regex-syntax 0.8.11: Copyright (c) 2014 The Rust Project Developers
 rfd 0.16.0: Copyright (c) 2022 Bartłomiej Maryńczak
 rusqlite 0.40.2: Copyright (c) 2014 The rusqlite developers
 rustc-hash 2.1.3
-rustls 0.23.45: Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>
+rustls 0.23.46: Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>
 rustls-pki-types 1.15.1: Copyright (c) 2023 Dirkjan Ochtman <dirkjan@ochtman.nl>
 safe-buffer 5.1.2: Copyright (c) Feross Aboukhadijeh
 same-file 1.0.6: Copyright (c) 2017 Andrew Gallant
