@@ -1193,3 +1193,16 @@ input), AI, versioner, print, eksport, noter i egne vinduer.
 ikke se tegnene. Bear og Obsidian viser dem ved markøren, hvilket giver linjehop.
 **Revurdér først hvis:** Gboard-komposition ved skjulte tegn giver tabte eller dobbelte bogstaver.
 Så er en native editor næste skridt (ADR-0053).
+
+### ADR-0056 — Start med Windows tilbage til Run-nøglen (15/10-2026)
+Afløser 11/10-ændringen af ADR-0014 (logon-opgave i Opgavestyring).
+**Baggrund:** Lige efter opdateringen til 0.2.14 fjernede Microsoft Defender programmet,
+genvejen og opgaven (`Behavior:Win32/Persistence.A!ml`). En usigneret exe, der opretter en
+planlagt opgave med `schtasks`, ligner skadelig software, der vil sikre sig en plads ved login.
+Run-nøglen under `HKCU` har Defender accepteret siden 3/10.
+**Beslutning:** `HKCU\...\Run` med `"<exe>" --skjult`, som før 11/10. Nøglen skrives kun, når
+den mangler eller peger forkert, og samme gang fjernes en gammel logon-opgave med
+`schtasks /Delete`. Ellers rører programmet intet ved start.
+**Pris:** Windows kan udskyde Run-nøglen op til et minut efter login, så det første notesark
+efter en genstart kan være langsommere.
+**Revurdér først hvis:** programmet bliver kodesigneret. Så kan logon-opgaven prøves igen.
