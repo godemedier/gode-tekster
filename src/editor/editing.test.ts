@@ -30,6 +30,28 @@ test("understregning og dæmpet tekst med forskellige tegn", () => {
   assert.equal(apply("måske ud", toggleWrap("måske ud", 0, 8, "{--", "--}")), "{--måske ud--}");
 });
 
+test("kursiv og fed over en liste: hvert punkt for sig, efter listetegnet (14/10)", () => {
+  const t = "Indkøb:\n- æbler\n- 2 pærer\n\n1. ost\n";
+  const from = t.indexOf("- æbler");
+  const to = t.indexOf("ost") + 3;
+  const on = apply(t, toggleWrap(t, from, to, "*"));
+  assert.equal(on, "Indkøb:\n- *æbler*\n- *2 pærer*\n\n1. *ost*\n");
+  // Igen: fjernes, også når markeringen nu dækker tegnene.
+  const p = toggleWrap(on, on.indexOf("- *æbler"), on.indexOf("ost*") + 4, "*");
+  assert.equal(apply(on, p), t);
+  // Fed på punkter, hvoraf ét allerede er fed: kun det andet får tegnene.
+  const mix = "- **a**\n- b";
+  assert.equal(apply(mix, toggleWrap(mix, 0, mix.length, "**")), "- **a**\n- **b**");
+  // Tredobbeltklik på ét punkt markerer linjeskiftet med: kun det punkt.
+  const one = "- a\n- b";
+  assert.equal(apply(one, toggleWrap(one, 0, 4, "*")), "- *a*\n- b");
+  // Afkrydsning, citat og overskrift bliver også stående foran.
+  assert.equal(apply("- [ ] gør det", toggleWrap("- [ ] gør det", 0, 13, "*")), "- [ ] *gør det*");
+  assert.equal(apply("> sagt\n> igen", toggleWrap("> sagt\n> igen", 0, 13, "*")), "> *sagt*\n> *igen*");
+  // Midt i et punkt: som før.
+  assert.equal(apply("- en grøn æske", toggleWrap("- en grøn æske", 5, 9, "*")), "- en *grøn* æske");
+});
+
 test("lister erstatter hinanden og nummereres", () => {
   const t = "- a\n- b";
   assert.equal(apply(t, toggleLinePrefix(t, 0, t.length, "1. ")), "1. a\n2. b");

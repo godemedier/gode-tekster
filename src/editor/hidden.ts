@@ -78,20 +78,32 @@ const protect = EditorState.changeFilter.of((tr) => {
   return ranges.length ? ranges : true;
 });
 
+/** Stykkerne af [from, to] uden for de skjulte blokke, i rækkefølge. Tomme stykker er udeladt. */
+export function visibleSpans(state: EditorState, from: number, to: number): { from: number; to: number }[] {
+  const ranges = protectedRanges(state);
+  const out: { from: number; to: number }[] = [];
+  let pos = from;
+  for (let i = 0; i < ranges.length; i += 2) {
+    const [a, b] = [Math.max(ranges[i], from), Math.min(ranges[i + 1], to)];
+    if (a >= b) continue;
+    if (a > pos) out.push({ from: pos, to: a });
+    pos = b;
+  }
+  if (to > pos) out.push({ from: pos, to });
+  return out;
+}
+
+/** Teksten i [from, to] uden de skjulte blokke: det, en kopi eller et træk med musen bærer. */
+export function visibleText(state: EditorState, from: number, to: number): string {
+  return visibleSpans(state, from, to).map((s) => state.doc.sliceString(s.from, s.to)).join("");
+}
+
 /** En kopi eller et klip tager ikke de skjulte blokke med, så de ikke kan sættes ind to gange. */
 const cleanCopy = EditorView.clipboardOutputFilter.of((text, state) => {
   const sel = state.selection.main;
   const ranges = protectedRanges(state);
   if (!ranges.some((_, i) => i % 2 === 0 && ranges[i] < sel.to && ranges[i + 1] > sel.from)) return text;
-  let out = "";
-  let pos = sel.from;
-  for (let i = 0; i < ranges.length; i += 2) {
-    const [a, b] = [Math.max(ranges[i], sel.from), Math.min(ranges[i + 1], sel.to)];
-    if (a >= b) continue;
-    out += state.doc.sliceString(pos, a);
-    pos = b;
-  }
-  return out + state.doc.sliceString(pos, sel.to);
+  return visibleText(state, sel.from, sel.to);
 });
 
 export const hiddenBlocks = StateField.define<DecorationSet>({

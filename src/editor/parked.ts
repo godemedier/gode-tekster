@@ -65,20 +65,20 @@ export function appendParked(doc: string, block: string): { from: number; insert
 
 /**
  * Ændringerne, der lægger tekster i fraklip sidst i dokumentet, i dokumentets koordinater. Med
- * `remove` tages teksten samtidig ud, hvor den stod (Ctrl+Alt+X, træk til spalten).
+ * `remove` tages teksten samtidig ud, hvor den stod (Ctrl+Alt+X, træk til spalten). Flere stykker,
+ * når markeringen gik hen over skjulte blokke (parkPlan). De må ikke overlappe.
  */
 export function parkChanges(
   doc: string,
   texts: string[],
-  remove?: { from: number; to: number },
+  remove?: { from: number; to: number } | { from: number; to: number }[],
   date = todayIso(),
 ): { from: number; to?: number; insert: string }[] {
   const changes: { from: number; to?: number; insert: string }[] = [];
   let rest = doc;
-  if (remove) {
-    changes.push({ from: remove.from, to: remove.to, insert: "" });
-    rest = doc.slice(0, remove.from) + doc.slice(remove.to);
-  }
+  const spans = remove === undefined ? [] : Array.isArray(remove) ? [...remove].sort((a, b) => a.from - b.from) : [remove];
+  for (const r of spans) changes.push({ from: r.from, to: r.to, insert: "" });
+  for (const r of [...spans].reverse()) rest = rest.slice(0, r.from) + rest.slice(r.to);
   let insert = "";
   let n = Number(nextParkedId(doc).slice(1));
   for (const t of texts) insert += appendParked(rest + insert, parkedBlock(`p${n++}`, date, t)).insert;

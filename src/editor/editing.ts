@@ -36,6 +36,15 @@ export function wordRangeAt(text: string, pos: number): { start: number; end: nu
  * med markøren i midten.
  */
 export function toggleWrap(text: string, selStart: number, selEnd: number, open: string, close = open): EditPlan {
+  // Flere linjer, eller en markering der starter i listetegnet: linje for linje (14/10). Ét par om
+  // det hele gav `*- a\n- b*`, så første punkt ikke længere var et listepunkt.
+  if (selStart !== selEnd) {
+    const ls = selStart === 0 ? 0 : text.lastIndexOf("\n", selStart - 1) + 1;
+    const prefix = LINE_PREFIX.exec(text.slice(ls, text.indexOf("\n", ls) === -1 ? text.length : text.indexOf("\n", ls)))![0].length;
+    if (text.slice(selStart, selEnd).replace(/\n$/, "").includes("\n") || selStart < ls + prefix) {
+      return toggleWrapLines(text, selStart, selEnd, open, close);
+    }
+  }
   let s = selStart;
   let e = selEnd;
   if (s === e) ({ start: s, end: e } = wordRangeAt(text, s));
@@ -60,6 +69,59 @@ export function toggleWrap(text: string, selStart: number, selEnd: number, open:
   const word = text.slice(s, e);
   const rep = open + word + close;
   return { start: s, end: e, replacement: rep, selStart: s + open.length, selEnd: s + open.length + word.length };
+}
+
+/** Det, tegnene skal stå efter på en linje: indrykning, overskrift, citat, listetegn og afkrydsning. */
+const LINE_PREFIX = /^[ \t]*(?:(?:#{1,6}|>|[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?)*/;
+
+/**
+ * `toggleWrap` over flere linjer: hver linjes markerede del får sit eget par efter linjens præfiks.
+ * Tomme linjer springes over. Har alle dele tegnene i forvejen, fjernes de. Ellers får de dele, der
+ * mangler dem, tegnene.
+ */
+function toggleWrapLines(text: string, selStart: number, selEnd: number, open: string, close: string): EditPlan {
+  // En markering, der slutter i starten af en linje (tredobbeltklik), tager ikke den linje med.
+  const end = selEnd > selStart && text[selEnd - 1] === "\n" ? selEnd - 1 : selEnd;
+  const { ls, le } = lineSpan(text, selStart, end);
+  // a og b er den markerede del i linjen (-1: intet markeret). wrapped: tegnene står inden for
+  // delen, lige uden om den, eller ikke.
+  type Part = { line: string; a: number; b: number; wrapped: "inde" | "ude" | null };
+  const parts: Part[] = [];
+  let off = ls;
+  for (const line of text.slice(ls, le).split("\n")) {
+    const cs = LINE_PREFIX.exec(line)![0].length;
+    let a = Math.max(cs, selStart - off);
+    let b = Math.min(line.length, end - off);
+    const seg = a < b ? line.slice(a, b) : "";
+    if (seg.trim() === "") {
+      parts.push({ line, a: -1, b: -1, wrapped: null });
+    } else {
+      a += seg.length - seg.trimStart().length;
+      b -= seg.length - seg.trimEnd().length;
+      const inner = line.slice(a, b);
+      const wrapped =
+        inner.length >= open.length + close.length && inner.startsWith(open) && inner.endsWith(close)
+          ? "inde"
+          : line.slice(a - open.length, a) === open && a - open.length >= cs && line.slice(b, b + close.length) === close
+            ? "ude"
+            : null;
+      parts.push({ line, a, b, wrapped });
+    }
+    off += line.length + 1;
+  }
+  const marked = parts.filter((p) => p.a >= 0);
+  const remove = marked.length > 0 && marked.every((p) => p.wrapped !== null);
+  const rep = parts
+    .map((p) => {
+      if (p.a < 0) return p.line;
+      const inner = p.line.slice(p.a, p.b);
+      if (remove && p.wrapped === "inde") return p.line.slice(0, p.a) + inner.slice(open.length, inner.length - close.length) + p.line.slice(p.b);
+      if (remove) return p.line.slice(0, p.a - open.length) + inner + p.line.slice(p.b + close.length);
+      if (p.wrapped) return p.line;
+      return p.line.slice(0, p.a) + open + inner + close + p.line.slice(p.b);
+    })
+    .join("\n");
+  return { start: ls, end: le, replacement: rep, selStart: ls, selEnd: ls + rep.length };
 }
 
 function lineSpan(text: string, selStart: number, selEnd: number): { ls: number; le: number } {

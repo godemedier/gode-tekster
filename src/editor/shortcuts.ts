@@ -10,7 +10,7 @@ import { indentLess, indentMore, insertTab } from "@codemirror/commands";
 import { insertFootnote, setHeading, toggleLinePrefix, toggleWrap, wrapLink, type EditPlan } from "./editing.ts";
 import { clearFormatting, parkChanges, toTable } from "./parked.ts";
 import { pickImage } from "./insertImage.ts";
-import { expandParkRange, paragraphAt } from "./parkRange.ts";
+import { expandParkRange, paragraphAt, parkPlan } from "./parkRange.ts";
 
 type Planner = (text: string, from: number, to: number) => EditPlan;
 export type Command = (view: EditorView) => boolean;
@@ -90,16 +90,14 @@ export const cmd = {
   park(view: EditorView): boolean {
     const { state } = view;
     const sel = state.selection.main;
-    // Intet markeret: hele afsnittet ved markøren. Ellers markeringen med hele ord og hele noter,
-    // og aldrig ind i de skjulte blokke (parkRange.ts).
+    // Intet markeret: hele afsnittet ved markøren. Ellers markeringen med hele ord og hele noter.
+    // Skjulte blokke indeni bliver stående (parkRange.ts).
     const span = sel.empty ? paragraphAt(state, sel.head) : expandParkRange(state, sel);
-    if (!span) return false;
-    const { from, to } = span;
-    const text = state.sliceDoc(from, to).trim();
-    if (!text) return false;
+    const plan = span && parkPlan(state, span);
+    if (!plan) return false;
     view.dispatch({
-      changes: parkChanges(state.doc.toString(), [text], { from, to }),
-      selection: { anchor: from },
+      changes: parkChanges(state.doc.toString(), [plan.text], plan.remove),
+      selection: { anchor: plan.remove[0].from },
       userEvent: "delete.park",
     });
     window.dispatchEvent(new Event("gt-parked"));

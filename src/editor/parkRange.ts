@@ -6,7 +6,7 @@
 import { syntaxTree } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
 
-import { protectedRanges } from "./hidden.ts";
+import { protectedRanges, visibleSpans } from "./hidden.ts";
 
 export type Span = { from: number; to: number };
 
@@ -56,7 +56,37 @@ export function expandParkRange(state: EditorState, span: Span): Span {
     });
     if (!changed) break;
   }
-  return clampToText(state, { from, to });
+  return clampEdges(state, { from, to });
+}
+
+/**
+ * Det, der flyttes til fraklip fra området: den synlige tekst og stykkerne, der skal slettes (14/10).
+ * Skjulte blokke indeni bliver stående, så en markering hen over en Struktur-del tager teksten med
+ * på begge sider af delens mærker i stedet for at stoppe ved det første. Stykkerne samles med en
+ * tom linje, så to afsnit ikke bliver til ét.
+ */
+export function parkPlan(state: EditorState, span: Span): { text: string; remove: Span[] } | null {
+  const remove = visibleSpans(state, span.from, span.to).filter((s) => state.doc.sliceString(s.from, s.to).trim() !== "");
+  const text = remove
+    .map((s) => state.doc.sliceString(s.from, s.to).replace(/^\s*\n/, "").trimEnd())
+    .join("\n\n")
+    .trim();
+  return text ? { text, remove } : null;
+}
+
+/** Kanterne ud af skjulte blokke og uden tomme linjer. Blokke indeni bliver (parkPlan). */
+function clampEdges(state: EditorState, span: Span): Span {
+  let { from, to } = span;
+  const r = protectedRanges(state);
+  for (let i = 0; i < r.length; i += 2) {
+    const [a, b] = [r[i], r[i + 1]];
+    if (a < from && from < b) from = b;
+    if (a < to && to < b) to = a;
+  }
+  while (to > from && /\s/.test(state.doc.sliceString(to - 1, to))) to--;
+  // Kun linjeskift foran: indrykningen af første linje hører til teksten.
+  while (from < to && /\n/.test(state.doc.sliceString(from, from + 1))) from++;
+  return { from, to };
 }
 
 /** Afsnittet ved `pos`: linjerne mellem to tomme linjer, og aldrig ind i en skjult blok. */

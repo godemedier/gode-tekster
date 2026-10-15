@@ -11,7 +11,8 @@ import { findParked, parkChanges, parkedBlock, splitClippings, type Parked } fro
 import { footnoteDefinition, footnoteNumbers, footnoteRef } from "../editor/inline.ts";
 import { cmd } from "../editor/shortcuts.ts";
 import { findNotes } from "../editor/critic.ts";
-import { expandParkRange, type Span } from "../editor/parkRange.ts";
+import { visibleText } from "../editor/hidden.ts";
+import { expandParkRange, parkPlan, type Span } from "../editor/parkRange.ts";
 /** Et afsnit med sin plads i teksten (kun fra test og senere kilder): så fjernes netop det afsnit. */
 const PARAGRAPH_TYPE = "application/x-gt-afsnit";
 import { showMenu } from "./menu.ts";
@@ -371,9 +372,12 @@ export class RightPanel {
     const sel = state.selection.main;
     let span: Span | undefined;
     if (paragraph && state.sliceDoc(paragraph.from, paragraph.to) === text) span = paragraph;
-    else if (!sel.empty && state.sliceDoc(sel.from, sel.to).trim() === text.trim()) span = expandParkRange(state, sel);
-    if (span) text = state.sliceDoc(span.from, span.to);
-    const remove = span && !keepCopy ? span : undefined;
+    // Trækket bærer markeringen uden de skjulte blokke (cleanCopy). 14/10 gik en markering hen over
+    // en Struktur-del: teksten blev sammenlignet med blokkene i, var ikke ens, og intet blev fjernet.
+    else if (!sel.empty && visibleText(state, sel.from, sel.to).trim() === text.trim()) span = expandParkRange(state, sel);
+    const plan = span && parkPlan(state, span);
+    if (plan) text = plan.text;
+    const remove = plan && !keepCopy ? plan.remove : undefined;
     this.view.dispatch({
       changes: parkChanges(state.doc.toString(), [text], remove),
       userEvent: remove ? "delete.park" : "input.park",
