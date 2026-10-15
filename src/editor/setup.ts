@@ -152,6 +152,15 @@ export function setCommandHooks(hooks: CommandHooks): void {
 /** Til testscenarierne (measure.ts). */
 export const getCommandHooks = (): CommandHooks | null => commandHooks;
 
+/**
+ * Telefonen (ADR-0055, mobile.ts): ingen værktøjslinje eller boble ved en markering. Androids egen
+ * menu kommer allerede frem, og de to lå oven i hinanden over teksten (15/10).
+ */
+let touchSurface = false;
+export function useTouchSurface(): void {
+  touchSurface = true;
+}
+
 export function baseExtensions(onChange: OnChange): Extension[] {
   return [
     history(),
@@ -177,8 +186,7 @@ export function baseExtensions(onChange: OnChange): Extension[] {
     hiddenBlocks,
     tagLineStyle,
     tagLineTheme,
-    selectionToolbar,
-    selectionToolbarTheme,
+    ...(touchSurface ? [] : [selectionToolbar, selectionToolbarTheme]),
     // Bobler og værktøjslinjen holdes inden for skrivefladen (9/10): CodeMirror regner ellers med hele
     // vinduet, og linjen ved en markering havnede under et fastgjort sidepanel.
     tooltips({ tooltipSpace: (view) => view.scrollDOM.getBoundingClientRect() }),
@@ -188,7 +196,7 @@ export function baseExtensions(onChange: OnChange): Extension[] {
     modeExtensions(),
     wordClasses,
     wordClassTheme,
-    dimBubble,
+    ...(touchSurface ? [] : [dimBubble]),
     images,
     imagesTheme,
     imageDropAndPaste,

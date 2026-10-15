@@ -17,6 +17,7 @@ import { setMarkMode } from "./editor/livePreview.ts";
 import { setAuthorshipVisible } from "./editor/authorshipView.ts";
 import { setStyleCheck } from "./editor/styleCheck.ts";
 import { cmd } from "./editor/shortcuts.ts";
+import { useTouchSurface } from "./editor/setup.ts";
 import { followTheme } from "./ui/theme.ts";
 import { fontStack } from "./ui/settingspanel.ts";
 import { errorText, showBanner } from "./ui/banner.ts";
@@ -45,6 +46,7 @@ const s = settings();
 followTheme(s.theme ?? (s.dark ? "moerk" : "lys"));
 document.documentElement.style.setProperty("--skrift", fontStack(s.font));
 
+useTouchSurface();
 const view = new EditorView({ parent: $("editor") });
 let session: DocumentSession | null = null;
 
