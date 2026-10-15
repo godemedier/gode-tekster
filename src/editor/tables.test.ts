@@ -56,6 +56,18 @@ test("fed, kursiv, kode og links i en celle", () => {
   assert.deepEqual(inlineParts("24 % * 2"), [{ kind: "text", text: "24 % * 2" }]);
 });
 
+test("<br> er et linjeskift i cellen, også skrevet <br/> og <BR />, og ikke tegnene (15/10)", () => {
+  assert.deepEqual(inlineParts("☐ Et<br>☐ **To**<br/>tre<BR />"), [
+    { kind: "text", text: "☐ Et" },
+    { kind: "br", text: "" },
+    { kind: "text", text: "☐ " },
+    { kind: "strong", text: "To" },
+    { kind: "br", text: "" },
+    { kind: "text", text: "tre" },
+    { kind: "br", text: "" },
+  ]);
+});
+
 const doc = "Før.\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nEfter.";
 const state = (anchor: number) => {
   let s = EditorState.create({ doc, selection: { anchor }, extensions: [markdown({ base: markdownLanguage }), tablePreview] });
