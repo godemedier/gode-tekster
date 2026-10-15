@@ -8,7 +8,9 @@ import { bodyEnd, bodyHeadings } from "../editor/outline.ts";
 /** Hele blokke fra Markdown-parseren: også lister og tabeller med tomme linjer. */
 export function selectedBlocks(state: EditorState): { from: number; to: number } | null {
   const selection = state.selection.main;
-  const tree = ensureSyntaxTree(state, selection.to, 100);
+  // Hele teksten, ikke kun til markeringen: en liste kan fortsætte efter den, og en parser, der
+  // stopper ved markeringen, skar den over, når maskinen var travl (15/10).
+  const tree = ensureSyntaxTree(state, state.doc.length, 500);
   if (!tree) return null;
   const blocks: { from: number; to: number }[] = [];
   for (let n = tree.topNode.firstChild; n; n = n.nextSibling) {
