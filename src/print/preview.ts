@@ -264,10 +264,10 @@ export class PrintPreview {
     const doc = this.view.state.doc.toString();
     const hasMarkup = findNotes(doc).length > 0 || findRevisions(doc).length > 0;
     const content = button(tr("Indhold", "Content"), () => openContent());
-    content.className = "pv-menu";
+    content.className = "pv-menu pv-content";
     content.setAttribute("aria-haspopup", "menu");
     const openContent = () => {
-      const r = (this.bar.querySelector<HTMLElement>(".pv-menu") ?? content).getBoundingClientRect();
+      const r = (this.bar.querySelector<HTMLElement>(".pv-content") ?? content).getBoundingClientRect();
       const item = (label: string, checked: boolean, patch: Partial<PrintOptions>): MenuItem => ({
         label,
         checked,
@@ -289,6 +289,17 @@ export class PrintPreview {
         ...(hasMarkup ? [item(tr("Kommentarer og rettelser i Word", "Comments and changes in Word"), o.wordMarkup !== false, { wordMarkup: o.wordMarkup === false })] : []),
       ]);
     };
+    // Kopiér med eller uden markdown (15/10): uden er til mails og CMS'er, med til en anden editor.
+    const copy = button(tr("Kopiér tekst", "Copy text"), () => {
+      const r = copy.getBoundingClientRect();
+      const run = (withMarkdown: boolean) => () => void import("./copyRich.ts").then((m) => m.copyRich(this.view, withMarkdown));
+      showMenu(r.left, r.bottom + 4, [
+        { label: tr("Uden markdown", "Without markdown"), run: run(false) },
+        { label: tr("Med markdown", "With markdown"), run: run(true) },
+      ]);
+    });
+    copy.className = "pv-menu";
+    copy.setAttribute("aria-haspopup", "menu");
     const design = button(tr("Design", "Design"), () => this.toggleDesign());
     design.setAttribute("aria-pressed", String(this.designing));
     design.className = "pv-toggle";
@@ -302,7 +313,7 @@ export class PrintPreview {
       button(tr("Udskriv", "Print"), () => void this.print()),
       Object.assign(button(tr("Gem som PDF", "Save as PDF"), () => void this.pdf()), { className: "pv-primary" }),
       button(tr("Gem som Word", "Save as Word"), () => void this.word()),
-      button(tr("Kopiér tekst", "Copy text"), () => void import("./copyRich.ts").then((m) => m.copyRich(this.view))),
+      copy,
       Object.assign(button(tr("Luk", "Close"), () => this.close()), { className: "pv-quiet" }),
     );
   }

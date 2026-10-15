@@ -1465,7 +1465,7 @@ export async function runScenario(name: string, view: EditorView, path: string |
     await pause(1800);
     await say("skærmbillede print9");
     await pause(2500);
-    document.querySelector<HTMLElement>(".pv-menu")?.click();
+    document.querySelector<HTMLElement>(".pv-content")?.click();
     await pause(700);
     await say(`print9: menuen ${document.querySelector(".menu") ? "åben" : "IKKE åben"}`);
     await say("skærmbillede print9-indhold");
