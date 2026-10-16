@@ -22,21 +22,6 @@ programmet.
 Programmet er ikke kodesigneret endnu, så Windows advarer måske første gang. Downloadsiden
 forklarer, hvad du gør.
 
-## Code signing policy (kodesignering)
-
-Gratis kodesignering stilles til rådighed af [SignPath.io](https://about.signpath.io), med
-certifikat fra [SignPath Foundation](https://signpath.org).
-
-- Windows-udgaven bygges fra dette repo af [GitHub Actions](.github/workflows/windows.yml).
-  Intet, der signeres, bygges på en privat maskine.
-- Hver udgivelse godkendes i hånden, før den signeres.
-- Team: kontoen [Gode Medier](https://github.com/godemedier) er forfatter, reviewer og godkender.
-  Den bruger totrinsgodkendelse på GitHub og SignPath.
-- Privatliv: se afsnittet herunder og hele erklæringen på
-  [tekster.godemedier.dk/privatliv](https://tekster.godemedier.dk/privatliv). Programmet sender
-  intet til andre systemer, medmindre du selv slår det til eller beder om det. Undtagelsen er
-  opdateringstjekket, som kan slås fra.
-
 ## Hvad det kan
 
 - **Formateret, mens du skriver.** Markdown-tegnene gemmer sig, når markøren ikke står på linjen.

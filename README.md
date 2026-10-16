@@ -24,21 +24,6 @@ the app.
 The program isn't code-signed yet, so Windows may warn you the first time. The download page
 explains what to do.
 
-## Code signing policy
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
-[SignPath Foundation](https://signpath.org).
-
-- The Windows builds are made from this repository by [GitHub Actions](.github/workflows/windows.yml).
-  Nothing signed is built on a private machine.
-- Every release is approved by hand before it is signed.
-- Team: the [Gode Medier](https://github.com/godemedier) account is author, reviewer and approver.
-  It uses multi-factor authentication on GitHub and SignPath.
-- Privacy: see the section below and the full statement at
-  [tekster.godemedier.dk/privatliv](https://tekster.godemedier.dk/privatliv). The program sends
-  nothing to other systems unless you turn it on or ask for it, except the update check, which
-  can be turned off.
-
 ## What it does
 
 - **Live preview.** Markdown characters hide when the cursor isn't on the line. Tables are shown
