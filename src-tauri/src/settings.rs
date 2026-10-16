@@ -163,7 +163,16 @@ pub fn exists(app: &AppHandle) -> bool {
 }
 
 pub fn load(app: &AppHandle) -> Settings {
-    parse(file(app).and_then(|f| std::fs::read(f).ok()).as_deref())
+    #[allow(unused_mut)]
+    let mut settings = parse(file(app).and_then(|f| std::fs::read(f).ok()).as_deref());
+    // Telefonen har ingen mappevælger, og synken lægger teksterne i hele Dokumenter-mappen
+    // (Strategi, Kunder osv.). Biblioteket var kun underappen Gode Tekster, så listen var tom,
+    // selv når synken havde hentet alt (16/10). Biblioteket er derfor altid Dokumenter.
+    #[cfg(mobile)]
+    if let Ok(docs) = documents_dir(app) {
+        settings.libraries = vec![docs];
+    }
+    settings
 }
 
 /// Indstillingerne fra filens bytes. En fil fra før 7/10 har kun `hideMarks`: `true` bliver til
