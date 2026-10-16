@@ -1206,3 +1206,17 @@ den mangler eller peger forkert, og samme gang fjernes en gammel logon-opgave me
 **Pris:** Windows kan udskyde Run-nøglen op til et minut efter login, så det første notesark
 efter en genstart kan være langsommere.
 **Revurdér først hvis:** programmet bliver kodesigneret. Så kan logon-opgaven prøves igen.
+
+### ADR-0057 — Kodesignering gennem SignPath Foundation, bygget på GitHub (16/10-2026)
+**Baggrund:** Defender fjernede den usignerede 0.2.14 (ADR-0056), og Smart App-kontrol advarer
+ved første start. Brugeren vil ikke betale for et certifikat.
+**Beslutning:** SignPath Foundations gratis signering til open source. Programmet forbliver gratis
+og under GPL-3.0 uden betalt licens ved siden af (betingelse). Windows-udgaven bygges af
+`.github/workflows/windows.yml` på GitHub fra det offentlige repo: exe'en signeres, installeren
+pakkes om den signerede exe med `tauri bundle`, og installeren signeres. Hver signering godkendes
+i hånden i SignPath. Certifikatet står i SignPath Foundations navn. Opdateringens minisign-
+signatur laves stadig lokalt af `udgiv.mjs`. Installeren viser licens og privatliv
+(`src-tauri/nsis/installer-info.txt`), og README har afsnittet »Code signing policy«.
+**Alternativ der tabte:** Microsoft Store (gratis for enkeltpersoner, Store signerer). Kræver
+MSIX og Store-opdateringer, og installeren fra hjemmesiden ville stadig være usigneret.
+**Revurdér hvis:** programmet skal koste penge. Så gælder SignPaths gratis ordning ikke.

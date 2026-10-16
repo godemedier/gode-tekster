@@ -24,6 +24,21 @@ the app.
 The program isn't code-signed yet, so Windows may warn you the first time. The download page
 explains what to do.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+- The Windows builds are made from this repository by [GitHub Actions](.github/workflows/windows.yml).
+  Nothing signed is built on a private machine.
+- Every release is approved by hand before it is signed.
+- Team: the [Gode Medier](https://github.com/godemedier) account is author, reviewer and approver.
+  It uses multi-factor authentication on GitHub and SignPath.
+- Privacy: see the section below and the full statement at
+  [tekster.godemedier.dk/privatliv](https://tekster.godemedier.dk/privatliv). The program sends
+  nothing to other systems unless you turn it on or ask for it, except the update check, which
+  can be turned off.
+
 ## What it does
 
 - **Live preview.** Markdown characters hide when the cursor isn't on the line. Tables are shown
@@ -51,8 +66,9 @@ The full user guide ships with the app and is in
 - Your texts never pass through Gode Medier. AI requests go from your computer straight to the
   provider you picked, through your own login or key.
 - Gemini and Mistral keys are stored in Windows Credential Manager, not in a file.
-- The app asks `tekster.godemedier.dk` for updates two minutes after start and every six hours.
-  The server sees the version number and your IP address.
+- The app asks `tekster.godemedier.dk` for updates 15 seconds after start and every six hours.
+  The server sees the version number and your IP address. Turn it off under Settings › General.
+- Sync only runs if you connect it, and only to the server address you enter.
 - Feedback is only sent when you write it. After a crash, the app asks once whether the error log
   may be sent. The log never contains text from your documents.
 - The server stores nothing. The full statement is at

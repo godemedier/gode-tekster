@@ -58,6 +58,7 @@
       }
     ],
     "publisher": "Gode Medier",
+    "licenseFile": "nsis/installer-info.txt",
     "shortDescription": "Skriveprogram til markdown",
     "windows": {
       "nsis": {

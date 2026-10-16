@@ -1,0 +1,36 @@
+﻿Gode Tekster - licens og privatliv
+
+Gode Tekster er fri software under GNU General Public License version 3 (GPL-3.0-only).
+Kildekoden: https://github.com/godemedier/gode-tekster
+
+Det sender programmet:
+- Opdateringer: 15 sekunder efter start og hver sjette time spørger programmet
+  tekster.godemedier.dk, om der er en ny udgave. Serveren ser versionsnummeret og din
+  IP-adresse og gemmer intet. Slå det fra under Indstillinger > Generelt.
+- AI-hjælp, synk, feedback og fejllogge sendes kun, når du selv slår dem til eller beder om det,
+  og kun til den udbyder eller server, du har valgt.
+- Dine tekster går aldrig gennem Gode Medier.
+
+Start med Windows er slået fra, til du selv slår det til under Indstillinger > Generelt. Så lægger
+programmet sig i Windows' startliste, og afinstallation fjerner det igen.
+
+Hele privatlivserklæringen: https://tekster.godemedier.dk/privatliv
+
+
+Gode Tekster - licence and privacy
+
+Gode Tekster is free software under the GNU General Public License version 3 (GPL-3.0-only).
+Source code: https://github.com/godemedier/gode-tekster
+
+What the program sends:
+- Updates: 15 seconds after start and every six hours, the program asks tekster.godemedier.dk
+  whether a new version exists. The server sees the version number and your IP address and stores
+  nothing. Turn it off under Settings > General.
+- AI help, sync, feedback and error logs are only sent when you turn them on or ask for it, and
+  only to the provider or server you chose.
+- Your texts never pass through Gode Medier.
+
+Start with Windows is off until you turn it on under Settings > General. The program then adds
+itself to the Windows startup list, and uninstalling removes it.
+
+Full privacy statement (Danish): https://tekster.godemedier.dk/privatliv
