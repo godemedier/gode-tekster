@@ -1222,8 +1222,11 @@ MSIX og Store-opdateringer, og installeren fra hjemmesiden ville stadig være us
 **Revurdér hvis:** programmet skal koste penge. Så gælder SignPaths gratis ordning ikke.
 **Tilføjet 16/10, samme dag:** SignPath afviste ansøgningen, fordi projektet endnu ikke har
 »social proof«. Afsnittet »Code signing policy« er taget ud af README og af godemedier.dk.
-Workflowet bliver, men bygger usigneret, indtil en anden vej er valgt. Alternativerne står i
-`docs/research/2026-10-16-kodesignering-uden-signpath.md`.
+Workflowet bliver, men bygger usigneret. Alternativerne står i
+`docs/research/2026-10-16-kodesignering-uden-signpath.md`. **Troels besluttede samme dag:** der
+betales ikke for signering. Programmet udgives usigneret, og downloadsiden forklarer advarslen.
+Slår Defender til igen, indsendes filen til Microsoft som falsk alarm (gratis). SignPath kan søges
+igen, når programmet har brugere og omtale.
 
 ### ADR-0058 — Papirkurv på synkserveren i 30 dage (16/10-2026)
 Supplerer ADR-0054.
