@@ -38,3 +38,10 @@ test("som standard kun de regler, der sjældent tager fejl (målebænken 12/10)"
   assert.ok(kinds(true).has("fyldord"));
   assert.deepEqual([...kinds(false)], ["hus:semikolon"]);
 });
+
+test("fase 2-3 som standard: retskrivning, papirord og »omkring«, ikke papirord-2 og sætningsreglerne (16/10)", () => {
+  const doc = "Vi er igang, dvs vi påbegynder arbejdet og informerer omkring det. Det er Mette, der modtager brevet.";
+  const kinds = (strict: boolean) => new Set(analyze(doc, undefined, undefined, strict).flags.map((f) => f.kind));
+  assert.deepEqual([...kinds(false)].sort(), ["omkring", "papirord", "ro:forkortelse", "ro:to-ord"]);
+  assert.ok(kinds(true).has("papirord-2"));
+});

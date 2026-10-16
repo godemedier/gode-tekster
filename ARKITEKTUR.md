@@ -1220,6 +1220,10 @@ signatur laves stadig lokalt af `udgiv.mjs`. Installeren viser licens og privatl
 **Alternativ der tabte:** Microsoft Store (gratis for enkeltpersoner, Store signerer). Kræver
 MSIX og Store-opdateringer, og installeren fra hjemmesiden ville stadig være usigneret.
 **Revurdér hvis:** programmet skal koste penge. Så gælder SignPaths gratis ordning ikke.
+**Tilføjet 16/10, samme dag:** SignPath afviste ansøgningen, fordi projektet endnu ikke har
+»social proof«. Afsnittet »Code signing policy« er taget ud af README og af godemedier.dk.
+Workflowet bliver, men bygger usigneret, indtil en anden vej er valgt. Alternativerne står i
+`docs/research/2026-10-16-kodesignering-uden-signpath.md`.
 
 ### ADR-0058 — Papirkurv på synkserveren i 30 dage (16/10-2026)
 Supplerer ADR-0054.
@@ -1237,3 +1241,24 @@ igen under lagerets lås, så oprydningen aldrig efterlader en fil uden indhold.
 restic-backuppen dækker længere tilbage (12 måneder).
 **Konsekvens:** ældre udgaver af levende filer ryddes ikke. En versionshistorik pr. tekst er en
 mulig næste ting, og pladsen skal holdes øje med.
+
+### ADR-0059 — Stiltjek fase 2-3: retskrivning, kommakonsistens, papirord og sætningsbygning (16/10-2026)
+Supplerer ADR-0051. **Baggrund:** Korrekthed var stiltjekkets svage side (plan
+`docs/research/2026-10-12-stiltjek-plan.md`). COR og DSL's lister venter på svar på brevene.
+**Beslutning:** Fire nye moduler i `src/editor/`, alle uden net og uden nye afhængigheder:
+`retskrivning.ts` (»ro:«: faste udtryk i to ord, forvekslinger, forkortelser, tal med bindestreg og
+apostrof, komma efter »Men«), `papirord.ts` (papirord i to lag og »omkring« for »om«),
+`saetning.ts` (kløvning med et navn, indskud fra 15 ord) og kommakonsistens i `grammar.ts`: skriver
+teksten tydeligt i det andet kommasystem end det valgte (mindst tre steder, tre gange så mange),
+gælder tekstens system, og kun afvigelserne markeres (»ro:komma-konsistens«). Ordparrene er skrevet
+med egne ord. LanguageTools danske regler (LGPL) er brugt som liste over fejltyper, ikke som tekst.
+**Målt** på 1.774 fagbladsartikler, 20 stikprøver pr. regel, vurderet af tre agenter som redaktør
+og til sidst 23 af Claude selv: ro:to-ord, ro:forkortelse, ro:tal 100 %, ro:forveksling 3 af 3,
+papirord 95 %, »omkring« 88 %. De står nu på standardlisten. papirord-2 (45 %), indskud (75 %, 16
+fund) og kløvning (90 %, 10 fund) vises kun med »Alle forslag«: de to sidste er justeret på de
+samme stikprøver, de er målt på, så tallet er for pænt. Forvægt (2 af 20) er taget ud: den kræver en
+rigtig sætningsanalyse, og UDPipe er CC BY-NC-SA. DaLA: stadig 0,3 % falske fund i rigtige sætninger.
+**Ikke bygget:** Hunspell i stedet for Windows' stavekontrol (en erstatning af noget, der virker,
+og et valg om ordbog og forslag i højreklik). Svære ord og forvekslinger med kontekst venter på
+frekvensliste og COR.
+**Revurdér:** når Troels har set fundene i en rigtig tekst, og når COR-svaret kommer.

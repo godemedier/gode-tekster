@@ -26,7 +26,7 @@ const CLASSES: [WordClass, string, string][] = [
 
 // Overskrifterne er valgt 5/10.
 const STYLE: [string, string, string][] = [
-  ["grammatik", "Grammatik", "nutids-r, kongruens, komma og dobbelte ord"],
+  ["grammatik", "Grammatik", "bøjning, komma, faste udtryk og forkortelser"],
   ["stryg", "Floskler og fyld", "kan strøges"],
   ["enklere", "Tunge ord", "kan siges enklere"],
   ["saetning", "Tunge sætninger", "lange sætninger, svagt anslag og gentagelser"],

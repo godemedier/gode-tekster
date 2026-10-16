@@ -260,6 +260,8 @@ const BEFORE_SUBORD_OK = new Set([
   // Biord, der hører til bindeordet: »ganske enkelt fordi«, »først og fremmest fordi«.
   "enkelt", "fremmest", "simpelthen", "primært", "hovedsageligt", "blot", "delvis", "alene", "måske", "formentlig",
   "sandsynligvis",
+  // »alt i alt fordi« (målebænken 16/10).
+  "alt",
 ]);
 /** Det, der kan stå efter »at« som bindeord: et stedord, en artikel eller et ejestedord (ikke »at gå«). */
 const AT_CONJ_NEXT = new Set([
@@ -275,6 +277,8 @@ function commaFlags(text: string, words: Word[], verbs: ReadonlySet<string>, sty
   const add = (from: number, to: number, kind: string, message: string, replacement: string) => {
     if (!inQuote(from, quotes)) out.push({ from, to, kind: `grammatik:${kind}`, message, replacement });
   };
+  /** Steder, hvor de to kommasystemer er uenige: komma foran »at« efter siger/mener …, og foran hvis/når/fordi. */
+  const spots: { prev: Word; w: Word; comma: boolean; at: boolean }[] = [];
   // Sætningerne: ord fra en start til næste punktum, spørgsmålstegn, udråbstegn eller linjeskift.
   let start = 0;
   for (let i = 0; i <= words.length; i++) {
@@ -304,20 +308,41 @@ function commaFlags(text: string, words: Word[], verbs: ReadonlySet<string>, sty
       const w = sentence[j];
       const next = sentence[j + 1];
       const gap = between(prev, w);
+      const comma = /^,[ \t]+$/.test(gap);
+      if (!comma && !/^[ \t]+$/.test(gap)) continue;
       const nextIsName = next !== undefined && next.text[0] !== next.low[0];
+      // »at« er her bindeord: et grundled følger, ikke et udsagnsord i navnemåde (»frygter at dumme sig«).
       if (SAYING.has(prev.low) && w.low === "at" && next && (AT_CONJ_NEXT.has(next.low) || nextIsName) && !verbs.has(next.low)) {
-        // »at« er her bindeord: et grundled følger, ikke et udsagnsord i navnemåde (»frygter at dumme sig«).
-        if (style === "start" && /^[ \t]+$/.test(gap)) add(prev.from, prev.to, "komma", `Med startkomma: komma foran »at«.`, `${prev.text},`);
-        if (style === "uden" && /^,[ \t]+$/.test(gap)) add(prev.to, w.from, "komma", `Uden startkomma: intet komma foran »at«.`, " ");
+        spots.push({ prev, w, comma, at: true });
       }
       // Ikke et bindeord med stort (en overskrift uden punktum foran) og ikke »de når dem« (udsagnsord).
       const lower = w.text[0] === w.low[0];
       // »når« efter et grundled er udsagnsordet »nå« (»alle når det«, »svin når ikke«, »MA når ud«).
       // 6 af 7 falske kommafund i målebænken 12/10 var den slags.
       const verbUse = w.low === "når" && (SUBJ.has(prev.low) || NAA_SUBJECT.has(prev.low) || nouns.has(prev.low) || prev.text[0] !== prev.low[0]);
-      if (style === "start" && SUBORD_MID.has(w.low) && lower && !verbUse && /^[ \t]+$/.test(gap) && !BEFORE_SUBORD_OK.has(prev.low) && !advs.has(prev.low) && j >= 2) {
-        add(prev.from, prev.to, "komma", `Med startkomma: komma foran »${w.text}«.`, `${prev.text},`);
+      if (SUBORD_MID.has(w.low) && lower && !verbUse && !BEFORE_SUBORD_OK.has(prev.low) && !advs.has(prev.low) && j >= 2) {
+        spots.push({ prev, w, comma, at: false });
       }
+    }
+  }
+
+  // Kommakonsistens (fase 2, 16/10): skriver teksten tydeligt i det andet system end det valgte,
+  // er det tekstens system, der gælder. Så markeres de få steder, der afviger, i stedet for alle de
+  // andre. Tydeligt = mindst tre steder og tre gange så mange som det valgte system.
+  const withComma = spots.filter((s) => s.comma).length;
+  const without = spots.length - withComma;
+  const flipToUden = style === "start" && without >= 3 && withComma * 3 <= without;
+  const flipToStart = style === "uden" && withComma >= 3 && without * 3 <= withComma;
+  for (const { prev, w, comma, at } of spots) {
+    if (flipToUden && comma) {
+      if (!inQuote(prev.to, quotes))
+        out.push({ from: prev.to, to: w.from, kind: "ro:komma-konsistens", message: `Teksten skriver mest uden startkomma (${without} steder mod ${withComma}). Her står der et komma foran »${w.text}«.`, replacement: " " });
+    } else if (flipToStart && !comma) {
+      if (!inQuote(prev.from, quotes))
+        out.push({ from: prev.from, to: prev.to, kind: "ro:komma-konsistens", message: `Teksten skriver mest med startkomma (${withComma} steder mod ${without}). Her mangler kommaet foran »${w.text}«.`, replacement: `${prev.text},` });
+    } else if (!flipToUden && !flipToStart) {
+      if (style === "start" && !comma) add(prev.from, prev.to, "komma", `Med startkomma: komma foran »${w.text}«.`, `${prev.text},`);
+      if (style === "uden" && comma && at) add(prev.to, w.from, "komma", `Uden startkomma: intet komma foran »at«.`, " ");
     }
   }
 }

@@ -145,3 +145,13 @@ test("målebænken 12/10: kombinerende tegn deler ikke et ord, og biord foran bi
   assert.deepEqual(comma("Det gik galt, ganske enkelt fordi ingen svarede."), []);
   assert.deepEqual(comma("Det skete først og fremmest fordi de manglede penge."), []);
 });
+
+test("kommakonsistens: tekstens eget system vinder, de få afvigelser markeres (fase 2, 16/10)", () => {
+  const kinds = (t: string, style: string) => grammarFlags(t, verbs, undefined, undefined, undefined, style).map((f) => `${f.kind}:${t.slice(f.from, f.to)}`);
+  const uden = "Han siger at det regner. Hun mener at vi skal gå. De tror at han kommer. Han sagde, at det var godt.";
+  assert.deepEqual(kinds(uden, "start"), ["ro:komma-konsistens:, "]);
+  const med = "Han siger, at det regner. Hun mener, at vi skal gå. De tror, at han kommer. Han sagde at det var godt.";
+  assert.deepEqual(kinds(med, "uden"), ["ro:komma-konsistens:sagde"]);
+  // Under tre steder er der intet mønster, og det valgte system gælder.
+  assert.deepEqual(kinds("Han siger at det regner. Hun mener, at vi skal gå.", "start"), ["grammatik:komma:siger"]);
+});
