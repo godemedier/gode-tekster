@@ -386,6 +386,7 @@ pub fn run() -> tauri::Result<()> {
             library::move_entry,
             library::sibling_clippings,
             library::read_clipping,
+            library::read_text,
             library::read_docx,
             library::create_import,
             media::pick_image,

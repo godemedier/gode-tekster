@@ -17,7 +17,8 @@ body.mobil {
 .m-screen[hidden] { display: none; }
 
 .m-bar { flex: none; height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 4px 0 16px; }
-#m-skriv .m-bar, #m-synk .m-bar { padding-left: 4px; }
+#m-skriv .m-bar, #m-synk .m-bar, #m-liste.i-mappe .m-bar { padding-left: 4px; }
+.m-icon[hidden] { display: none; }
 .m-title { flex: 1; min-width: 0; margin: 0; font: 600 22px/1.2 var(--skrift); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-title-small { font-size: 17px; }
 .m-icon { flex: none; width: 48px; height: 48px; border: 0; background: none; color: var(--blæk); font-size: 26px; line-height: 1; border-radius: 24px; }
@@ -40,6 +41,11 @@ body.mobil {
 .m-item-name { font: 600 17px/1.3 var(--skrift); }
 .m-item-preview { font-size: 14px; color: var(--svag); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .m-item-meta { font-size: 12px; color: var(--dæmpet); }
+/* En mappe: navn og antal på én række, en pil til højre som i telefonens egne lister. */
+.m-folder { flex-direction: row; align-items: center; gap: 12px; min-height: 56px; }
+.m-folder .m-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-folder .m-item-meta { flex: none; font-size: 13px; }
+.m-folder::after { content: "›"; flex: none; font-size: 22px; line-height: 1; color: var(--dæmpet); }
 .m-empty { padding: 32px 24px; color: var(--svag); font-size: 15px; line-height: 1.5; }
 
 .m-fab {
@@ -61,10 +67,28 @@ body.mobil {
 .m-tools .m-bold { font-weight: 700; }
 .m-tools .m-italic { font-style: italic; }
 
-/* Arket fra bunden: menuen. */
+/* Træk i listen: rækken glider til siden, og bagved står, hvad der sker. Farven bliver fuld, når
+   fingeren er langt nok. pan-y: telefonen ruller stadig selv lodret. */
+.m-swipe { position: relative; overflow: hidden; }
+.m-swipe .m-item { position: relative; background: var(--flade); transition: transform 0.2s ease; touch-action: pan-y; }
+.m-swipe-flyt, .m-swipe-slet {
+  position: absolute; inset: 0; display: flex; align-items: center; padding: 0 24px;
+  font-weight: 600; color: #fff; visibility: hidden; opacity: 0.55;
+}
+.m-swipe-flyt { background: var(--link); justify-content: flex-start; }
+.m-swipe-slet { background: var(--fejl); justify-content: flex-end; }
+.m-swipe[data-retning="hoejre"] .m-swipe-flyt, .m-swipe[data-retning="venstre"] .m-swipe-slet { visibility: visible; }
+.m-swipe-klar .m-swipe-flyt, .m-swipe-klar .m-swipe-slet { opacity: 1; }
+
+/* Arket fra bunden: menuen. Mappelisten kan være lang, så arket ruller. */
 .m-sheet { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.32); display: flex; align-items: flex-end; z-index: 50; }
 .m-sheet[hidden] { display: none; }
-.m-sheet-box { width: 100%; padding: 8px 0 24px; border-radius: 16px 16px 0 0; background: var(--kort); }
+.m-sheet-box { width: 100%; max-height: 75vh; overflow-y: auto; padding: 8px 0 24px; border-radius: 16px 16px 0 0; background: var(--kort); }
+.m-sheet-heading { margin: 8px 24px 4px; font-size: 14px; color: var(--svag); }
+.m-rename input {
+  display: block; width: calc(100% - 48px); box-sizing: border-box; height: 48px; margin: 8px 24px 4px; padding: 0 12px;
+  border: 1px solid var(--kant-hover); border-radius: 8px; background: var(--flade); color: var(--blæk); font-size: 16px;
+}
 .m-sheet-box button { display: block; width: 100%; min-height: 52px; padding: 0 24px; border: 0; background: none; color: var(--blæk); text-align: left; font-size: 16px; }
 .m-sheet-box button:active { background: var(--hover); }
 .m-sheet-box .m-danger { color: var(--fejl); }

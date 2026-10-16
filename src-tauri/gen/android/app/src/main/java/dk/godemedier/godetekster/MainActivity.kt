@@ -1,5 +1,6 @@
 package dk.godemedier.godetekster
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Rect
@@ -9,6 +10,8 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
@@ -30,6 +33,13 @@ class MainActivity : TauriActivity() {
       view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
       WindowInsetsCompat.CONSUMED
     }
+  }
+
+  // »Del« i listen (16/10): Androids eget delingsark. WebView har ikke navigator.share. Fladen
+  // indlæser kun appens egne filer (CSP uden fjernscripts), og broen kan kun åbne arket med tekst,
+  // som brugeren selv vælger at sende videre.
+  override fun onWebViewCreate(webView: WebView) {
+    webView.addJavascriptInterface(ShareBridge(this), "GodeTeksterDeling")
   }
 
   // wry lægger WebView'et ind med setContentView. Rammen omkring kan rette markeringsmenuen,
@@ -74,3 +84,17 @@ private class MenuFilterFrame(context: Context) : FrameLayout(context) {
 }
 
 private const val READ_ALOUD = "com.google.android.marvin.talkback"
+
+private class ShareBridge(private val activity: Activity) {
+  @JavascriptInterface
+  fun del(title: String, text: String) {
+    activity.runOnUiThread {
+      val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, title)
+        putExtra(Intent.EXTRA_TEXT, text)
+      }
+      activity.startActivity(Intent.createChooser(send, null))
+    }
+  }
+}

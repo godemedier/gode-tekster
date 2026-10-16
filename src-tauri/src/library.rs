@@ -1121,6 +1121,20 @@ pub async fn read_clipping(app: AppHandle, path: String) -> Result<String, Strin
     Ok(crate::annotations::parse(&opened.text, opened.meta.eol).text)
 }
 
+/// En teksts indhold uden forfatterblok, uden at åbne den: telefonens »Del« fra listen (16/10).
+#[tauri::command]
+pub async fn read_text(app: AppHandle, path: String) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    guard(&app, &p)?;
+    let opened = crate::files::open(&p).map_err(|e| {
+        t!(
+            format!("Teksten kunne ikke læses: {e}"),
+            format!("The text could not be read: {e}")
+        )
+    })?;
+    Ok(crate::annotations::parse(&opened.text, opened.meta.eol).text)
+}
+
 /// Word-import (del G): bytes af en .docx i et bibliotek. Fladen oversætter dem til markdown.
 #[tauri::command]
 pub async fn read_docx(app: AppHandle, path: String) -> Result<tauri::ipc::Response, String> {

@@ -41,6 +41,7 @@ const sheet = $("m-ark");
 search.placeholder = tr("Søg i teksterne", "Search your texts");
 $("m-liste").querySelector(".m-title")!.textContent = tr("Tekster", "Texts");
 $("m-ny").setAttribute("aria-label", tr("Ny tekst", "New text"));
+$("m-op").setAttribute("aria-label", tr("Tilbage", "Back"));
 
 const s = settings();
 followTheme(s.theme ?? (s.dark ? "moerk" : "lys"));
@@ -76,13 +77,70 @@ async function backToList(): Promise<void> {
   void loadList();
 }
 
-window.addEventListener("popstate", () => void backToList());
+// Systemets tilbage: fra skrivefladen eller Synkronisering til listen, ellers en mappe op.
+window.addEventListener("popstate", (e: PopStateEvent) => {
+  if (screens.liste.hidden) {
+    void backToList();
+    return;
+  }
+  openFolder((e.state as { mappe?: string } | null)?.mappe ?? "");
+});
 $("m-tilbage").addEventListener("click", () => history.back());
+$("m-op").addEventListener("click", () => history.back());
 $("m-synk-tilbage").addEventListener("click", () => history.back());
 
 // --- listen ------------------------------------------------------------------------------------
 
 let entries: IndexEntry[] = [];
+/** Mappen, listen står i, relativt til biblioteket ("" er øverst). Som `IndexEntry.folder`. */
+let cwd = "";
+
+function openFolder(folder: string): void {
+  cwd = folder;
+  const name = folder.split("/").pop() ?? "";
+  $("m-liste").querySelector(".m-title")!.textContent = name || tr("Tekster", "Texts");
+  $("m-op").hidden = !folder;
+  screens.liste.classList.toggle("i-mappe", !!folder);
+  renderList();
+  list.scrollTop = 0;
+}
+
+/** Gå ind i en mappe. Den kommer i historikken, så systemets tilbage går en mappe op. */
+function enterFolder(folder: string): void {
+  history.pushState({ mappe: folder }, "");
+  openFolder(folder);
+}
+
+/** Mapperne lige under `cwd`: navn, fuld sti og antal tekster i alt under den. */
+function subfolders(): { name: string; path: string; count: number }[] {
+  const prefix = cwd ? `${cwd}/` : "";
+  const found = new Map<string, number>();
+  for (const e of entries) {
+    if (!e.folder.startsWith(prefix) || e.folder === cwd) continue;
+    const name = e.folder.slice(prefix.length).split("/")[0];
+    found.set(name, (found.get(name) ?? 0) + 1);
+  }
+  return [...found]
+    .sort(([a], [b]) => a.localeCompare(b, "da"))
+    .map(([name, count]) => ({ name, path: prefix + name, count }));
+}
+
+function folderItem(f: { name: string; path: string; count: number }): HTMLLIElement {
+  const li = document.createElement("li");
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "m-item m-folder";
+  const name = document.createElement("span");
+  name.className = "m-item-name";
+  name.textContent = f.name;
+  const meta = document.createElement("span");
+  meta.className = "m-item-meta";
+  meta.textContent = f.count === 1 ? tr("1 tekst", "1 text") : tr(`${f.count} tekster`, `${f.count} texts`);
+  b.append(name, meta);
+  b.addEventListener("click", () => enterFolder(f.path));
+  li.append(b);
+  return li;
+}
 
 function when(ms: number): string {
   const d = new Date(ms);
@@ -92,17 +150,26 @@ function when(ms: number): string {
   return d.toLocaleDateString("da-DK", sameYear ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" });
 }
 
+/** Uden søgning: mapperne her og teksterne i mappen. Med søgning: alle tekster, uanset mappe. */
 function renderList(): void {
   const q = search.value.trim().toLowerCase();
-  const shown = entries.filter((e) => !q || e.name.toLowerCase().includes(q) || e.preview.toLowerCase().includes(q));
-  if (!shown.length) {
+  const folders = q ? [] : subfolders();
+  const shown = q
+    ? entries.filter((e) => e.name.toLowerCase().includes(q) || e.preview.toLowerCase().includes(q))
+    : entries.filter((e) => e.folder === cwd);
+  if (!shown.length && !folders.length) {
     const li = document.createElement("li");
     li.className = "m-empty";
-    li.textContent = q ? tr("Ingen tekster passer.", "No matching texts.") : tr("Ingen tekster endnu. Tryk på + for at skrive den første.", "No texts yet. Tap + to write the first.");
+    li.textContent = q
+      ? tr("Ingen tekster passer.", "No matching texts.")
+      : cwd
+        ? tr("Mappen er tom. Tryk på + for at skrive en tekst her.", "The folder is empty. Tap + to write a text here.")
+        : tr("Ingen tekster endnu. Tryk på + for at skrive den første.", "No texts yet. Tap + to write the first.");
     list.replaceChildren(li);
     return;
   }
   list.replaceChildren(
+    ...folders.map(folderItem),
     ...shown.slice(0, 300).map((e) => {
       const li = document.createElement("li");
       const b = document.createElement("button");
@@ -113,16 +180,198 @@ function renderList(): void {
       name.textContent = e.name.replace(/\.(md|markdown|txt)$/i, "");
       const meta = document.createElement("span");
       meta.className = "m-item-meta";
-      meta.textContent = [when(e.modifiedMs), e.folder].filter(Boolean).join(" · ");
+      // Mappen står kun ved søgning. Ellers er man allerede i den.
+      meta.textContent = [when(e.modifiedMs), q ? e.folder : ""].filter(Boolean).join(" · ");
       const preview = document.createElement("span");
       preview.className = "m-item-preview";
       preview.textContent = e.preview.replace(/[#*_>`[\]]/g, "").split("\n").find((l) => l.trim()) ?? "";
       b.append(name, preview, meta);
-      b.addEventListener("click", () => void openText(e.path));
+      b.addEventListener("click", () => {
+        if (b.dataset.trukket) return;
+        void openText(e.path);
+      });
       li.append(b);
+      swipeable(li, b, e);
       return li;
     }),
   );
+}
+
+// --- træk i listen, som i mailappene ----------------------------------------------------------
+
+/** Hvor langt fingeren skal trække, før handlingen sker, som andel af rækkens bredde. */
+const SWIPE_AT = 0.35;
+
+/** Mod højre: et ark med Flyt, Del og Omdøb. Mod venstre: papirkurven, efter et ja. */
+function swipeable(li: HTMLLIElement, b: HTMLButtonElement, e: IndexEntry): void {
+  li.className = "m-swipe";
+  const move = Object.assign(document.createElement("span"), { className: "m-swipe-flyt", textContent: tr("Flyt · Del · Omdøb", "Move · Share · Rename") });
+  const trash = Object.assign(document.createElement("span"), { className: "m-swipe-slet", textContent: tr("Papirkurv", "Trash") });
+  move.setAttribute("aria-hidden", "true");
+  trash.setAttribute("aria-hidden", "true");
+  li.prepend(move, trash);
+  let id = -1;
+  let x0 = 0;
+  let y0 = 0;
+  let dx = 0;
+  let mode: "?" | "x" | "y" = "?";
+  b.addEventListener("pointerdown", (ev) => {
+    if (ev.pointerType === "mouse") return;
+    id = ev.pointerId;
+    x0 = ev.clientX;
+    y0 = ev.clientY;
+    dx = 0;
+    mode = "?";
+  });
+  b.addEventListener("pointermove", (ev) => {
+    if (ev.pointerId !== id) return;
+    const mx = ev.clientX - x0;
+    const my = ev.clientY - y0;
+    if (mode === "?") {
+      if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+      mode = Math.abs(mx) > Math.abs(my) ? "x" : "y";
+      if (mode === "x") {
+        b.setPointerCapture(id);
+        b.style.transition = "none";
+      }
+    }
+    if (mode !== "x") return;
+    dx = mx;
+    b.style.transform = `translateX(${dx}px)`;
+    li.dataset.retning = dx > 0 ? "hoejre" : "venstre";
+    li.classList.toggle("m-swipe-klar", Math.abs(dx) > li.clientWidth * SWIPE_AT);
+  });
+  const end = (ev: PointerEvent) => {
+    if (ev.pointerId !== id) return;
+    id = -1;
+    if (mode !== "x") return;
+    const done = Math.abs(dx) > li.clientWidth * SWIPE_AT;
+    b.style.transition = "";
+    b.style.transform = "";
+    li.classList.remove("m-swipe-klar");
+    // Trækket må ikke også åbne teksten.
+    b.dataset.trukket = "1";
+    window.setTimeout(() => delete b.dataset.trukket, 400);
+    if (!done) return;
+    if (dx > 0) actionSheet(e);
+    else trashSheet(e);
+  };
+  b.addEventListener("pointerup", end);
+  b.addEventListener("pointercancel", end);
+}
+
+function plainName(path: string): string {
+  return (path.split(/[\\/]/).pop() ?? "").replace(/\.(md|markdown|txt)$/i, "");
+}
+
+async function libraryRoot(): Promise<string> {
+  const libs = await invoke<Library[]>("list_libraries");
+  const root = libs.find((l) => l.exists)?.path;
+  if (!root) throw new Error(tr("Der er ingen mappe at gemme i.", "There is no folder to save in."));
+  return root.replace(/[\\/]$/, "");
+}
+
+function actionSheet(e: IndexEntry): void {
+  openSheet(
+    [
+      { label: tr("Flyt til mappe", "Move to folder"), run: () => moveSheet(e.path, e.folder, () => void loadList()) },
+      { label: tr("Del", "Share"), run: () => void shareText(e.path) },
+      { label: tr("Omdøb", "Rename"), run: () => renameSheet(e.path, () => void loadList()) },
+    ],
+    plainName(e.path),
+  );
+}
+
+/** Androids delingsark (MainActivity.kt) med teksten, som den står på siden: uden markdown-tegn. */
+async function shareText(path: string): Promise<void> {
+  const bridge = (window as unknown as { GodeTeksterDeling?: { del(title: string, text: string): void } }).GodeTeksterDeling;
+  try {
+    if (!bridge) throw new Error(tr("Telefonen kan ikke dele herfra.", "The phone can't share from here."));
+    const source = await invoke<string>("read_text", { path });
+    const { markdownIt, prepare } = await import("./print/render.ts");
+    const { plainText } = await import("./print/plain.ts");
+    bridge.del(plainName(path), plainText(markdownIt(), prepare(source, false)).trim());
+  } catch (err) {
+    showBanner(errorText(err));
+  }
+}
+
+/** Et nyt navn. Filtypen bliver den samme, så et punktum i navnet ikke ændrer den. */
+function renameSheet(path: string, after: (to: string) => void, open = false): void {
+  const ext = /\.(md|markdown|txt)$/i.exec(path)?.[0] ?? ".md";
+  const box = document.createElement("form");
+  box.className = "m-sheet-box m-rename";
+  const input = Object.assign(document.createElement("input"), { type: "text", value: plainName(path), enterKeyHint: "done" });
+  input.setAttribute("aria-label", tr("Nyt navn", "New name"));
+  const ok = Object.assign(document.createElement("button"), { type: "submit", textContent: tr("Omdøb", "Rename") });
+  const cancel = Object.assign(document.createElement("button"), { type: "button", textContent: tr("Annullér", "Cancel") });
+  cancel.addEventListener("click", closeSheet);
+  box.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const name = input.value.trim();
+    closeSheet();
+    if (!name || name === plainName(path)) return;
+    // En åben tekst omdøbes gennem kernens dokument, så næste gem rammer den nye fil.
+    void invoke<string>(open ? "rename_open_document" : "rename_entry", { path, newName: name + ext })
+      .then(after)
+      .catch((err: unknown) => showBanner(errorText(err)));
+  });
+  box.append(input, ok, cancel);
+  sheet.replaceChildren(box);
+  sheet.hidden = false;
+  input.focus();
+  input.select();
+}
+
+function trashSheet(e: IndexEntry): void {
+  openSheet(
+    [
+      {
+        label: tr("Læg i papirkurven", "Move to trash"),
+        danger: true,
+        run: async () => {
+          try {
+            await invoke("delete_entry", { path: e.path });
+          } catch (err) {
+            showBanner(errorText(err));
+          }
+          void loadList();
+        },
+      },
+      { label: tr("Annullér", "Cancel"), run: () => {} },
+    ],
+    tr(`Læg »${plainName(e.path)}« i papirkurven?`, `Move “${plainName(e.path)}” to the trash?`),
+  );
+}
+
+/** Alle mapper med tekster i, også dem, der kun har undermapper. */
+function allFolders(): string[] {
+  const found = new Set<string>();
+  for (const e of entries) {
+    const parts = e.folder ? e.folder.split("/") : [];
+    for (let i = 1; i <= parts.length; i++) found.add(parts.slice(0, i).join("/"));
+  }
+  return [...found].sort((a, b) => a.localeCompare(b, "da"));
+}
+
+/** Arket med mapperne. `after` får den nye sti. */
+function moveSheet(path: string, from: string, after: (to: string) => void): void {
+  const go = (folder: string) => async () => {
+    try {
+      const root = await libraryRoot();
+      const to = await invoke<string>("move_entry", { path, dir: folder ? `${root}/${folder}` : root });
+      after(to);
+    } catch (err) {
+      showBanner(errorText(err));
+    }
+  };
+  const items = [
+    ...(from ? [{ label: tr("Øverst i Dokumenter", "Top of Documents"), run: go("") }] : []),
+    ...allFolders()
+      .filter((f) => f !== from)
+      .map((f) => ({ label: f.split("/").join(" › "), run: go(f) })),
+  ];
+  openSheet(items, tr(`Flyt »${plainName(path)}« til`, `Move “${plainName(path)}” to`));
 }
 
 async function loadList(): Promise<void> {
@@ -202,9 +451,9 @@ async function openText(path: string, focus = false): Promise<void> {
 
 $("m-ny").addEventListener("click", async () => {
   try {
-    const libs = await invoke<Library[]>("list_libraries");
-    const dir = libs.find((l) => l.exists)?.path;
-    if (!dir) throw new Error(tr("Der er ingen mappe at gemme i.", "There is no folder to save in."));
+    const root = await libraryRoot();
+    // Den nye tekst kommer i mappen, listen står i.
+    const dir = cwd ? `${root}/${cwd}` : root;
     const path = await invoke<string>("create_file", { dir });
     await openText(path, true);
   } catch (e) {
@@ -273,9 +522,10 @@ function closeSheet(): void {
   sheet.replaceChildren();
 }
 
-function openSheet(items: { label: string; run: () => void; danger?: boolean }[]): void {
+function openSheet(items: { label: string; run: () => void; danger?: boolean }[], heading?: string): void {
   const box = document.createElement("div");
   box.className = "m-sheet-box";
+  if (heading) box.append(Object.assign(document.createElement("p"), { className: "m-sheet-heading", textContent: heading }));
   for (const it of items) {
     const b = document.createElement("button");
     b.type = "button";
@@ -304,13 +554,52 @@ function openSynk(): void {
 
 $("m-liste-mere").addEventListener("click", () =>
   openSheet([
-    { label: tr("Synk", "Sync"), run: openSynk },
-    { label: tr("Synk nu", "Sync now"), run: () => void invoke("synk_now") },
+    { label: tr("Synkronisering", "Sync"), run: openSynk },
+    { label: tr("Synkronisér nu", "Sync now"), run: () => void invoke("synk_now") },
   ]),
 );
 
 $("m-skriv-mere").addEventListener("click", () =>
   openSheet([
+    {
+      label: tr("Del", "Share"),
+      run: () => {
+        const current = session;
+        if (current) void current.flush().then(() => shareText(current.path));
+      },
+    },
+    {
+      label: tr("Omdøb", "Rename"),
+      run: () => {
+        const current = session;
+        if (!current) return;
+        void current.flush().then(() =>
+          renameSheet(
+            current.path,
+            (to) => {
+              current.renamed(to);
+              showTitle();
+            },
+            true,
+          ),
+        );
+      },
+    },
+    {
+      label: tr("Flyt til mappe", "Move to folder"),
+      run: () => {
+        const current = session;
+        if (!current) return;
+        void current.flush().then(() => {
+          const from = entries.find((e) => e.path === current.path)?.folder ?? "";
+          // Teksten er gemt. Efter flytningen står man i listen, som ved Tilbage.
+          moveSheet(current.path, from, () => {
+            session = null;
+            history.back();
+          });
+        });
+      },
+    },
     {
       label: tr("Læg i papirkurven", "Move to trash"),
       danger: true,
