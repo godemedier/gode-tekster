@@ -1220,3 +1220,20 @@ signatur laves stadig lokalt af `udgiv.mjs`. Installeren viser licens og privatl
 **Alternativ der tabte:** Microsoft Store (gratis for enkeltpersoner, Store signerer). Kræver
 MSIX og Store-opdateringer, og installeren fra hjemmesiden ville stadig være usigneret.
 **Revurdér hvis:** programmet skal koste penge. Så gælder SignPaths gratis ordning ikke.
+
+### ADR-0058 — Papirkurv på synkserveren i 30 dage (16/10-2026)
+Supplerer ADR-0054.
+**Baggrund:** En sletning på én enhed slettede på alle. Telefonens `.papirkurv` og Windows'
+papirkurv dækker kun den enhed, hvor man slettede. Serveren gemte alle revisioner og alt indhold
+for altid, uden nogen vej tilbage i programmet.
+**Beslutning:** `GET /v1/papirkurv` viser filer slettet inden for 30 dage med indholdet fra før
+sletningen (`Store::trash`). »Hent tilbage« under Synkronisering er en almindelig commit af den
+gamle hash oven på gravstenen, så alle enheder henter filen igen ad den vej, de henter alt andet.
+Serveren tømmer papirkurven ved start og én gang i døgnet (`Store::purge`): indhold, som kun filer
+slettet for mere end 30 dage siden brugte, fjernes sammen med deres revisioner. Gravstenene bliver.
+Indhold, som en levende fil eller en ældre udgave af den bruger, bliver. Commit tjekker indholdet
+igen under lagerets lås, så oprydningen aldrig efterlader en fil uden indhold.
+**Alternativ der tabte:** at beholde alt for altid. Slettet skal til sidst være slettet, og
+restic-backuppen dækker længere tilbage (12 måneder).
+**Konsekvens:** ældre udgaver af levende filer ryddes ikke. En versionshistorik pr. tekst er en
+mulig næste ting, og pladsen skal holdes øje med.

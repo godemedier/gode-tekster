@@ -12,12 +12,12 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::Serialize;
-use synk_kerne::protokol::PairingCode;
+use synk_kerne::protokol::{Commit, CommitResult, PairingCode, Trashed};
 use tauri::{AppHandle, Emitter, Manager, State as TauriState};
 
 use super::engine::{Engine, Preview, Report, MARKER};
 use super::state::State;
-use super::transport::Http;
+use super::transport::{Http, Transport};
 
 /// Nøglens navn i Windows' legitimationsadministrator.
 const CRED: &str = "Gode Tekster/Synk";
@@ -475,6 +475,47 @@ pub async fn synk_pairing_code(app: AppHandle) -> Result<PairingCode, String> {
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Enhedens forbindelse til serveren, til de kald, der ikke er en synkroniseringsrunde.
+fn http(app: &AppHandle) -> Result<Http, String> {
+    let state = open_state(app)?;
+    let server = state.meta("server")?.ok_or("Ingen server valgt.")?;
+    let token = read_token(&state).ok_or("Enhedens nøgle mangler. Forbind igen.")?;
+    Ok(Http::new(&server, &token))
+}
+
+/// Serverens papirkurv: filer slettet inden for 30 dage, på alle enheder.
+#[tauri::command]
+pub async fn synk_trash(app: AppHandle) -> Result<Vec<Trashed>, String> {
+    tauri::async_runtime::spawn_blocking(move || http(&app)?.trash())
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Hent en slettet fil tilbage: den sidste udgave lægges oven på sletningen, og næste runde
+/// henter den ned på alle enheder.
+#[tauri::command]
+pub async fn synk_restore(app: AppHandle, item: Trashed) -> Result<(), String> {
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let c = Commit {
+            path: item.path,
+            base_rev: item.rev,
+            hash: Some(item.hash),
+            size: item.size,
+        };
+        match http(&handle)?.commit(&c)? {
+            CommitResult::Ok { .. } => Ok(()),
+            CommitResult::Conflict { .. } => {
+                Err("Filen er ændret, siden listen blev hentet. Se papirkurven igen.".to_owned())
+            }
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    app.state::<SynkState>().send(Signal::Now);
+    Ok(())
 }
 
 /// Kobl enheden fra. Filerne på disken røres ikke, og serveren beholder sin kopi.

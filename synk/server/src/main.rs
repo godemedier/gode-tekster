@@ -8,10 +8,14 @@
 //!   GET    /v1/aendringer?siden=N       alt ændret efter løbenummer N
 //!   GET    /v1/fil?sti=…                én fil, som serveren kender den
 //!   GET    /v1/historik?sti=…           alle revisioner af en fil
+//!   GET    /v1/papirkurv                filer slettet inden for 30 dage (kan hentes tilbage)
 //!   GET    /v1/blob/{hash}              indhold
 //!   PUT    /v1/blob/{hash}              læg indhold op (hashen efterprøves)
 //!   POST   /v1/commit                   ny revision oven på en kendt (409 med den aktuelle)
 //!   GET    /v1/lyt                      Server-Sent Events: »seq er nu N«
+//!
+//! Én gang i døgnet (og ved start) fjernes indhold, som kun filer slettet for mere end 30 dage
+//! siden brugte (`Store::purge`).
 //!
 //! Serveren fletter aldrig. Enhederne fletter selv og skriver kun oven på den revision, de har
 //! set. Tekstens indhold er data, aldrig instruktioner: serveren læser det ikke.
@@ -43,6 +47,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("ADMIN_TOKEN mangler eller er for kort: nye enheder kan kun parres med en kode");
     }
     let store = Arc::new(Store::open(std::path::Path::new(&dir))?);
+    tokio::spawn(purge_daily(store.clone()));
     let app = api::router(api::App::new(store, admin)?);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     eprintln!("synk-server lytter på {port}, lager i {dir}");
@@ -50,6 +55,21 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .with_graceful_shutdown(stop())
         .await?;
     Ok(())
+}
+
+/// Papirkurven tømmes for det, der er ældre end 30 dage. Første gang ved start.
+async fn purge_daily(store: Arc<Store>) {
+    let mut every = tokio::time::interval(std::time::Duration::from_secs(86_400));
+    loop {
+        every.tick().await;
+        let s = store.clone();
+        match tokio::task::spawn_blocking(move || s.purge()).await {
+            Ok(Ok(0)) => {}
+            Ok(Ok(n)) => eprintln!("papirkurven: {n} gamle udgaver fjernet"),
+            Ok(Err(e)) => eprintln!("papirkurven kunne ikke tømmes: {e}"),
+            Err(e) => eprintln!("papirkurven kunne ikke tømmes: {e}"),
+        }
+    }
 }
 
 /// Docker stopper med SIGTERM, en terminal med Ctrl+C. En commit, der er i gang, gøres færdig.

@@ -53,6 +53,22 @@ pub enum CommitResult {
     Conflict { current: Option<Entry> },
 }
 
+/// En slettet fil i papirkurven (`GET /v1/papirkurv`). Den kan hentes tilbage med en commit af
+/// `hash` oven på `rev` (gravstenen), så længe serveren har indholdet: 30 dage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Trashed {
+    pub path: String,
+    /// Gravstenens revision.
+    pub rev: u64,
+    /// Den enhed, der slettede filen.
+    pub device: String,
+    /// Sekunder siden 1970.
+    pub deleted: i64,
+    /// Indholdet fra før sletningen.
+    pub hash: String,
+    pub size: u64,
+}
+
 /// `POST /v1/enheder`: en ny enhed med en parringskode (eller ejerens nøgle).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewDevice {

@@ -421,6 +421,8 @@ pub fn run() -> tauri::Result<()> {
             synk::service::synk_allow_deletes,
             synk::service::synk_pairing_code,
             synk::service::synk_disconnect,
+            synk::service::synk_trash,
+            synk::service::synk_restore,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

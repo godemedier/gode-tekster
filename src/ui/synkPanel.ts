@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 import { tr } from "../i18n.ts";
-import { errorText, showBanner } from "./banner.ts";
+import { errorText, notify, showBanner } from "./banner.ts";
 import { group, linkButton, panel, row } from "./settingspanel.ts";
 
 type Report = {
@@ -40,6 +40,9 @@ type Preview = {
   deleteRemote: number;
   skipped: [string, string][];
 };
+
+/** En slettet fil i serverens papirkurv (synk-kerne `Trashed`). `deleted` er sekunder. */
+type Trashed = { path: string; rev: number; device: string; deleted: number; hash: string; size: number };
 
 const DEFAULT_SERVER = "https://synk.godemedier.dk";
 
@@ -96,6 +99,8 @@ export class SynkPanel {
   private status: SynkStatus | null = null;
   private preview: Preview | null = null;
   private pairing: { code: string; expires: number } | null = null;
+  /** Serverens papirkurv. `null`, til brugeren beder om den. */
+  private trash: Trashed[] | null = null;
   private busy = false;
 
   constructor() {
@@ -266,8 +271,60 @@ export class SynkPanel {
       group(tr("Synkronisering af Dokumenter", "Sync Documents"), ...rows),
       ...pairing,
       group(tr("Sidst", "Recent"), s.log.length ? log : note(tr("Intet endnu.", "Nothing yet."))),
+      this.trashGroup(),
       this.disconnectGroup(),
     );
+  }
+
+  /** Papirkurven på serveren: alt slettet på en af enhederne de sidste 30 dage. */
+  private trashGroup(): HTMLElement {
+    const title = tr("Papirkurv på serveren", "Trash on the server");
+    const load = linkButton(this.trash ? tr("Opdatér", "Refresh") : tr("Vis papirkurven", "Show the trash"), () =>
+      void this.act(async () => {
+        this.trash = await invoke<Trashed[]>("synk_trash");
+      }),
+    );
+    const head = row("", load, {
+      hint: tr(
+        "En tekst, der er slettet på en af enhederne, kan hentes tilbage i 30 dage. Derefter fjerner serveren den.",
+        "A text deleted on any device can be brought back for 30 days. Then the server removes it.",
+      ),
+    });
+    if (!this.trash) return group(title, head);
+    if (!this.trash.length) return group(title, head, note(tr("Papirkurven er tom.", "The trash is empty.")));
+    const list = document.createElement("ul");
+    list.className = "st-trash";
+    for (const item of this.trash.slice(0, 100)) {
+      const li = document.createElement("li");
+      const parts = item.path.split("/");
+      const name = Object.assign(document.createElement("span"), {
+        className: "st-trash-name",
+        textContent: (parts.pop() ?? "").replace(/\.(md|markdown|txt)$/i, ""),
+      });
+      const when = new Date(item.deleted * 1000).toLocaleString(tr("da-DK", "en-GB"), {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const meta = Object.assign(document.createElement("span"), {
+        className: "st-trash-meta",
+        textContent: [parts.join(" › "), tr(`slettet ${when} på ${item.device}`, `deleted ${when} on ${item.device}`)]
+          .filter(Boolean)
+          .join(" · "),
+      });
+      const back = linkButton(tr("Hent tilbage", "Restore"), () =>
+        void this.act(async () => {
+          await invoke("synk_restore", { item });
+          this.trash = (this.trash ?? []).filter((t) => t !== item);
+          notify(tr(`»${name.textContent}« kommer tilbage ved næste synkronisering.`, `“${name.textContent}” comes back with the next sync.`));
+        }),
+      );
+      li.append(name, meta, back);
+      list.append(li);
+    }
+    const rest = this.trash.length > 100 ? [note(tr(`… og ${this.trash.length - 100} mere.`, `… and ${this.trash.length - 100} more.`))] : [];
+    return group(title, head, list, ...rest);
   }
 
   private disconnectGroup(): HTMLElement {

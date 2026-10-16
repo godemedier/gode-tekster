@@ -348,3 +348,48 @@ fn uroert_hilsen_giver_ingen_konfliktkopi() {
     assert_eq!(files.len(), 1, "{:?}", files.keys());
     assert_eq!(files[&welcome], "# Velkommen\n\nEn ældre udgave.\n");
 }
+
+/// Serverens papirkurv (16/10): en slettet fil hentes tilbage og kommer frem på disken igen.
+#[test]
+fn slettet_fil_hentes_tilbage_fra_papirkurven() {
+    let tmp = tempfile::tempdir().unwrap_or_else(|e| panic!("{e}"));
+    let store = Store::open(&tmp.path().join("server")).unwrap_or_else(|e| panic!("{e}"));
+    let root = tmp.path().join("Pc");
+    fs::create_dir_all(root.join("Noter")).unwrap_or_else(|e| panic!("{e}"));
+    fs::write(root.join(MARKER), "").unwrap_or_else(|e| panic!("{e}"));
+    let d = Device {
+        root: root.clone(),
+        state: State::in_memory().unwrap_or_else(|e| panic!("{e}")),
+        name: "Pc".into(),
+    };
+    let t = Local {
+        store: &store,
+        device: "Pc".into(),
+        lose_reply: Cell::new(0),
+        fail_before: Cell::new(0),
+        rng: Cell::new(1),
+    };
+    let file = root.join("Noter").join("Idé.md");
+    fs::write(&file, "Første linje\n").unwrap_or_else(|e| panic!("{e}"));
+    sync(&d, &t).unwrap_or_else(|e| panic!("{e}"));
+    fs::remove_file(&file).unwrap_or_else(|e| panic!("{e}"));
+    sync(&d, &t).unwrap_or_else(|e| panic!("{e}"));
+    let trash = store.trash().unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(trash.len(), 1);
+    // Som synk_restore: den sidste udgave oven på gravstenen.
+    let item = &trash[0];
+    let r = t
+        .commit(&Commit {
+            path: item.path.clone(),
+            base_rev: item.rev,
+            hash: Some(item.hash.clone()),
+            size: item.size,
+        })
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert!(matches!(r, CommitResult::Ok { .. }));
+    sync(&d, &t).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        fs::read_to_string(&file).unwrap_or_else(|e| panic!("{e}")),
+        "Første linje\n"
+    );
+}

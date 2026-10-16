@@ -488,6 +488,12 @@ body.dark.previewing #main::before { border-image: repeating-linear-gradient(135
 .st-note .settings-link { font-size: 12px; }
 /* Synkens log (synkPanel.ts): de seneste linjer, nyeste først. */
 .st-log { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--svag); line-height: 1.5; max-height: 180px; overflow-y: auto; }
+/* Serverens papirkurv (16/10): navn, hvor og hvornår, og Hent tilbage. */
+.st-trash { margin: 6px 0 0; padding: 0; list-style: none; max-height: 320px; overflow-y: auto; }
+.st-trash li { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--streg); }
+.st-trash-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-trash-meta { grid-row: 2; font-size: 12px; color: var(--svag); }
+.st-trash li .settings-link { grid-row: 1 / span 2; grid-column: 2; }
 .st-about { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--streg); font-size: 12px; color: var(--svag); }
 .st-about .settings-link { font-size: 12px; }
 .settings-head { display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 15px; margin-bottom: 6px; }

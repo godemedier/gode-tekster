@@ -16,11 +16,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 
-use crate::protokol::{Changes, Commit, CommitResult, DeviceInfo, DeviceToken, Entry, PairingCode};
+use crate::protokol::{
+    Changes, Commit, CommitResult, DeviceInfo, DeviceToken, Entry, PairingCode, Trashed,
+};
 use crate::{hash, is_hash, sti, MAX_SIZE};
 
 /// Hvor længe en parringskode gælder.
 pub const PAIRING_SECS: i64 = 600;
+
+/// Så længe kan en slettet fil hentes tilbage fra serverens papirkurv (16/10).
+pub const TRASH_SECS: i64 = 30 * 86_400;
 
 #[derive(Debug)]
 pub enum StoreError {
@@ -190,6 +195,12 @@ impl Store {
         }
         let key = sti::key(&norm);
         let mut db = self.db();
+        // Igen under låsen: oprydningen (purge) kan have fjernet indholdet siden tjekket ovenfor.
+        if let Some(h) = &c.hash {
+            if !self.has_blob(h) {
+                return Err(StoreError::MissingBlob);
+            }
+        }
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let current: Option<Entry> = tx
             .query_row(
@@ -297,6 +308,77 @@ impl Store {
             .query_map([sti::key(&norm)], entry_from)?
             .collect::<rusqlite::Result<_>>()?;
         Ok(rows)
+    }
+
+    // --- papirkurven ---------------------------------------------------------------------------
+
+    /// Filer slettet inden for de sidste 30 dage, nyeste først, med indholdet fra før sletningen.
+    pub fn trash(&self) -> Result<Vec<Trashed>> {
+        self.trash_since(now() - TRASH_SECS)
+    }
+
+    fn trash_since(&self, cutoff: i64) -> Result<Vec<Trashed>> {
+        let db = self.db();
+        let mut stmt = db.prepare(
+            "SELECT e.path, e.rev, e.device, e.at, r.hash, r.size
+             FROM entry e JOIN revision r ON r.key = e.key
+             WHERE e.hash IS NULL AND e.at >= ?1 AND r.hash IS NOT NULL
+               AND r.rev = (SELECT MAX(rev) FROM revision WHERE key = e.key AND hash IS NOT NULL)
+             ORDER BY e.at DESC, e.path",
+        )?;
+        let rows = stmt
+            .query_map([cutoff], |r| {
+                Ok(Trashed {
+                    path: r.get(0)?,
+                    rev: r.get::<_, i64>(1)? as u64,
+                    device: r.get(2)?,
+                    deleted: r.get(3)?,
+                    hash: r.get(4)?,
+                    size: r.get::<_, i64>(5)? as u64,
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(rows)
+    }
+
+    /// Tøm papirkurven for det, der er ældre end 30 dage: indholdet af filer, der har været slettet
+    /// så længe, fjernes, med mindre en levende fil (også en ældre udgave af den) eller en nyere
+    /// sletning bruger det samme indhold. Gravstenene bliver, så enhederne stadig ved, at filen er
+    /// væk. Returnerer antallet af fjernede blobs.
+    pub fn purge(&self) -> Result<usize> {
+        self.purge_before(now() - TRASH_SECS)
+    }
+
+    fn purge_before(&self, cutoff: i64) -> Result<usize> {
+        // Låsen holdes, til filerne er væk. En commit tjekker indholdet igen under den samme lås.
+        let mut db = self.db();
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let hashes: Vec<String> = {
+            let mut stmt = tx.prepare(
+                "SELECT r.hash FROM revision r JOIN entry e ON e.key = r.key
+                 WHERE e.hash IS NULL AND e.at < ?1 AND r.hash IS NOT NULL
+                 EXCEPT
+                 SELECT r.hash FROM revision r JOIN entry e ON e.key = r.key
+                 WHERE (e.hash IS NOT NULL OR e.at >= ?1) AND r.hash IS NOT NULL",
+            )?;
+            let rows = stmt
+                .query_map([cutoff], |r| r.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            rows
+        };
+        tx.execute(
+            "DELETE FROM revision WHERE hash IS NOT NULL
+               AND key IN (SELECT key FROM entry WHERE hash IS NULL AND at < ?1)",
+            [cutoff],
+        )?;
+        tx.commit()?;
+        let mut removed = 0;
+        for h in &hashes {
+            if is_hash(h) && fs::remove_file(self.blob_path(h)).is_ok() {
+                removed += 1;
+            }
+        }
+        Ok(removed)
     }
 
     /// Det højeste løbenummer. Til »der er nyt«-beskeden.
@@ -591,5 +673,64 @@ mod tests {
         );
         assert!(s.revoke(&t.id).unwrap_or(false));
         assert!(s.device_by_token(&t.token).ok().flatten().is_none());
+    }
+
+    #[test]
+    fn papirkurven_viser_det_slettede_og_kan_hente_det_tilbage() {
+        let (_d, s) = store();
+        let a = put(&s, "første");
+        let b = put(&s, "anden");
+        let e1 = ok(commit(&s, "Noter/a.md", 0, Some(&a)));
+        let e2 = ok(commit(&s, "Noter/a.md", e1.rev, Some(&b)));
+        let tomb = ok(commit(&s, "Noter/a.md", e2.rev, None));
+        ok(commit(&s, "Noter/b.md", 0, Some(&a)));
+        let t = s.trash().unwrap_or_default();
+        assert_eq!(t.len(), 1);
+        assert_eq!(
+            (t[0].path.as_str(), t[0].rev, t[0].hash.as_str()),
+            ("Noter/a.md", tomb.rev, b.as_str())
+        );
+        // Tilbage: den sidste udgave oven på gravstenen.
+        let back = ok(commit(&s, "Noter/a.md", t[0].rev, Some(&t[0].hash)));
+        assert_eq!(back.hash.as_deref(), Some(b.as_str()));
+        assert!(s.trash().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn oprydningen_fjerner_kun_det_ingen_levende_fil_bruger() {
+        let (_d, s) = store();
+        let only_deleted = put(&s, "kun i den slettede");
+        let shared = put(&s, "også i en levende");
+        let old = put(&s, "en ældre udgave af en levende");
+        let now = put(&s, "den levende nu");
+        let e = ok(commit(&s, "a.md", 0, Some(&only_deleted)));
+        let e = ok(commit(&s, "a.md", e.rev, Some(&shared)));
+        ok(commit(&s, "a.md", e.rev, None));
+        ok(commit(&s, "b.md", 0, Some(&shared)));
+        let l = ok(commit(&s, "c.md", 0, Some(&old)));
+        ok(commit(&s, "c.md", l.rev, Some(&now)));
+        // Inden for de 30 dage: intet fjernes.
+        assert_eq!(s.purge().ok(), Some(0));
+        assert!(s.has_blob(&only_deleted));
+        // Efter: kun det, som den slettede fil alene brugte.
+        assert_eq!(s.purge_before(super::now() + 1).ok(), Some(1));
+        assert!(!s.has_blob(&only_deleted));
+        assert!(s.has_blob(&shared) && s.has_blob(&old) && s.has_blob(&now));
+        assert!(s.trash_since(0).unwrap_or_default().is_empty());
+        // Gravstenen står der stadig, så enhederne ved, at filen er væk.
+        assert!(s.get("a.md").ok().flatten().is_some_and(|e| e.deleted()));
+        // Og en commit, der peger på det fjernede indhold, afvises.
+        assert!(matches!(
+            s.commit(
+                &Commit {
+                    path: "d.md".into(),
+                    base_rev: 0,
+                    hash: Some(only_deleted.clone()),
+                    size: 1
+                },
+                "pc"
+            ),
+            Err(StoreError::MissingBlob)
+        ));
     }
 }

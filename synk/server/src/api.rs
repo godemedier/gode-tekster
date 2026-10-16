@@ -55,6 +55,7 @@ pub fn router(app: App) -> Router {
         .route("/v1/aendringer", get(changes))
         .route("/v1/fil", get(file))
         .route("/v1/historik", get(history))
+        .route("/v1/papirkurv", get(trash))
         .route("/v1/blob/{hash}", get(get_blob).put(put_blob))
         .route("/v1/commit", post(commit))
         .route("/v1/lyt", get(listen))
@@ -294,6 +295,12 @@ async fn history(
     Ok(Json(blocking(move || store.history(&q.sti)).await?))
 }
 
+async fn trash(State(app): State<Shared>, headers: HeaderMap) -> Result<impl IntoResponse, Fejl> {
+    device(&app, &headers).await?;
+    let store = app.store.clone();
+    Ok(Json(blocking(move || store.trash()).await?))
+}
+
 async fn get_blob(
     State(app): State<Shared>,
     headers: HeaderMap,
@@ -359,7 +366,7 @@ async fn listen(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use synk_kerne::protokol::{Changes, DeviceToken, Entry, PairingCode};
+    use synk_kerne::protokol::{Changes, DeviceToken, Entry, PairingCode, Trashed};
 
     const ADMIN: &str = "en-lang-hemmelig-ejernoegle-til-test-0123456789";
 
@@ -556,5 +563,49 @@ mod tests {
         assert!(same("abc", "abc"));
         assert!(!same("abc", "abd"));
         assert!(!same("abc", "ab"));
+    }
+
+    #[test]
+    fn papirkurven_over_nettet() {
+        let s = start();
+        let a = agent();
+        let pc = register(&s, &a);
+        let auth = format!("Bearer {}", pc.token);
+        let text = "Udkast
+";
+        let h = synk_kerne::hash(text.as_bytes());
+        a.put(format!("{}/v1/blob/{h}", s.base))
+            .header("Authorization", &auth)
+            .send(text)
+            .unwrap_or_else(|e| panic!("{e}"));
+        for (base, hash) in [(0, Some(h.as_str())), (1, None)] {
+            let r = a
+                .post(format!("{}/v1/commit", s.base))
+                .header("Authorization", &auth)
+                .send_json(json!({ "path": "Noter/Udkast.md", "base_rev": base, "hash": hash, "size": text.len() }))
+                .unwrap_or_else(|e| panic!("{e}"));
+            assert_eq!(r.status(), 200);
+        }
+        let r = a
+            .get(format!("{}/v1/papirkurv", s.base))
+            .call()
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(r.status(), 401);
+        let t: Vec<Trashed> = json(
+            a.get(format!("{}/v1/papirkurv", s.base))
+                .header("Authorization", &auth)
+                .call()
+                .unwrap_or_else(|e| panic!("{e}")),
+        );
+        assert_eq!(t.len(), 1);
+        assert_eq!(
+            (
+                t[0].path.as_str(),
+                t[0].rev,
+                t[0].hash.as_str(),
+                t[0].device.as_str()
+            ),
+            ("Noter/Udkast.md", 2, h.as_str(), "Pc")
+        );
     }
 }

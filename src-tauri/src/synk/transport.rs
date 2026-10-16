@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use synk_kerne::protokol::{Changes, Commit, CommitResult, DeviceToken, PairingCode};
+use synk_kerne::protokol::{Changes, Commit, CommitResult, DeviceToken, PairingCode, Trashed};
 
 pub trait Transport {
     fn changes(&self, since: u64) -> Result<Changes, String>;
@@ -70,6 +70,20 @@ impl Http {
             .post(format!("{}/v1/parringskode", self.base))
             .header("Authorization", self.auth())
             .send_empty()
+            .map_err(net)?;
+        match r.status().as_u16() {
+            200 => read_json(&mut r),
+            s => Err(server_error(s, r)),
+        }
+    }
+
+    /// Filer slettet inden for 30 dage, som stadig kan hentes tilbage (serverens papirkurv).
+    pub fn trash(&self) -> Result<Vec<Trashed>, String> {
+        let mut r = self
+            .agent
+            .get(format!("{}/v1/papirkurv", self.base))
+            .header("Authorization", self.auth())
+            .call()
             .map_err(net)?;
         match r.status().as_u16() {
             200 => read_json(&mut r),
