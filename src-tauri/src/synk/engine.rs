@@ -604,6 +604,13 @@ impl<T: Transport> Engine<'_, T> {
                 }
             }
         }
+        // Programmets egen, urørte hilsen er ikke brugerens tekst. Den skal ikke gemmes som kopi.
+        if crate::welcome::untouched(&l.path, &local_bytes) {
+            files::write_atomic(&l.native, &remote_bytes).map_err(|e| e.to_string())?;
+            self.remember(key, &l.native, remote_hash)?;
+            self.agree(key, r)?;
+            return Ok(None);
+        }
         // Konfliktkopien først, så den lokale tekst er sikret, før filen får serverens udgave.
         let copy = self.free_conflict_name(&l.path);
         let copy_native = sti::to_native(&self.root, &copy);

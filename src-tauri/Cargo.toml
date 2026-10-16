@@ -82,3 +82,5 @@ tauri-plugin-single-instance = "=2.5.1"
 # Telefonen har hverken OpenSSL eller Windows' certifikatlager: rustls med de indbyggede rødder (net.rs).
 [target.'cfg(target_os = "android")'.dependencies]
 ureq = { version = "3.4.2", default-features = false, features = ["rustls"] }
+# localtime_r: telefonens tidszone til tidsstemplerne (notes::local_stamp). Ligger allerede i træet.
+libc = "0.2.189"

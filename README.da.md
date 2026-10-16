@@ -67,7 +67,7 @@ Hele vejledningen følger med programmet og ligger i
 - Programmet spørger `tekster.godemedier.dk` efter opdateringer 15 sekunder efter start og
   derefter hver sjette time. Serveren ser versionsnummeret og din IP-adresse. Slå det fra under
   Indstillinger › Generelt.
-- Synken kører kun, hvis du forbinder den, og kun til den serveradresse, du selv skriver.
+- Synkroniseringen kører kun, hvis du forbinder den, og kun til den serveradresse, du selv skriver.
 - Feedback sendes kun, når du selv skriver den. Efter et nedbrud spørger programmet én gang, om
   fejlloggen må sendes. Loggen indeholder aldrig tekst fra dine dokumenter.
 - Serveren gemmer intet. Hele erklæringen står på

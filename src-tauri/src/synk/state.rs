@@ -37,7 +37,7 @@ pub struct State {
 type Result<T> = std::result::Result<T, String>;
 
 fn err(e: rusqlite::Error) -> String {
-    format!("Synkens database: {e}")
+    format!("Synkroniseringens database: {e}")
 }
 
 impl State {

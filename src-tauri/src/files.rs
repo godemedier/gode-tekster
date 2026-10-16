@@ -440,7 +440,18 @@ pub(crate) fn write_atomic_new(target: &Path, bytes: &[u8]) -> std::io::Result<(
             Ok(())
         }
         #[cfg(not(windows))]
-        fs::hard_link(&tmp, target)
+        match fs::hard_link(&tmp, target) {
+            // Android (SELinux) forbyder hårde links i appens eget lager. Reservér navnet med en
+            // tom fil, så en eksisterende fil stadig aldrig rammes, og omdøb over den.
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(target)?;
+                fs::rename(&tmp, target)
+            }
+            r => r,
+        }
     })();
     let _ = fs::remove_file(&tmp);
     result

@@ -250,7 +250,7 @@ settingsPanel.addTab({
 const synkPanel = new SynkPanel();
 settingsPanel.addTab({
   id: "synk",
-  label: tr("Synk", "Sync"),
+  label: tr("Synkronisering", "Sync"),
   mount: (host) => {
     host.replaceChildren(synkPanel.el);
     void synkPanel.refresh();

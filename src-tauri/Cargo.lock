@@ -1486,6 +1486,7 @@ dependencies = [
  "dissimilar",
  "encoding_rs",
  "getrandom 0.3.4",
+ "libc",
  "memchr",
  "minisign-verify",
  "notify",

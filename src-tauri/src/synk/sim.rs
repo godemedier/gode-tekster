@@ -309,3 +309,42 @@ fn alle_ender_ens_med_sletninger() {
         run(seed * 104_729, 120, true);
     }
 }
+
+/// To enheder med hver sin hilsen fra programmet (16/10): den urørte giver ingen konfliktkopi.
+#[test]
+fn uroert_hilsen_giver_ingen_konfliktkopi() {
+    let tmp = tempfile::tempdir().unwrap_or_else(|e| panic!("{e}"));
+    let store = Store::open(&tmp.path().join("server")).unwrap_or_else(|e| panic!("{e}"));
+    let welcome = format!("Gode Tekster/{}", crate::welcome::WELCOME_NAME);
+    let bundled = include_str!("../../welcome/velkommen.md").replace("\r\n", "\n");
+    let mut out = Vec::new();
+    for (name, text) in [
+        ("Pc", "# Velkommen\n\nEn ældre udgave.\n"),
+        ("Telefon", bundled.as_str()),
+    ] {
+        let root = tmp.path().join(name);
+        fs::create_dir_all(root.join("Gode Tekster")).unwrap_or_else(|e| panic!("{e}"));
+        fs::write(root.join(MARKER), "").unwrap_or_else(|e| panic!("{e}"));
+        fs::write(synk_kerne::sti::to_native(&root, &welcome), text)
+            .unwrap_or_else(|e| panic!("{e}"));
+        let d = Device {
+            root,
+            state: State::in_memory().unwrap_or_else(|e| panic!("{e}")),
+            name: name.into(),
+        };
+        let t = Local {
+            store: &store,
+            device: name.into(),
+            lose_reply: Cell::new(0),
+            fail_before: Cell::new(0),
+            rng: Cell::new(1),
+        };
+        let r = sync(&d, &t).unwrap_or_else(|e| panic!("{e}"));
+        out.push((d, r));
+    }
+    let (phone, report) = &out[1];
+    assert!(report.conflicts.is_empty(), "{:?}", report.conflicts);
+    let files = files_of(&phone.root);
+    assert_eq!(files.len(), 1, "{:?}", files.keys());
+    assert_eq!(files[&welcome], "# Velkommen\n\nEn ældre udgave.\n");
+}

@@ -99,7 +99,8 @@ impl Http {
         }
         let reader = std::io::BufReader::new(r.into_body().into_reader());
         for line in reader.lines() {
-            let line = line.map_err(|e| format!("Ingen forbindelse til synkserveren: {e}"))?;
+            let line =
+                line.map_err(|e| format!("Ingen forbindelse til synkroniseringsserveren: {e}"))?;
             if let Some(n) = line
                 .strip_prefix("data:")
                 .and_then(|d| d.trim().parse().ok())
@@ -114,14 +115,15 @@ impl Http {
 }
 
 fn net(e: ureq::Error) -> String {
-    format!("Ingen forbindelse til synkserveren: {e}")
+    format!("Ingen forbindelse til synkroniseringsserveren: {e}")
 }
 
 fn read_json<T: serde::de::DeserializeOwned>(
     r: &mut ureq::http::Response<ureq::Body>,
 ) -> Result<T, String> {
     let text = r.body_mut().read_to_string().map_err(net)?;
-    serde_json::from_str(&text).map_err(|e| format!("Uventet svar fra synkserveren: {e}"))
+    serde_json::from_str(&text)
+        .map_err(|e| format!("Uventet svar fra synkroniseringsserveren: {e}"))
 }
 
 /// Serverens danske fejlbesked, hvis der er en.
@@ -130,9 +132,9 @@ fn server_error(status: u16, mut r: ureq::http::Response<ureq::Body>) -> String 
         .ok()
         .and_then(|v| v.get("fejl").and_then(|f| f.as_str()).map(str::to_owned));
     match (status, msg) {
-        (401, _) => "Synkserveren kender ikke denne enhed længere. Forbind igen.".into(),
-        (_, Some(m)) => format!("Synkserveren: {m}"),
-        (s, None) => format!("Synkserveren svarede {s}."),
+        (401, _) => "Synkroniseringsserveren kender ikke denne enhed længere. Forbind igen.".into(),
+        (_, Some(m)) => format!("Synkroniseringsserveren: {m}"),
+        (s, None) => format!("Synkroniseringsserveren svarede {s}."),
     }
 }
 
@@ -167,7 +169,9 @@ impl Transport for Http {
                     .map_err(net)?;
                 // Indholdet efterprøves her også: en fejl på vejen må aldrig blive til en fil.
                 if synk_kerne::hash(&bytes) != hash {
-                    return Err("Indholdet fra synkserveren passede ikke til sin hash.".into());
+                    return Err(
+                        "Indholdet fra synkroniseringsserveren passede ikke til sin hash.".into(),
+                    );
                 }
                 Ok(bytes)
             }

@@ -310,7 +310,7 @@ pub async fn add_library(app: AppHandle) -> Result<Vec<PathBuf>, String> {
 }
 
 /// Dokumenter. På telefonen er det en mappe i appens eget lager: Androids fælles lager er langsomt
-/// til mange filer og tillader ikke den hårde link, et nyt gem bruger (files::write_atomic_new).
+/// til mange filer. Hårde links er heller ikke tilladt her (files::write_atomic_new).
 /// Synkroniseringen skal senere fylde den (docs/plans/2026-10-14-egen-synk-og-dokumenter.md).
 pub(crate) fn documents_dir(app: &AppHandle) -> tauri::Result<PathBuf> {
     #[cfg(desktop)]

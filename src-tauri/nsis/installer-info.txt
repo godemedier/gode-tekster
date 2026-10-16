@@ -7,7 +7,7 @@ Det sender programmet:
 - Opdateringer: 15 sekunder efter start og hver sjette time spørger programmet
   tekster.godemedier.dk, om der er en ny udgave. Serveren ser versionsnummeret og din
   IP-adresse og gemmer intet. Slå det fra under Indstillinger > Generelt.
-- AI-hjælp, synk, feedback og fejllogge sendes kun, når du selv slår dem til eller beder om det,
+- AI-hjælp, synkronisering, feedback og fejllogge sendes kun, når du selv slår dem til eller beder om det,
   og kun til den udbyder eller server, du har valgt.
 - Dine tekster går aldrig gennem Gode Medier.
 

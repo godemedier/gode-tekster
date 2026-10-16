@@ -369,7 +369,7 @@ fn valid_server(url: &str) -> Result<String, String> {
     if url.starts_with("https://") || local {
         Ok(url.to_owned())
     } else {
-        Err("Synkserverens adresse skal begynde med https://".into())
+        Err("Serverens adresse skal begynde med https://".into())
     }
 }
 

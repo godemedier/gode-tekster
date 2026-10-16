@@ -80,10 +80,15 @@ function previewLines(p: Preview): string[] {
     );
   if (p.deleteLocal || p.deleteRemote)
     lines.push(tr(`${p.deleteLocal + p.deleteRemote} sletninger.`, `${p.deleteLocal + p.deleteRemote} deletions.`));
-  for (const [path, why] of p.skipped.slice(0, 5)) lines.push(tr(`Synkes ikke: ${path}. ${why}`, `Not synced: ${path}. ${why}`));
-  if (p.skipped.length > 5) lines.push(tr(`… og ${p.skipped.length - 5} filer mere, der ikke kan synkes.`, `… and ${p.skipped.length - 5} more.`));
-  if (!lines.length) lines.push(tr("Der er ingen tekster at synke endnu.", "There is nothing to sync yet."));
+  for (const [path, why] of p.skipped.slice(0, 5)) lines.push(tr(`Kommer ikke med: ${path}. ${why}`, `Not synced: ${path}. ${why}`));
+  if (p.skipped.length > 5) lines.push(tr(`… og ${p.skipped.length - 5} filer mere, der ikke kan komme med.`, `… and ${p.skipped.length - 5} more.`));
+  if (!lines.length) lines.push(tr("Der er ingen tekster at synkronisere endnu.", "There is nothing to sync yet."));
   return lines;
+}
+
+/** Mobilfladen (mobile.html) sætter klassen på body. */
+function onPhone(): boolean {
+  return document.body.classList.contains("mobil");
 }
 
 export class SynkPanel {
@@ -149,10 +154,10 @@ export class SynkPanel {
     );
     return panel(
       group(
-        tr("Synk af Dokumenter", "Sync Documents"),
+        tr("Synkronisering af Dokumenter", "Sync Documents"),
         note(
           tr(
-            "Teksterne i Dokumenter synkes med din egen server, så du kan skrive videre på telefonen og i browseren. Kun tekst og billeder i medier-mapper kommer med.",
+            "Gode Tekster synkroniserer teksterne i Dokumenter med din egen server, så du kan skrive videre på telefonen og i browseren. Kun tekst og billeder i medier-mapper kommer med.",
             "Your texts in Documents sync with your own server. Only text and images in media folders are included.",
           ),
         ),
@@ -176,7 +181,7 @@ export class SynkPanel {
         this.preview = await invoke<Preview>("synk_preview");
       }),
     );
-    const start = linkButton(tr("Start synken", "Start syncing"), () =>
+    const start = linkButton(tr("Start synkroniseringen", "Start syncing"), () =>
       void this.act(async () => {
         this.status = await invoke<SynkStatus>("synk_start");
       }),
@@ -185,11 +190,11 @@ export class SynkPanel {
     controls.append(run, ...(this.preview ? [start] : []));
     return panel(
       group(
-        tr("Før første synk", "Before the first sync"),
+        tr("Før den første synkronisering", "Before the first sync"),
         note(tr(`Forbundet til ${s.server} som »${s.device}«. Mappen er ${s.root}.`, `Connected to ${s.server} as "${s.device}". Folder: ${s.root}.`)),
         note(
           tr(
-            "Prøvekørslen tæller, hvad den første synk vil gøre, uden at ændre noget. Den første synk sletter aldrig. Den lægger kun sammen.",
+            "Prøvekørslen tæller, hvad den første synkronisering vil gøre, uden at ændre noget. Den første synkronisering sletter aldrig. Den lægger kun sammen.",
             "The dry run counts what the first sync will do without changing anything. The first sync never deletes.",
           ),
         ),
@@ -208,7 +213,7 @@ export class SynkPanel {
         : s.lastSync
           ? tr(`Synkroniseret ${s.lastSync.slice(11)}`, `Synced ${s.lastSync.slice(11)}`)
           : tr("Venter på første runde.", "Waiting for the first round.");
-    const now = linkButton(tr("Synk nu", "Sync now"), () => void invoke("synk_now"));
+    const now = linkButton(tr("Synkronisér nu", "Sync now"), () => void invoke("synk_now"));
     const rows: HTMLElement[] = [
       row(tr("Status", "Status"), Object.assign(document.createElement("span"), { textContent: state })),
       row(tr("Server", "Server"), Object.assign(document.createElement("span"), { textContent: s.server ?? "" })),
@@ -224,7 +229,7 @@ export class SynkPanel {
           yes,
           {
             hint: tr(
-              `${s.heldDeletes} filer er slettet på én gang. Synken holder sletningerne tilbage, til du siger ja. Var det en fejl, så hent filerne tilbage fra papirkurven først.`,
+              `${s.heldDeletes} filer er slettet på én gang. Synkroniseringen holder sletningerne tilbage, til du siger ja. Var det en fejl, så hent filerne tilbage fra papirkurven først.`,
               `${s.heldDeletes} files were deleted at once. The deletions wait until you confirm.`,
             ),
           },
@@ -246,14 +251,20 @@ export class SynkPanel {
     const log = document.createElement("ul");
     log.className = "st-log";
     for (const line of s.log) log.append(Object.assign(document.createElement("li"), { textContent: line }));
+    // Telefonen parres fra pc'en. Dér er parringskoden kun i vejen.
+    const pairing = onPhone()
+      ? []
+      : [
+          group(
+            tr("Ny enhed", "New device"),
+            row(tr("Parringskode", "Pairing code"), pairBox, {
+              hint: tr("Tast koden på telefonen inden for ti minutter. Den virker én gang.", "Enter the code on the phone within ten minutes. It works once."),
+            }),
+          ),
+        ];
     return panel(
-      group(tr("Synk af Dokumenter", "Sync Documents"), ...rows),
-      group(
-        tr("Ny enhed", "New device"),
-        row(tr("Parringskode", "Pairing code"), pairBox, {
-          hint: tr("Tast koden på telefonen inden for ti minutter. Den virker én gang.", "Enter the code on the phone within ten minutes. It works once."),
-        }),
-      ),
+      group(tr("Synkronisering af Dokumenter", "Sync Documents"), ...rows),
+      ...pairing,
       group(tr("Sidst", "Recent"), s.log.length ? log : note(tr("Intet endnu.", "Nothing yet."))),
       this.disconnectGroup(),
     );
@@ -270,7 +281,9 @@ export class SynkPanel {
     return group(
       null,
       row(tr("Kobl enheden fra", "Disconnect this device"), off, {
-        hint: tr("Filerne på denne pc bliver liggende, og serveren beholder sin kopi.", "Files stay on this computer, and the server keeps its copy."),
+        hint: onPhone()
+          ? tr("Filerne på telefonen bliver liggende, og serveren beholder sin kopi.", "Files stay on the phone, and the server keeps its copy.")
+          : tr("Filerne på denne pc bliver liggende, og serveren beholder sin kopi.", "Files stay on this computer, and the server keeps its copy."),
       }),
     );
   }

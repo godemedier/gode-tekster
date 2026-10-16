@@ -77,6 +77,20 @@ fn write_texts(dir: &std::path::Path, english: bool) -> std::io::Result<PathBuf>
     Ok(dir.join(texts[0].0))
 }
 
+/// Hilsenen eller vejledningen, præcis som programmet lagde den. Mødes den med en anden udgave i
+/// synkroniseringen, vinder den anden uden en konfliktkopi (synk/engine.rs).
+pub fn untouched(path: &str, bytes: &[u8]) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return false;
+    };
+    let text = text.replace("\r\n", "\n");
+    [texts(false), texts(true)]
+        .into_iter()
+        .flatten()
+        .any(|(n, t)| n == name && t.replace("\r\n", "\n") == text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,6 +107,17 @@ mod tests {
         std::fs::write(&welcome, "Min egen tekst").unwrap();
         write_texts(&d, false).unwrap();
         assert_eq!(std::fs::read_to_string(&welcome).unwrap(), "Min egen tekst");
+    }
+
+    #[test]
+    fn urort_hilsen_genkendes() {
+        assert!(untouched("Gode Tekster/Velkommen.md", WELCOME.as_bytes()));
+        assert!(untouched(
+            "Gode Tekster/How Gode Tekster works.md",
+            GUIDE_EN.as_bytes()
+        ));
+        assert!(!untouched("Gode Tekster/Velkommen.md", b"Min egen tekst"));
+        assert!(!untouched("Gode Tekster/Andet.md", WELCOME.as_bytes()));
     }
 
     #[test]

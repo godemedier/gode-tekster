@@ -229,9 +229,39 @@ pub(crate) fn local_stamp() -> String {
     )
 }
 
-/// Uden Windows' lokale tid: UTC ud fra uret (telefonen, 14/10). Tidszonen er ikke kendt her.
-#[cfg(not(windows))]
+/// Telefonen: bionics `localtime_r` læser Androids tidszone (synkens log viste UTC, 16/10).
+#[cfg(target_os = "android")]
 pub(crate) fn local_stamp() -> String {
+    let now: libc::time_t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as libc::time_t)
+        .unwrap_or_default();
+    // SAFETY: localtime_r skriver kun i den tm, den får, og læser kun `now`.
+    let tm = unsafe {
+        let mut tm: libc::tm = std::mem::zeroed();
+        if libc::localtime_r(&now, &mut tm).is_null() {
+            return utc_stamp();
+        }
+        tm
+    };
+    format!(
+        "{:04}-{:02}-{:02} {:02}.{:02}",
+        tm.tm_year + 1900,
+        tm.tm_mon + 1,
+        tm.tm_mday,
+        tm.tm_hour,
+        tm.tm_min
+    )
+}
+
+#[cfg(all(not(windows), not(target_os = "android")))]
+pub(crate) fn local_stamp() -> String {
+    utc_stamp()
+}
+
+/// Uden en kendt tidszone: UTC ud fra uret.
+#[cfg(not(windows))]
+fn utc_stamp() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
