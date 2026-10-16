@@ -111,11 +111,20 @@ function enterFolder(folder: string): void {
   openFolder(folder);
 }
 
+/** Tekster og mapper, der venter på papirkurven: de er væk fra listen, til fortryd-tiden er gået. */
+const leaving = { texts: new Set<string>(), folders: new Set<string>() };
+
+function visible(): IndexEntry[] {
+  return entries.filter(
+    (e) => !leaving.texts.has(e.path) && ![...leaving.folders].some((f) => e.folder === f || e.folder.startsWith(`${f}/`)),
+  );
+}
+
 /** Mapperne lige under `cwd`: navn, fuld sti og antal tekster i alt under den. */
-function subfolders(): { name: string; path: string; count: number }[] {
+function subfolders(): Folder[] {
   const prefix = cwd ? `${cwd}/` : "";
   const found = new Map<string, number>();
-  for (const e of entries) {
+  for (const e of visible()) {
     if (!e.folder.startsWith(prefix) || e.folder === cwd) continue;
     const name = e.folder.slice(prefix.length).split("/")[0];
     found.set(name, (found.get(name) ?? 0) + 1);
@@ -125,7 +134,7 @@ function subfolders(): { name: string; path: string; count: number }[] {
     .map(([name, count]) => ({ name, path: prefix + name, count }));
 }
 
-function folderItem(f: { name: string; path: string; count: number }): HTMLLIElement {
+function folderItem(f: Folder): HTMLLIElement {
   const li = document.createElement("li");
   const b = document.createElement("button");
   b.type = "button";
@@ -137,9 +146,69 @@ function folderItem(f: { name: string; path: string; count: number }): HTMLLIEle
   meta.className = "m-item-meta";
   meta.textContent = f.count === 1 ? tr("1 tekst", "1 text") : tr(`${f.count} tekster`, `${f.count} texts`);
   b.append(name, meta);
-  b.addEventListener("click", () => enterFolder(f.path));
+  b.addEventListener("click", () => {
+    if (b.dataset.trukket) return;
+    enterFolder(f.path);
+  });
   li.append(b);
+  swipeable(li, b, tr("Flyt · Omdøb", "Move · Rename"), () => folderActions(f), () => folderTrash(f));
   return li;
+}
+
+type Folder = { name: string; path: string; count: number };
+
+/** Mappens fulde sti. `f.path` er relativ til biblioteket, som `IndexEntry.folder`. */
+async function folderPath(f: Folder): Promise<string> {
+  return `${await libraryRoot()}/${f.path}`;
+}
+
+function parentOf(folder: string): string {
+  return folder.includes("/") ? folder.slice(0, folder.lastIndexOf("/")) : "";
+}
+
+function folderActions(f: Folder): void {
+  openSheet(
+    [
+      {
+        label: tr("Flyt til mappe", "Move to folder"),
+        run: () => void folderPath(f).then((path) => moveSheet(path, parentOf(f.path), () => void loadList(), f.path)),
+      },
+      {
+        label: tr("Omdøb", "Rename"),
+        run: () => void folderPath(f).then((path) => renameSheet(path, () => void loadList(), { folder: true })),
+      },
+    ],
+    f.name,
+  );
+}
+
+function folderTrash(f: Folder): void {
+  const what = f.count === 1 ? tr("1 tekst", "1 text") : tr(`${f.count} tekster`, `${f.count} texts`);
+  openSheet(
+    [
+      {
+        label: tr("Læg mappen i papirkurven", "Move the folder to trash"),
+        danger: true,
+        run: () => {
+          leaving.folders.add(f.path);
+          renderList();
+          offerUndo(
+            tr(`»${f.name}« er lagt i papirkurven.`, `“${f.name}” was moved to the trash.`),
+            async () => {
+              leaving.folders.delete(f.path);
+              renderList();
+            },
+            async () => {
+              leaving.folders.delete(f.path);
+              await invoke("delete_entry", { path: await folderPath(f) });
+            },
+          );
+        },
+      },
+      { label: tr("Annullér", "Cancel"), run: () => {} },
+    ],
+    tr(`Læg mappen »${f.name}« med ${what} i papirkurven?`, `Move the folder “${f.name}” with ${what} to the trash?`),
+  );
 }
 
 function when(ms: number): string {
@@ -154,9 +223,10 @@ function when(ms: number): string {
 function renderList(): void {
   const q = search.value.trim().toLowerCase();
   const folders = q ? [] : subfolders();
+  const all = visible();
   const shown = q
-    ? entries.filter((e) => e.name.toLowerCase().includes(q) || e.preview.toLowerCase().includes(q))
-    : entries.filter((e) => e.folder === cwd);
+    ? all.filter((e) => e.name.toLowerCase().includes(q) || e.preview.toLowerCase().includes(q))
+    : all.filter((e) => e.folder === cwd);
   if (!shown.length && !folders.length) {
     const li = document.createElement("li");
     li.className = "m-empty";
@@ -191,7 +261,7 @@ function renderList(): void {
         void openText(e.path);
       });
       li.append(b);
-      swipeable(li, b, e);
+      swipeable(li, b, tr("Flyt · Del · Omdøb", "Move · Share · Rename"), () => actionSheet(e), () => trashSheet(e));
       return li;
     }),
   );
@@ -202,10 +272,11 @@ function renderList(): void {
 /** Hvor langt fingeren skal trække, før handlingen sker, som andel af rækkens bredde. */
 const SWIPE_AT = 0.35;
 
-/** Mod højre: et ark med Flyt, Del og Omdøb. Mod venstre: papirkurven, efter et ja. */
-function swipeable(li: HTMLLIElement, b: HTMLButtonElement, e: IndexEntry): void {
+/** Mod højre: et ark med valgene (`right`, hvis navne står bagved). Mod venstre: papirkurven
+ *  efter et ja. Gælder både tekster og mapper. */
+function swipeable(li: HTMLLIElement, b: HTMLButtonElement, rightLabel: string, right: () => void, left: () => void): void {
   li.className = "m-swipe";
-  const move = Object.assign(document.createElement("span"), { className: "m-swipe-flyt", textContent: tr("Flyt · Del · Omdøb", "Move · Share · Rename") });
+  const move = Object.assign(document.createElement("span"), { className: "m-swipe-flyt", textContent: rightLabel });
   const trash = Object.assign(document.createElement("span"), { className: "m-swipe-slet", textContent: tr("Papirkurv", "Trash") });
   move.setAttribute("aria-hidden", "true");
   trash.setAttribute("aria-hidden", "true");
@@ -249,12 +320,12 @@ function swipeable(li: HTMLLIElement, b: HTMLButtonElement, e: IndexEntry): void
     b.style.transition = "";
     b.style.transform = "";
     li.classList.remove("m-swipe-klar");
-    // Trækket må ikke også åbne teksten.
+    // Trækket må ikke også åbne teksten eller mappen.
     b.dataset.trukket = "1";
     window.setTimeout(() => delete b.dataset.trukket, 400);
     if (!done) return;
-    if (dx > 0) actionSheet(e);
-    else trashSheet(e);
+    if (dx > 0) right();
+    else left();
   };
   b.addEventListener("pointerup", end);
   b.addEventListener("pointercancel", end);
@@ -296,9 +367,9 @@ async function shareText(path: string): Promise<void> {
   }
 }
 
-/** Et nyt navn. Filtypen bliver den samme, så et punktum i navnet ikke ændrer den. */
-function renameSheet(path: string, after: (to: string) => void, open = false): void {
-  const ext = /\.(md|markdown|txt)$/i.exec(path)?.[0] ?? ".md";
+/** Et nyt navn. En tekst beholder sin filtype, så et punktum i navnet ikke ændrer den. */
+function renameSheet(path: string, after: (to: string) => void, opts: { open?: boolean; folder?: boolean } = {}): void {
+  const ext = opts.folder ? "" : (/\.(md|markdown|txt)$/i.exec(path)?.[0] ?? ".md");
   const box = document.createElement("form");
   box.className = "m-sheet-box m-rename";
   const input = Object.assign(document.createElement("input"), { type: "text", value: plainName(path), enterKeyHint: "done" });
@@ -312,8 +383,15 @@ function renameSheet(path: string, after: (to: string) => void, open = false): v
     closeSheet();
     if (!name || name === plainName(path)) return;
     // En åben tekst omdøbes gennem kernens dokument, så næste gem rammer den nye fil.
-    void invoke<string>(open ? "rename_open_document" : "rename_entry", { path, newName: name + ext })
-      .then(after)
+    const command = opts.open ? "rename_open_document" : "rename_entry";
+    const before = path.split(/[\\/]/).pop() ?? "";
+    void invoke<string>(command, { path, newName: name + ext })
+      .then((to) => {
+        after(to);
+        offerUndo(tr(`Omdøbt til »${name}«.`, `Renamed to “${name}”.`), async () => {
+          after(await invoke<string>(command, { path: to, newName: before }));
+        });
+      })
       .catch((err: unknown) => showBanner(errorText(err)));
   });
   box.append(input, ok, cancel);
@@ -329,13 +407,20 @@ function trashSheet(e: IndexEntry): void {
       {
         label: tr("Læg i papirkurven", "Move to trash"),
         danger: true,
-        run: async () => {
-          try {
-            await invoke("delete_entry", { path: e.path });
-          } catch (err) {
-            showBanner(errorText(err));
-          }
-          void loadList();
+        run: () => {
+          leaving.texts.add(e.path);
+          renderList();
+          offerUndo(
+            tr(`»${plainName(e.path)}« er lagt i papirkurven.`, `“${plainName(e.path)}” was moved to the trash.`),
+            async () => {
+              leaving.texts.delete(e.path);
+              renderList();
+            },
+            async () => {
+              leaving.texts.delete(e.path);
+              await invoke("delete_entry", { path: e.path });
+            },
+          );
         },
       },
       { label: tr("Annullér", "Cancel"), run: () => {} },
@@ -347,7 +432,7 @@ function trashSheet(e: IndexEntry): void {
 /** Alle mapper med tekster i, også dem, der kun har undermapper. */
 function allFolders(): string[] {
   const found = new Set<string>();
-  for (const e of entries) {
+  for (const e of visible()) {
     const parts = e.folder ? e.folder.split("/") : [];
     for (let i = 1; i <= parts.length; i++) found.add(parts.slice(0, i).join("/"));
   }
@@ -355,12 +440,17 @@ function allFolders(): string[] {
 }
 
 /** Arket med mapperne. `after` får den nye sti. */
-function moveSheet(path: string, from: string, after: (to: string) => void): void {
+function moveSheet(path: string, from: string, after: (to: string) => void, self?: string): void {
+  const back = path.slice(0, path.lastIndexOf("/"));
   const go = (folder: string) => async () => {
     try {
       const root = await libraryRoot();
       const to = await invoke<string>("move_entry", { path, dir: folder ? `${root}/${folder}` : root });
       after(to);
+      const where = folder ? (folder.split("/").pop() ?? folder) : tr("Dokumenter", "Documents");
+      offerUndo(tr(`Flyttet til »${where}«.`, `Moved to “${where}”.`), async () => {
+        await invoke<string>("move_entry", { path: to, dir: back });
+      });
     } catch (err) {
       showBanner(errorText(err));
     }
@@ -368,7 +458,8 @@ function moveSheet(path: string, from: string, after: (to: string) => void): voi
   const items = [
     ...(from ? [{ label: tr("Øverst i Dokumenter", "Top of Documents"), run: go("") }] : []),
     ...allFolders()
-      .filter((f) => f !== from)
+      // En mappe kan ikke flyttes ind i sig selv eller sine undermapper.
+      .filter((f) => f !== from && !(self && (f === self || f.startsWith(`${self}/`))))
       .map((f) => ({ label: f.split("/").join(" › "), run: go(f) })),
   ];
   openSheet(items, tr(`Flyt »${plainName(path)}« til`, `Move “${plainName(path)}” to`));
@@ -515,6 +606,60 @@ for (const t of toolList) {
 view.contentDOM.addEventListener("focus", () => (tools.hidden = false));
 view.contentDOM.addEventListener("blur", () => (tools.hidden = true));
 
+// --- fortryd ----------------------------------------------------------------------------------
+
+/** Så længe står Fortryd fremme. Material anbefaler 4-10 sekunder. */
+const UNDO_MS = 6000;
+const snack = $("m-fortryd");
+let snackTimer: number | undefined;
+/** Papirkurven venter, til fortryd-tiden er gået. Så kan Fortryd ikke komme for sent. */
+let pending: (() => Promise<void>) | null = null;
+
+async function runPending(): Promise<void> {
+  const commit = pending;
+  pending = null;
+  if (!commit) return;
+  try {
+    await commit();
+  } catch (err) {
+    showBanner(errorText(err));
+  }
+  void loadList();
+}
+
+function hideSnack(): void {
+  window.clearTimeout(snackTimer);
+  snack.hidden = true;
+  snack.replaceChildren();
+}
+
+/** Beskeden nederst med Fortryd. `commit` er det, der først sker, når tiden er gået. */
+function offerUndo(message: string, undo: () => Promise<void>, commit?: () => Promise<void>): void {
+  void runPending();
+  hideSnack();
+  pending = commit ?? null;
+  const text = Object.assign(document.createElement("span"), { textContent: message });
+  const button = Object.assign(document.createElement("button"), { type: "button", textContent: tr("Fortryd", "Undo") });
+  button.addEventListener("click", () => {
+    hideSnack();
+    pending = null;
+    void undo()
+      .catch((err: unknown) => showBanner(errorText(err)))
+      .finally(() => void loadList());
+  });
+  snack.append(text, button);
+  snack.hidden = false;
+  snackTimer = window.setTimeout(() => {
+    hideSnack();
+    void runPending();
+  }, UNDO_MS);
+}
+
+// Appen kan lukkes, når den ikke ses. Det, der venter, sker før.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") void runPending();
+});
+
 // --- menuen (ét ark fra bunden) ----------------------------------------------------------------
 
 function closeSheet(): void {
@@ -580,7 +725,7 @@ $("m-skriv-mere").addEventListener("click", () =>
               current.renamed(to);
               showTitle();
             },
-            true,
+            { open: true },
           ),
         );
       },
@@ -607,13 +752,22 @@ $("m-skriv-mere").addEventListener("click", () =>
         const current = session;
         if (!current) return;
         await current.flush().catch(() => {});
-        try {
-          await invoke("delete_entry", { path: current.path });
-          session = null;
-          history.back();
-        } catch (e) {
-          showBanner(errorText(e));
-        }
+        // Som i listen: teksten er væk med det samme, men lægges først i papirkurven efter Fortryd.
+        const path = current.path;
+        leaving.texts.add(path);
+        session = null;
+        history.back();
+        offerUndo(
+          tr(`»${plainName(path)}« er lagt i papirkurven.`, `“${plainName(path)}” was moved to the trash.`),
+          async () => {
+            leaving.texts.delete(path);
+            renderList();
+          },
+          async () => {
+            leaving.texts.delete(path);
+            await invoke("delete_entry", { path });
+          },
+        );
       },
     },
   ]),

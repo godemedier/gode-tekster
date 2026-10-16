@@ -80,6 +80,16 @@ body.mobil {
 .m-swipe[data-retning="hoejre"] .m-swipe-flyt, .m-swipe[data-retning="venstre"] .m-swipe-slet { visibility: visible; }
 .m-swipe-klar .m-swipe-flyt, .m-swipe-klar .m-swipe-slet { opacity: 1; }
 
+/* Fortryd: en besked nederst i seks sekunder, over knappen til en ny tekst (Material »snackbar«). */
+.m-snack {
+  position: fixed; left: 16px; right: 16px; bottom: 96px; z-index: 40; display: flex; align-items: center; gap: 12px;
+  min-height: 48px; padding: 4px 4px 4px 16px; border-radius: 8px; background: var(--blæk); color: var(--flade);
+  font-size: 15px; box-shadow: var(--papir-skygge-op);
+}
+.m-snack[hidden] { display: none; }
+.m-snack span { flex: 1; min-width: 0; }
+.m-snack button { flex: none; min-height: 44px; padding: 0 12px; border: 0; background: none; color: var(--flade); font: 600 15px/1 system-ui, sans-serif; text-decoration: underline; }
+
 /* Arket fra bunden: menuen. Mappelisten kan være lang, så arket ruller. */
 .m-sheet { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.32); display: flex; align-items: flex-end; z-index: 50; }
 .m-sheet[hidden] { display: none; }
