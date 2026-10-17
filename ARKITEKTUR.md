@@ -1189,6 +1189,10 @@ tegnene vises heller ikke ved markøren, i modsætning til Bear og Obsidian. For
 stiltjek vises ikke. Trykflader er mindst 48 px. Filen er den samme markdown som på pc'en.
 **Ikke på telefonen i første omgang:** højre spalte (fraklip, fodnoter, kilder, struktur, sprog,
 input), AI, versioner, print, eksport, noter i egne vinduer.
+**Tilføjet 17/10:** fodnoter vises som hævet tal, og et tryk åbner noten i et ark, hvor den kan
+rettes. I visningen »skjul« er de skjulte tegn atomiske (`hiddenMarkAtoms`): markøren står aldrig
+inde i dem, og Backspace/Delete sletter det synlige tegn ved siden af. Skriften er sans (Schibsted
+Grotesk), ikke pc'ens halvmono. En ny tekst, der stadig er tom ved Tilbage, slettes.
 **Alternativ der tabte:** iA Writers model, hvor markdown vises på alle platforme. Brugeren vil
 ikke se tegnene. Bear og Obsidian viser dem ved markøren, hvilket giver linjehop.
 **Revurdér først hvis:** Gboard-komposition ved skjulte tegn giver tabte eller dobbelte bogstaver.

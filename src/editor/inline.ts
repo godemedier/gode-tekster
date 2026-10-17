@@ -62,6 +62,18 @@ export function footnoteDefinition(doc: string, label: string): { from: number; 
   return null;
 }
 
+/**
+ * Ændringen, der giver etiketten teksten som fodnote: definitionen rettes, eller den lægges til
+ * før `end` (fraklippene, ellers tekstens slutning). Noten er én linje (ADR-0017).
+ */
+export function footnoteEdit(doc: string, label: string, text: string, end: number): { from: number; to: number; insert: string } {
+  const clean = text.replace(/\n+/g, " ").trim();
+  const def = footnoteDefinition(doc, label);
+  if (def) return { from: def.from, to: def.to, insert: `[^${label}]: ${clean}` };
+  const lead = doc.slice(0, end).endsWith("\n\n") ? "" : "\n\n";
+  return { from: end, to: end, insert: `${lead}[^${label}]: ${clean}\n` };
+}
+
 /** Den første henvisning til en etiket (ikke definitionen). Positionerne er i hele teksten. */
 export function footnoteRef(doc: string, label: string): Found | null {
   let pos = 0;

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { findDimmed, findFootnoteRefs, footnoteNumbers, footnoteDefinition, footnoteRef } from "./inline.ts";
+import { findDimmed, findFootnoteRefs, footnoteEdit, footnoteNumbers, footnoteDefinition, footnoteRef } from "./inline.ts";
 
 test("fodnoter i fraklip, kommentarer og kode ændrer ikke aktive fodnoter", () => {
   const doc = "Aktiv[^1].\n\n[^1]: original\n\n<!-- gt:parkeret id=p1 dato=2026-10-10\nKlip[^2].\n[^1]: forkert\n[^2]: skjult\n-->\n```\nKode[^3]\n[^3]: kode\n```\n`[^4]`";
@@ -42,4 +42,13 @@ test("dæmpet tekst over to afsnit findes som ét stykke", () => {
   const doc = "Før {--første afsnit.\n\nAndet afsnit.--} efter.";
   const [d] = findDimmed(doc);
   assert.equal(doc.slice(d.body.from, d.body.to), "første afsnit.\n\nAndet afsnit.");
+});
+
+test("en fodnote rettes på sin linje eller lægges til før slutningen, altid som én linje", () => {
+  const apply = (doc: string, c: { from: number; to: number; insert: string }) => doc.slice(0, c.from) + c.insert + doc.slice(c.to);
+  const doc = "Tekst[^1] og[^2].\n\n[^1]: Gammel.\n";
+  assert.equal(apply(doc, footnoteEdit(doc, "1", "Ny\nlinje ", doc.length)), "Tekst[^1] og[^2].\n\n[^1]: Ny linje\n");
+  assert.equal(apply(doc, footnoteEdit(doc, "2", "Anden", doc.length)), `${doc}\n\n[^2]: Anden\n`);
+  const bare = "Tekst[^a].";
+  assert.equal(apply(bare, footnoteEdit(bare, "a", "Note", bare.length)), "Tekst[^a].\n\n[^a]: Note\n");
 });

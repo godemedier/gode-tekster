@@ -9,7 +9,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { tags as t } from "@lezer/highlight";
 
 import { authorshipField, authorshipHistory, setAuthorship, type AuthorshipState } from "./authorship.ts";
-import { livePreview, livePreviewTheme } from "./livePreview.ts";
+import { hiddenMarkAtoms, livePreview, livePreviewTheme } from "./livePreview.ts";
 import { pasteTables, tablePreview, tableTheme } from "./tables.ts";
 import { wordSelection } from "./wordSelection.ts";
 import { findExtension } from "./find.ts";
@@ -180,6 +180,7 @@ export function baseExtensions(onChange: OnChange): Extension[] {
     iaTheme,
     livePreview,
     livePreviewTheme,
+    hiddenMarkAtoms,
     tablePreview,
     tableTheme,
     pasteTables,

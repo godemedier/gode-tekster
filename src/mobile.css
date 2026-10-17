@@ -66,6 +66,9 @@ body.mobil {
 .m-tools button:active { background: var(--hover); }
 .m-tools .m-bold { font-weight: 700; }
 .m-tools .m-italic { font-style: italic; }
+.m-tools svg { display: block; margin: auto; fill: currentColor; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+/* Fodnotens tal skal kunne rammes med en finger. Polstringen gør trykfladen større, ikke tallet. */
+#m-skriv .gt-fnref { padding: 0.4em 0.35em; margin: -0.4em -0.1em; }
 
 /* Træk i listen: rækken glider til siden, og bagved står, hvad der sker. Farven bliver fuld, når
    fingeren er langt nok. pan-y: telefonen ruller stadig selv lodret. */
@@ -98,6 +101,11 @@ body.mobil {
 .m-rename input {
   display: block; width: calc(100% - 48px); box-sizing: border-box; height: 48px; margin: 8px 24px 4px; padding: 0 12px;
   border: 1px solid var(--kant-hover); border-radius: 8px; background: var(--flade); color: var(--blæk); font-size: 16px;
+}
+/* Fodnoten: flere linjer i samme felt, i tekstens egen skrift. */
+.m-note textarea {
+  display: block; width: calc(100% - 48px); box-sizing: border-box; min-height: 120px; margin: 8px 24px 4px; padding: 10px 12px;
+  border: 1px solid var(--kant-hover); border-radius: 8px; background: var(--flade); color: var(--blæk); font: 16px/1.5 var(--skrift); resize: none;
 }
 .m-sheet-box button { display: block; width: 100%; min-height: 52px; padding: 0 24px; border: 0; background: none; color: var(--blæk); text-align: left; font-size: 16px; }
 .m-sheet-box button:active { background: var(--hover); }

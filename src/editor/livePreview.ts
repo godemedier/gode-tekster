@@ -3,14 +3,15 @@
 // Regler, der holder teksten i ro (research: Obsidians hovedklage er, at linjer hopper):
 // - Overskrifter og citater får deres linjeklasse ALTID, også når tegnene vises. Højden ændrer sig
 //   derfor ikke, når markøren går ind i dem. Kun en lille vandret forskydning, når `# ` dukker op.
-// - Tegn skjules med `Decoration.replace`, aldrig med CSS, så markøren ikke træder usynligt gennem dem.
+// - Tegn skjules med `Decoration.replace`, aldrig med CSS. I »skjul« er de også atomiske (hiddenMarkAtoms),
+//   ellers træder markøren stadig usynligt gennem dem.
 // - Mens musen er nede, bygges intet om (ellers flytter teksten sig under et klik). Under IME-
 //   komposition flyttes dekorationerne kun med, de bygges ikke om.
 // - Ingen dekoration skriver i dokumentet, undtagen afkrydsningsfeltet i en opgave, som brugeren klikker.
 
 import { syntaxTree } from "@codemirror/language";
-import { type EditorState, type Range, StateEffect } from "@codemirror/state";
-import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { type EditorState, type Range, Prec, StateEffect, findClusterBreak } from "@codemirror/state";
+import { Decoration, EditorView, ViewPlugin, WidgetType, keymap, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 
 import { findDimmed, findFootnoteRefs, footnoteNumbers } from "./inline.ts";
@@ -443,6 +444,62 @@ export const livePreview = ViewPlugin.fromClass(
     },
   },
 );
+
+/** De skjulte tegn som intervaller, kun i visningen »skjul«. Linjeklasser og formatering tæller ikke. */
+function hiddenAtoms(view: EditorView): DecorationSet {
+  if (mode !== "skjul") return Decoration.none;
+  const decos = view.plugin(livePreview)?.decorations ?? Decoration.none;
+  return decos.update({ filter: (from, to, value) => value.point && to > from });
+}
+
+/** Første synlige position før (eller efter) `pos`: forbi de skjulte tegn, der støder op til den. */
+function pastHidden(atoms: DecorationSet, pos: number, forward: boolean): number {
+  for (let moved = true; moved; ) {
+    moved = false;
+    atoms.between(pos, pos, (from, to) => {
+      if (forward ? from === pos && to > pos : to === pos && from < pos) {
+        pos = forward ? to : from;
+        moved = true;
+        return false;
+      }
+    });
+  }
+  return pos;
+}
+
+/** Backspace og Delete sletter det synlige tegn ved siden af de skjulte, ikke tegnene selv. */
+function deleteVisible(forward: boolean) {
+  return (view: EditorView): boolean => {
+    const sel = view.state.selection.main;
+    if (!sel.empty || view.state.selection.ranges.length > 1) return false;
+    const atoms = hiddenAtoms(view);
+    const at = pastHidden(atoms, sel.head, forward);
+    if (at === sel.head) return false;
+    const { doc } = view.state;
+    if (forward ? at >= doc.length : at <= 0) return true;
+    const l = doc.lineAt(at);
+    const edge = forward ? at === l.to : at === l.from;
+    const other = edge ? at + (forward ? 1 : -1) : l.from + findClusterBreak(l.text, at - l.from, forward);
+    const from = Math.min(at, other);
+    const to = Math.max(at, other);
+    view.dispatch({ changes: { from, to }, selection: { anchor: from }, userEvent: forward ? "delete.forward" : "delete.backward", scrollIntoView: true });
+    return true;
+  };
+}
+
+/**
+ * I visningen »skjul« (telefonen, ADR-0055) kan markøren ikke stå inde i tegn, man ikke kan se.
+ * Før gik den usynligt gennem `**`, og Backspace efter et fedt ord slettede en stjerne, så
+ * formateringen gik i stykker (målt 17/10). Gælder også tryk: CodeMirror skubber en markering,
+ * der lander inde i et skjult tegn, ud til kanten.
+ */
+export const hiddenMarkAtoms = [
+  EditorView.atomicRanges.of(hiddenAtoms),
+  Prec.high(keymap.of([
+    { key: "Backspace", run: deleteVisible(false) },
+    { key: "Delete", run: deleteVisible(true) },
+  ])),
+];
 
 export const livePreviewTheme = EditorView.theme({
   // `# ` hænger i margenen som i iA. Tegnene skal arve linjens højde: med line-height 0 stod de en

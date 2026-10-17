@@ -8,7 +8,7 @@ import type { EditorView } from "@codemirror/view";
 
 import { dimmedInBody, parkDimmedChanges } from "../editor/dimming.ts";
 import { findParked, parkChanges, parkedBlock, splitClippings, type Parked } from "../editor/parked.ts";
-import { footnoteDefinition, footnoteNumbers, footnoteRef } from "../editor/inline.ts";
+import { footnoteDefinition, footnoteEdit, footnoteNumbers, footnoteRef } from "../editor/inline.ts";
 import { cmd } from "../editor/shortcuts.ts";
 import { findNotes } from "../editor/critic.ts";
 import { visibleText } from "../editor/hidden.ts";
@@ -469,16 +469,8 @@ export class RightPanel {
 
   private setNote(label: string, text: string): void {
     const doc = this.view.state.doc.toString();
-    const clean = text.replace(/\n+/g, " ").trim();
-    const def = footnoteDefinition(doc, label);
-    if (def) {
-      this.view.dispatch({ changes: { from: def.from, to: def.to, insert: `[^${label}]: ${clean}` }, userEvent: "input.note" });
-    } else {
-      const parked = findParked(doc)[0];
-      const at = parked ? parked.from : doc.length;
-      const lead = doc.slice(0, at).endsWith("\n\n") ? "" : "\n\n";
-      this.view.dispatch({ changes: { from: at, insert: `${lead}[^${label}]: ${clean}\n` }, userEvent: "input.note" });
-    }
+    const end = findParked(doc)[0]?.from ?? doc.length;
+    this.view.dispatch({ changes: footnoteEdit(doc, label, text, end), userEvent: "input.note" });
   }
 
   private jumpToRef(label: string): void {

@@ -22,6 +22,8 @@ import { followTheme } from "./ui/theme.ts";
 import { fontStack } from "./ui/settingspanel.ts";
 import { errorText, showBanner } from "./ui/banner.ts";
 import { hasDefaultName, titleFromText } from "./ui/autoName.ts";
+import { footnoteDefinition, footnoteEdit } from "./editor/inline.ts";
+import { findParked } from "./editor/parked.ts";
 import { SynkPanel, installSynkNotices, type SynkStatus } from "./ui/synkPanel.ts";
 
 type IndexEntry = { name: string; path: string; folder: string; modifiedMs: number; dimmed: boolean; preview: string };
@@ -45,11 +47,15 @@ $("m-op").setAttribute("aria-label", tr("Tilbage", "Back"));
 
 const s = settings();
 followTheme(s.theme ?? (s.dark ? "moerk" : "lys"));
-document.documentElement.style.setProperty("--skrift", fontStack(s.font));
+// Telefonen har ingen skriftindstilling og fik pc'ens standard, halvmono. På en smal skærm med
+// stor tekst gav mono lange, luftige linjer. Sans følger med programmet (OFL), 17/10.
+document.documentElement.style.setProperty("--skrift", fontStack("Schibsted Grotesk"));
 
 useTouchSurface();
 const view = new EditorView({ parent: $("editor") });
 let session: DocumentSession | null = null;
+/** Teksten, der blev lavet med +. Er den stadig tom ved Tilbage, kommer den ikke til at ligge i listen. */
+let fresh: DocumentSession | null = null;
 
 /** Telefonens visning: aldrig markdown-tegn, ingen farver for forfatterskab eller stiltjek. */
 function mobileLook(): void {
@@ -69,8 +75,11 @@ function showScreen(name: Screen): void {
 /** Tilbage: skrivefladen gemmes og lukkes. Kaldes af systemets tilbage og af pilen i toppen. */
 async function backToList(): Promise<void> {
   if (session) {
+    const empty = session === fresh && !view.state.doc.toString().trim();
     await session.flush().catch((e: unknown) => showBanner(errorText(e)));
+    if (empty) await invoke("delete_entry", { path: session.path }).catch((e: unknown) => showBanner(errorText(e)));
     session = null;
+    fresh = null;
   }
   view.contentDOM.blur();
   showScreen("liste");
@@ -547,6 +556,7 @@ $("m-ny").addEventListener("click", async () => {
     const dir = cwd ? `${root}/${cwd}` : root;
     const path = await invoke<string>("create_file", { dir });
     await openText(path, true);
+    fresh = session;
   } catch (e) {
     showBanner(errorText(e));
   }
@@ -579,12 +589,35 @@ function styleSheet(): void {
   ]);
 }
 
-type Tool = { label: string; text: string; run: () => void; cls?: string; keepKeyboard?: boolean };
+type Tool = { label: string; text: string; run: () => void; cls?: string; keepKeyboard?: boolean; icon?: SVGSVGElement };
+
+/** Punktlisten som tegning: tre prikker med hver sin linje. Tegnet • alene var for lille. */
+function listIcon(): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "24");
+  svg.setAttribute("height", "24");
+  svg.setAttribute("aria-hidden", "true");
+  for (const y of [6, 12, 18]) {
+    const dot = document.createElementNS(ns, "circle");
+    dot.setAttribute("cx", "5");
+    dot.setAttribute("cy", String(y));
+    dot.setAttribute("r", "1.6");
+    const bar = document.createElementNS(ns, "line");
+    bar.setAttribute("x1", "10");
+    bar.setAttribute("x2", "20");
+    bar.setAttribute("y1", String(y));
+    bar.setAttribute("y2", String(y));
+    svg.append(dot, bar);
+  }
+  return svg;
+}
 const toolList: Tool[] = [
   { label: tr("Tekstens slags", "Text style"), text: "Aa", run: styleSheet, keepKeyboard: false },
   { label: tr("Fed", "Bold"), text: "F", run: () => cmd.bold(view), cls: "m-bold" },
   { label: tr("Kursiv", "Italic"), text: "K", run: () => cmd.italic(view), cls: "m-italic" },
-  { label: tr("Punktliste", "Bullet list"), text: "•", run: () => cmd.bullets(view) },
+  { label: tr("Punktliste", "Bullet list"), text: "", icon: listIcon(), run: () => cmd.bullets(view) },
   { label: tr("Fortryd", "Undo"), text: "↶", run: () => undo(view) },
   { label: tr("Gentag", "Redo"), text: "↷", run: () => redo(view) },
   { label: tr("Luk tastaturet", "Hide keyboard"), text: "⌄", run: () => view.contentDOM.blur(), keepKeyboard: false },
@@ -592,7 +625,8 @@ const toolList: Tool[] = [
 for (const t of toolList) {
   const b = document.createElement("button");
   b.type = "button";
-  b.textContent = t.text;
+  if (t.icon) b.append(t.icon);
+  else b.textContent = t.text;
   b.className = t.cls ?? "";
   b.setAttribute("aria-label", t.label);
   // Markeringen og tastaturet bliver, når knappen trykkes.
@@ -603,6 +637,45 @@ for (const t of toolList) {
   });
   tools.append(b);
 }
+// --- fodnoter -----------------------------------------------------------------------------------
+
+/** Tryk på fodnotens tal: noten i et ark, hvor den kan rettes. Pc'en har den i højre spalte. */
+view.contentDOM.addEventListener("click", (e) => {
+  const ref = (e.target as HTMLElement).closest<HTMLElement>(".gt-fnref");
+  if (!ref) return;
+  const at = view.posAtDOM(ref);
+  const label = /^\[\^([^\]\s]+)\]/.exec(view.state.sliceDoc(at, at + 200))?.[1];
+  if (!label) return;
+  e.preventDefault();
+  noteSheet(label, ref.textContent ?? "");
+});
+
+function noteSheet(label: string, number: string): void {
+  const box = document.createElement("form");
+  box.className = "m-sheet-box m-rename m-note";
+  const heading = Object.assign(document.createElement("p"), { className: "m-sheet-heading", textContent: tr(`Fodnote ${number}`, `Footnote ${number}`) });
+  const input = Object.assign(document.createElement("textarea"), {
+    value: footnoteDefinition(view.state.doc.toString(), label)?.text ?? "",
+    rows: 4,
+    placeholder: tr("Skriv noten her", "Write the note here"),
+  });
+  input.setAttribute("aria-label", tr("Fodnotens tekst", "Footnote text"));
+  const ok = Object.assign(document.createElement("button"), { type: "submit", textContent: tr("Gem", "Save") });
+  const cancel = Object.assign(document.createElement("button"), { type: "button", textContent: tr("Annullér", "Cancel") });
+  cancel.addEventListener("click", closeSheet);
+  box.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const doc = view.state.doc.toString();
+    const end = findParked(doc)[0]?.from ?? doc.length;
+    view.dispatch({ changes: footnoteEdit(doc, label, input.value, end), userEvent: "input.note" });
+    closeSheet();
+  });
+  box.append(heading, input, ok, cancel);
+  sheet.replaceChildren(box);
+  sheet.hidden = false;
+  input.focus();
+}
+
 view.contentDOM.addEventListener("focus", () => (tools.hidden = false));
 view.contentDOM.addEventListener("blur", () => (tools.hidden = true));
 
