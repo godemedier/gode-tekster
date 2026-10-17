@@ -18,3 +18,22 @@ id = "RUSTSEC-2024-0370"
 ignoreUntil = 2027-04-01
 reason = "proc-macro-error er uvedligeholdt (Linux/GTK-makroer, via Tauri). Ikke i Windows-bygget."
 
+
+# zbus' D-Bus-kasser (17/10-2026): »unmaintained«, ikke huller. Koden er flyttet ind i zbus 6.
+# zbus kommer kun med på Linux via tauri-plugin-opener og -single-instance. Efterprøvet med
+# `cargo tree -i zvariant --target x86_64-pc-windows-msvc` og `--target aarch64-linux-android`
+# → "nothing to print".
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+ignoreUntil = 2027-04-01
+reason = "zvariant er uvedligeholdt, flyttet ind i zbus 6 (D-Bus, kun Linux via Tauri). Ikke i Windows- eller Android-bygget."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+ignoreUntil = 2027-04-01
+reason = "zbus_names er uvedligeholdt, flyttet ind i zbus 6 (D-Bus, kun Linux via Tauri). Ikke i Windows- eller Android-bygget."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+ignoreUntil = 2027-04-01
+reason = "zvariant_derive er uvedligeholdt, flyttet ind i zbus 6 (D-Bus, kun Linux via Tauri). Ikke i Windows- eller Android-bygget."
