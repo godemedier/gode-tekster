@@ -8,6 +8,9 @@ test("kun programmets egne navne omdøbes", () => {
   assert.ok(hasDefaultName("C:\\T\\Untitled 2.md"));
   assert.ok(!hasDefaultName("C:\\T\\ARTIKEL.md"));
   assert.ok(!hasDefaultName("C:\\T\\Uden titel om noget.md"));
+  // Telefonens stier har skråstreg (17/10: nye tekster dér fik aldrig navn efter første linje).
+  assert.ok(hasDefaultName("/storage/emulated/0/Documents/Uden titel 2.md"));
+  assert.ok(!hasDefaultName("/storage/emulated/0/Documents/Noter.md"));
 });
 
 test("navnet kommer fra første færdige linje, uden markdown (5/10)", () => {

@@ -8,7 +8,7 @@ const MAX = 60;
 
 /** Har filen stadig det navn, programmet gav den? */
 export function hasDefaultName(path: string): boolean {
-  return DEFAULT.test(path.slice(path.lastIndexOf("\\") + 1));
+  return DEFAULT.test(path.slice(Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/")) + 1));
 }
 
 /** Filnavnet (uden .md) ud fra første færdige linje, eller null, hvis der ikke er en endnu. */
