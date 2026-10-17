@@ -639,7 +639,9 @@ export const tableTheme = [
   EditorView.theme({
     // Bredere end spalten, når der er plads (9/10, --udfald i setup.ts): kolonnerne får luft, og ord
     // brydes aldrig midt over (før: »Sandsy/nlighe/d«). Er tabellen stadig for bred, ruller den.
-    ".gt-tablebox": { position: "relative", padding: "0.5em 0 1.2em", marginInline: "calc(-1 * var(--udfald, 0px))", overflowX: "auto", cursor: "text" },
+    // contain: kun tabellen ruller. Uden det trak dens bredde .cm-content med ud på telefonen, hvor
+    // spalten ikke har max-width, og hele teksten rullede vandret (17/10).
+    ".gt-tablebox": { position: "relative", padding: "0.5em 0 1.2em", marginInline: "calc(-1 * var(--udfald, 0px))", overflowX: "auto", contain: "inline-size", cursor: "text" },
     ".gt-tablebox table": { borderCollapse: "collapse", width: "auto", minWidth: "calc(100% - 2 * var(--udfald, 0px))", margin: "0 auto", fontSize: "0.9em", lineHeight: "1.5" },
     ".gt-tablebox th": { fontWeight: "600", borderBottom: "1px solid var(--svag)", padding: "0.3em 1em 0.4em 0.3em", verticalAlign: "bottom" },
     ".gt-tablebox td": { borderBottom: "1px solid var(--streg)", padding: "0.5em 1em 0.5em 0.3em", verticalAlign: "top" },
