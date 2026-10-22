@@ -1,0 +1,33 @@
+# .gitattributes
+
+# --- Sikkerhed, ikke kosmetik (4/9-2026) ------------------------------------------
+# Git for Windows kobler *.doc/*.docx/*.pdf/*.rtf til diff-driveren `astextplain`. På en fil,
+# den ikke genkender, svarer git `unsupported filetype` og opgiver HELE diff'en. Så scanner
+# gitleaks nul bytes og melder grønt (målt 24/8: et token alene blev stoppet, et token plus én
+# .docx slap igennem). `binary` (= -diff -merge -text) får git til at lade være med at
+# konvertere, og resten af diff'en overlever.
+*.doc   binary
+*.docx  binary
+*.pdf   binary
+*.rtf   binary
+*.xls   binary
+*.xlsx  binary
+*.ppt   binary
+*.pptx  binary
+*.odt   binary
+*.jpg   binary
+*.jpeg  binary
+*.png   binary
+*.webp  binary
+*.gif   binary
+
+# Tauri-ikoner
+*.ico   binary
+*.icns  binary
+*.woff2 binary
+*.woff  binary
+
+# Hunspell og ordbogen ligger byte for byte som hos kilden (ADR-0063), så sha256 i
+# vendor/hunspell/LICENSE og resources/ordbog/KILDE.txt passer efter checkout.
+src-tauri/vendor/hunspell/** -text
+src-tauri/resources/ordbog/** -text

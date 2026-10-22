@@ -1,0 +1,11 @@
+# Undtagelser for osv-scanner på package-lock.json (læses fra lockfilens mappe). Cargo.lock har
+# sine egne i src-tauri/osv-scanner.toml.
+
+# npm (6/10-2026). sprintf-js kommer med mammoth (Word-import) gennem argparse, som mammoth kun
+# bruger i sit kommandolinjeværktøj (node_modules/mammoth/bin/mammoth). Det kommer ikke med i
+# bygget: `grep -l "argparse\|sprintf" dist/assets/*.js` finder intet. Fundet kræver desuden, at en
+# angriber styrer formatstrengen. Ingen rettet version findes. Tag op igen ved udløb.
+[[IgnoredVulns]]
+id = "GHSA-hp3w-g68c-fv3c"
+ignoreUntil = 2027-01-06
+reason = "sprintf-js via mammoth/argparse, kun i mammoths CLI. Ikke i bygget."

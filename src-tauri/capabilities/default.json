@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Fladen må kun det, kernen tilbyder. Links åbnes fra Rust (open_url), så fladen har ingen opener-rettigheder. Gælder hovedvinduet og de ekstra tekstvinduer (tekst-1, tekst-2 …). Vinduet tegner selv sin titellinje (ADR-0065), så fladen må trække, minimere, maksimere og lukke det.",
+  "windows": [
+    "main",
+    "tekst-*"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close"
+  ]
+}

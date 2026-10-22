@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <title>Gode Tekster</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/mobile.css" />
+    <script type="module" src="/src/mobile.ts"></script>
+  </head>
+  <body class="mobil">
+    <div id="banner" role="status" aria-live="polite" hidden></div>
+
+    <section id="m-liste" class="m-screen">
+      <header class="m-bar">
+        <button type="button" id="m-op" class="m-icon" aria-label="Tilbage" hidden>‹</button>
+        <h1 class="m-title">Tekster</h1>
+        <button type="button" id="m-liste-mere" class="m-icon" aria-label="Mere">⋮</button>
+      </header>
+      <div class="m-search"><input id="m-soeg" type="search" autocomplete="off" spellcheck="false" /></div>
+      <ul id="m-tekster" class="m-list"></ul>
+      <button type="button" id="m-ny" class="m-fab" aria-label="Ny tekst">+</button>
+    </section>
+
+    <section id="m-skriv" class="m-screen" hidden>
+      <header class="m-bar">
+        <button type="button" id="m-tilbage" class="m-icon" aria-label="Tilbage">‹</button>
+        <span id="m-titel" class="m-title m-title-small"></span>
+        <span id="m-gemt" class="m-saved" aria-live="polite"></span>
+        <button type="button" id="m-skriv-mere" class="m-icon" aria-label="Mere">⋮</button>
+      </header>
+      <div id="editor"></div>
+      <nav id="m-vaerktoej" class="m-tools" hidden></nav>
+    </section>
+
+    <section id="m-synk" class="m-screen" hidden>
+      <header class="m-bar">
+        <button type="button" id="m-synk-tilbage" class="m-icon" aria-label="Tilbage">‹</button>
+        <span class="m-title m-title-small">Synkronisering</span>
+      </header>
+      <div id="m-synk-indhold" class="m-page"></div>
+    </section>
+
+    <div id="m-fortryd" class="m-snack" role="status" aria-live="polite" hidden></div>
+    <div id="m-ark" class="m-sheet" hidden></div>
+  </body>
+</html>

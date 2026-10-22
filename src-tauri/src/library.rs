@@ -1,0 +1,1490 @@
+//! Biblioteket i venstre panel (ADR-0007): mapper og filer som i iA Writer.
+//!
+//! Reglerne for, hvad der skjules og dæmpes, er afprøvet 2/10-2026 mod et bibliotek med godt
+//! tusind .md-filer. De lå først i `src/lib/library.ts`, men bor nu her, så skjulte mapper som
+//! `node_modules` aldrig læses fra disken. Alle filoperationer kræver, at stien ligger inde i et
+//! af brugerens biblioteker.
+
+use std::collections::HashMap;
+use std::fs;
+use std::io::{Read, Seek, SeekFrom};
+use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::UNIX_EPOCH;
+
+use serde::Serialize;
+use tauri::AppHandle;
+
+use crate::paths::canonical;
+use crate::settings;
+use crate::textmeta;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Visibility {
+    Normal,
+    Dimmed,
+    Hidden,
+}
+
+/// Mapper uden tekster: afhængigheder og byggeoutput. Mapper med punktum skjules altid.
+const HIDDEN_DIRS: &[&str] = &[
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    "out",
+    "__pycache__",
+    "vendor",
+    "spejl",
+];
+
+/// Husets kontraktfiler, som Claude skriver. En fast liste med præcis husets stavemåde, aldrig
+/// »store bogstaver«: skribenter kalder selv deres tekster ARTIKEL, FRAKLIP, RÅNOTER, VINKEL.
+const CONTRACT_NAMES: &[&str] = &[
+    "AGENTS",
+    "CLAUDE",
+    "README",
+    "STRATEGI",
+    "ARKITEKTUR",
+    "TODO",
+    "todo",
+    "TODO-teknisk",
+    "IDEER",
+    "HANDOFF",
+    "HANDOFF-ARKIV",
+    "ARKIV",
+    "CONTEXT",
+    "SKILL",
+    "KUNDE",
+    "LÆSMIG",
+    "LAESMIG",
+    "METODE",
+    "SOA",
+    "POLITIK",
+    "HAENDELSESLOG",
+    "HAENDELSER",
+    "FORTEGNELSE",
+    "DRIFT",
+    "DATAKLASSER",
+    "DATAFLOW",
+    "STANDARD",
+    "LESSONS",
+    "REGISTRY",
+    "SKRIVESTIL",
+    "KALENDER",
+    "BACKUP",
+    "DEPLOY",
+    "MEMORY",
+    "LICENSE",
+    "CHANGELOG",
+    "CONTRIBUTING",
+    "SECURITY",
+    "TOOL-VERSIONS",
+    "VENDOR",
+];
+
+/// Mapper med husets egen dokumentation.
+const CONTRACT_DIRS: &[&str] = &["docs", "audit", "lektioner"];
+
+/// Filtyper, biblioteket viser. `.docx` importeres (del G).
+const TEXT_EXT: &[&str] = &["md", "markdown", "txt", "docx"];
+
+fn is_hidden_dir(name: &str) -> bool {
+    name.starts_with('.') || HIDDEN_DIRS.contains(&name.to_lowercase().as_str())
+}
+
+fn is_contract_file(name: &str) -> bool {
+    let Some(stem) = name.strip_suffix(".md") else {
+        return false;
+    };
+    CONTRACT_NAMES.contains(&stem) || stem.starts_with("HANDOFF-")
+}
+
+/// Synlighed for en sti relativt til biblioteket (`/` eller `\`).
+pub fn visibility_of(rel: &str) -> Visibility {
+    let parts: Vec<&str> = rel.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
+    let Some((name, dirs)) = parts.split_last() else {
+        return Visibility::Normal;
+    };
+    if dirs.iter().any(|d| is_hidden_dir(d)) {
+        return Visibility::Hidden;
+    }
+    if dirs
+        .iter()
+        .any(|d| CONTRACT_DIRS.contains(&d.to_lowercase().as_str()))
+    {
+        return Visibility::Dimmed;
+    }
+    if is_contract_file(name) {
+        Visibility::Dimmed
+    } else {
+        Visibility::Normal
+    }
+}
+
+/// Husets regler (dæmpede kontraktfiler, skjult byggeoutput) gælder kun i en kodemappe: der er en
+/// `.git` eller en `AGENTS.md` i biblioteket eller over det. En journalists Dokumenter-mappe med
+/// »docs« eller »out« skal se ud, som den er (fremmed-gennemgangen før deling 3/10).
+pub fn house_rules(root: &Path) -> bool {
+    root.ancestors()
+        .any(|d| d.join(".git").exists() || d.join("AGENTS.md").is_file())
+}
+
+/// Mapper, der altid skjules: punktum-mapper og afhængigheder. Resten af HIDDEN_DIRS kun i en kodemappe.
+fn always_hidden(name: &str) -> bool {
+    name.starts_with('.') || name.eq_ignore_ascii_case("node_modules")
+}
+
+/// Synlighed efter husets regler, eller kun de altid skjulte mapper uden for en kodemappe.
+fn visibility(rel: &str, house: bool) -> Visibility {
+    if house {
+        return visibility_of(rel);
+    }
+    let parts: Vec<&str> = rel.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
+    match parts.split_last() {
+        Some((_, dirs)) if dirs.iter().any(|d| always_hidden(d)) => Visibility::Hidden,
+        _ => Visibility::Normal,
+    }
+}
+
+/// En git-worktree har en `.git`-FIL (ikke mappe) og viser de samme filer som originalen.
+fn is_worktree(dir: &Path) -> bool {
+    dir.join(".git").is_file()
+}
+
+/// OneDrive-pladsholder: at læse den henter filen fra skyen. Uddraget springes over.
+#[cfg(windows)]
+pub(crate) fn is_cloud_placeholder(meta: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const RECALL_ON_DATA_ACCESS: u32 = 0x0040_0000;
+    const OFFLINE: u32 = 0x0000_1000;
+    meta.file_attributes() & (RECALL_ON_DATA_ACCESS | OFFLINE) != 0
+}
+
+#[cfg(not(windows))]
+pub(crate) fn is_cloud_placeholder(_meta: &fs::Metadata) -> bool {
+    false
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Entry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub modified_ms: u64,
+    pub visibility: Visibility,
+    /// To linjers uddrag af teksten (kun filer).
+    pub preview: String,
+    /// Status-id fra den skjulte linje øverst (ADR-0038). Kun filer.
+    pub status: Option<String>,
+    /// #tags fra tekstens sidste linje.
+    pub tags: Vec<String>,
+    /// Længdemålets frist (ÅÅÅÅ-MM-DD).
+    pub deadline: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Folder {
+    pub path: String,
+    pub name: String,
+    /// Mappen over, hvis den stadig er inde i biblioteket.
+    pub parent: Option<String>,
+    pub entries: Vec<Entry>,
+}
+
+pub(crate) fn modified_ms(meta: &fs::Metadata) -> u64 {
+    meta.modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+        .unwrap_or(0)
+}
+
+/// Uddrag som i iA: teksten uden markdown-tegn og uden forfatterblok, cirka to linjer.
+pub fn preview_of(text: &str) -> String {
+    // Forfatterblokken (ADR-0009) og alt efter den hører ikke til uddraget.
+    let text = text.split("\n---\nAnnotations:").next().unwrap_or(text);
+    let mut out = String::new();
+    // Skjulte blokke (fraklip, gemt research og faktatjek) kan fylde mange linjer. Hele blokken
+    // springes over, ikke kun første linje (7/10: JSON fra et faktatjek stod i uddraget).
+    for line in textmeta::lines_outside_comments(text) {
+        let t = line.trim();
+        if t.is_empty() || t == "---" || t.starts_with("Annotations:") {
+            continue;
+        }
+        // #tags er etiketter, ikke tekst (ADR-0038). De står under uddraget for sig.
+        if textmeta::tag_line(t).is_some() {
+            continue;
+        }
+        let t = t.trim_start_matches(['#', '>', '-', '*', '+', ' ']);
+        let cleaned: String = t
+            .chars()
+            .filter(|c| !matches!(c, '*' | '_' | '`' | '~'))
+            .collect();
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(cleaned.trim());
+        if out.chars().count() > 160 {
+            break;
+        }
+    }
+    out.chars().take(160).collect()
+}
+
+/// Det, biblioteket viser om en tekst: uddraget og status fra de første 4 KB, tags og frist fra
+/// halen. En OneDrive-pladsholder eller en Word-fil læses ikke.
+#[derive(Debug, Clone, Default, Serialize, serde::Deserialize)]
+struct Meta {
+    preview: String,
+    status: Option<String>,
+    tags: Vec<String>,
+    deadline: Option<String>,
+}
+
+const HEAD: usize = 4096;
+/// Halen læses i 8 KB. Står der kun forfatterblok i dem (lange tekster med meget forfatterskab), læses
+/// 64 KB. Målt 8/10: 8.400 filer på 150 MB tog for lang tid med 32 KB pr. fil.
+const TAIL: u64 = 8 * 1024;
+const TAIL_LONG: u64 = 64 * 1024;
+
+fn read_meta(path: &Path, meta: &fs::Metadata) -> Meta {
+    if is_cloud_placeholder(meta) || path.extension().is_some_and(|e| e == "docx") {
+        return Meta::default();
+    }
+    let Ok(mut f) = fs::File::open(path) else {
+        return Meta::default();
+    };
+    let mut buf = vec![0u8; HEAD];
+    let n = f.read(&mut buf).unwrap_or(0);
+    buf.truncate(n);
+    let head = String::from_utf8_lossy(&buf).into_owned();
+    let len = meta.len();
+    let mut read_tail = |size: u64| {
+        let mut rest = Vec::new();
+        let _ = f
+            .seek(SeekFrom::Start(len.saturating_sub(size)))
+            .and_then(|_| f.read_to_end(&mut rest));
+        // Et snit midt i et UTF-8-tegn giver et erstatningstegn i starten. Det rører kun første linje.
+        String::from_utf8_lossy(&rest).into_owned()
+    };
+    let tail = if len <= HEAD as u64 {
+        head.clone()
+    } else {
+        let short = read_tail(TAIL);
+        if len > TAIL && textmeta::only_hidden(&short) {
+            read_tail(TAIL_LONG)
+        } else {
+            short
+        }
+    };
+    Meta {
+        preview: preview_of(&head),
+        status: textmeta::status_of(&head),
+        tags: textmeta::tags_of(&tail),
+        deadline: textmeta::deadline_of(&tail),
+    }
+}
+
+/// Den mappe i bibliotekerne, stien ligger i. `None` = uden for alle biblioteker.
+fn library_root_of(libraries: &[PathBuf], path: &Path) -> Option<PathBuf> {
+    let canon = canonical(path)?;
+    libraries
+        .iter()
+        .filter_map(|l| canonical(l))
+        .find(|root| canon.starts_with(root))
+}
+
+/// Billeder vises gennem Tauris asset-protokol (del A, billeder). Scope er tomt fra start og
+/// åbnes kun for bibliotekerne og mappen med den åbne fil, så fladen ikke kan læse andet.
+pub fn allow_images(app: &AppHandle, dir: &Path) {
+    use tauri::Manager;
+    // Aldrig et helt drev eller hele brugermappen: en fremmed tekst i roden ville ellers kunne
+    // vise (og lægge i en PDF) ethvert billede på pc'en.
+    let profile = std::env::var_os("USERPROFILE").map(PathBuf::from);
+    if dir.parent().is_none() || profile.as_deref() == Some(dir) {
+        return;
+    }
+    if let Err(e) = app.asset_protocol_scope().allow_directory(dir, true) {
+        crate::applog::write(app, &format!("billedmappe kunne ikke åbnes: {e}"));
+    }
+}
+
+pub fn allow_library_images(app: &AppHandle) {
+    for lib in settings::load(app).libraries {
+        if lib.is_dir() {
+            allow_images(app, &lib);
+        }
+    }
+}
+
+pub fn in_library(app: &AppHandle, path: &Path) -> bool {
+    guard(app, path).is_ok()
+}
+
+/// Til andre moduler: stien skal ligge i et af brugerens biblioteker.
+pub(crate) fn guard_path(app: &AppHandle, path: &Path) -> Result<PathBuf, String> {
+    guard(app, path)
+}
+
+fn guard(app: &AppHandle, path: &Path) -> Result<PathBuf, String> {
+    let libs = settings::load(app).libraries;
+    library_root_of(&libs, path).ok_or_else(|| {
+        t!(
+            "Stien ligger uden for dine biblioteker.",
+            "The path is outside your libraries."
+        )
+        .to_owned()
+    })
+}
+
+/// Et nyt navn må ikke indeholde stier eller tegn, Windows forbyder.
+fn valid_name(name: &str) -> Result<&str, String> {
+    let n = name.trim();
+    let bad = n.is_empty()
+        || n == "."
+        || n == ".."
+        || n.chars()
+            .any(|c| matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+        || Path::new(n).components().count() != 1
+        || !matches!(Path::new(n).components().next(), Some(Component::Normal(_)));
+    if bad {
+        Err(t!(
+            "Navnet må ikke indeholde / \\ : * ? \" < > |",
+            "The name cannot contain / \\ : * ? \" < > |"
+        )
+        .to_owned())
+    } else {
+        Ok(n)
+    }
+}
+
+fn list(path: &Path, root: &Path) -> Result<Folder, String> {
+    let mut entries = Vec::new();
+    let mut pending = Vec::new();
+    let house = house_rules(root);
+    let rd = fs::read_dir(path).map_err(|e| {
+        t!(
+            format!("Mappen kunne ikke læses: {e}"),
+            format!("The folder could not be read: {e}")
+        )
+    })?;
+    for item in rd.filter_map(|e| e.ok()) {
+        let p = item.path();
+        let name = item.file_name().to_string_lossy().into_owned();
+        let Ok(meta) = item.metadata() else { continue };
+        let rel = p
+            .strip_prefix(root)
+            .unwrap_or(&p)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if meta.is_dir() {
+            if (if house {
+                is_hidden_dir(&name)
+            } else {
+                always_hidden(&name)
+            }) || is_worktree(&p)
+            {
+                continue;
+            }
+            let vis = visibility(&format!("{rel}/x.md"), house);
+            if vis == Visibility::Hidden {
+                continue;
+            }
+            entries.push(Entry {
+                name,
+                path: p.to_string_lossy().into_owned(),
+                is_dir: true,
+                modified_ms: modified_ms(&meta),
+                visibility: if house
+                    && CONTRACT_DIRS
+                        .contains(&item.file_name().to_string_lossy().to_lowercase().as_str())
+                {
+                    Visibility::Dimmed
+                } else {
+                    vis
+                },
+                preview: String::new(),
+                status: None,
+                tags: Vec::new(),
+                deadline: None,
+            });
+        } else {
+            let ext = p
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase())
+                .unwrap_or_default();
+            if !TEXT_EXT.contains(&ext.as_str()) || name.starts_with('~') || name.starts_with('.') {
+                continue;
+            }
+            let vis = visibility(&rel, house);
+            if vis == Visibility::Hidden {
+                continue;
+            }
+            pending.push((entries.len(), p.clone(), meta.clone()));
+            let m = Meta::default();
+            entries.push(Entry {
+                preview: m.preview,
+                status: m.status,
+                tags: m.tags,
+                deadline: m.deadline,
+                name,
+                path: p.to_string_lossy().into_owned(),
+                is_dir: false,
+                modified_ms: modified_ms(&meta),
+                visibility: vis,
+            });
+        }
+    }
+    let details = std::thread::scope(|scope| {
+        let workers: Vec<_> = pending
+            .chunks(pending.len().div_ceil(8).max(1))
+            .map(|chunk| {
+                scope.spawn(move || {
+                    chunk
+                        .iter()
+                        .map(|(i, p, m)| (*i, cached_meta(p, m)))
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .flat_map(|w| w.join().unwrap_or_default())
+            .collect::<Vec<_>>()
+    });
+    for (i, m) in details {
+        entries[i].preview = m.preview;
+        entries[i].status = m.status;
+        entries[i].tags = m.tags;
+        entries[i].deadline = m.deadline;
+    }
+    let parent = path
+        .parent()
+        .filter(|pp| pp.starts_with(root) && *pp != path)
+        .map(|pp| pp.to_string_lossy().into_owned());
+    Ok(Folder {
+        name: path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        path: path.to_string_lossy().into_owned(),
+        parent,
+        entries,
+    })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Library {
+    pub path: String,
+    pub name: String,
+    pub exists: bool,
+}
+
+#[tauri::command]
+pub fn list_libraries(app: AppHandle) -> Vec<Library> {
+    settings::load(&app)
+        .libraries
+        .into_iter()
+        .map(|p| Library {
+            name: p
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| p.to_string_lossy().into_owned()),
+            exists: p.is_dir(),
+            path: p.to_string_lossy().into_owned(),
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn list_folder(app: AppHandle, path: String) -> Result<Folder, String> {
+    let p = PathBuf::from(&path);
+    let root = guard(&app, &p)?;
+    let canon = canonical(&p).ok_or(t!("Mappen findes ikke.", "The folder does not exist."))?;
+    let file = index_file(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        load_index(file.as_deref());
+        let folder = list(&canon, &root);
+        save_index(file.as_deref());
+        folder
+    })
+    .await
+    .map_err(|_| t!("Mappen kunne ikke læses.", "The folder could not be read.").to_owned())?
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileHit {
+    pub name: String,
+    pub path: String,
+    /// Mappen relativt til biblioteket, til visning i hurtigåbningen.
+    pub folder: String,
+    pub modified_ms: u64,
+    pub dimmed: bool,
+    /// Bytes. Sammen med `modified_ms` afgør det, om indekset skal læse filen igen.
+    #[serde(skip)]
+    pub size: u64,
+}
+
+/// Alle tekstfiler i bibliotekerne til hurtigåbningen (Ctrl+O). Skjulte mapper og worktrees
+/// springes over, så `node_modules` aldrig læses. Højst 20.000 filer.
+#[tauri::command]
+pub async fn list_all_files(app: AppHandle) -> Vec<FileHit> {
+    let libraries = settings::load(&app).libraries;
+    tauri::async_runtime::spawn_blocking(move || files_in(libraries))
+        .await
+        .unwrap_or_default()
+}
+
+/// Tekstfilerne i bibliotekerne. Et bibliotek inde i et andet (`Dokumenter\Gode Tekster` i
+/// `Dokumenter`) giver ikke filerne to gange (6/10: søgningen læste hundredvis af filer
+/// dobbelt). Det første bibliotek, der har filen, bestemmer mappen, der vises.
+pub fn files_in(libraries: Vec<PathBuf>) -> Vec<FileHit> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for root in libraries.into_iter().filter_map(|l| canonical(&l)) {
+        let house = house_rules(&root);
+        let mut stack = vec![root.clone()];
+        while let Some(dir) = stack.pop() {
+            let Ok(rd) = fs::read_dir(&dir) else { continue };
+            for item in rd.filter_map(|e| e.ok()) {
+                let p = item.path();
+                let name = item.file_name().to_string_lossy().into_owned();
+                let Ok(ft) = item.file_type() else { continue };
+                if ft.is_dir() {
+                    let hidden = if house {
+                        is_hidden_dir(&name)
+                    } else {
+                        always_hidden(&name)
+                    };
+                    if !hidden && !is_worktree(&p) {
+                        stack.push(p);
+                    }
+                    continue;
+                }
+                let ext = p
+                    .extension()
+                    .map(|e| e.to_string_lossy().to_lowercase())
+                    .unwrap_or_default();
+                if !TEXT_EXT.contains(&ext.as_str()) || name.starts_with('~') {
+                    continue;
+                }
+                let rel = p
+                    .strip_prefix(&root)
+                    .unwrap_or(&p)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                let vis = visibility(&rel, house);
+                if vis == Visibility::Hidden {
+                    continue;
+                }
+                let folder = rel
+                    .rsplit_once('/')
+                    .map(|(f, _)| f.to_owned())
+                    .unwrap_or_default();
+                if !seen.insert(p.clone()) {
+                    continue;
+                }
+                let meta = item.metadata().ok();
+                out.push(FileHit {
+                    modified_ms: meta.as_ref().map(modified_ms).unwrap_or(0),
+                    size: meta.as_ref().map(fs::Metadata::len).unwrap_or(0),
+                    dimmed: vis == Visibility::Dimmed,
+                    name,
+                    path: p.to_string_lossy().into_owned(),
+                    folder,
+                });
+                if out.len() >= 20_000 {
+                    return out;
+                }
+            }
+        }
+    }
+    out
+}
+
+/// En tekst i oversigten over alle biblioteker (søgning, filtre og »I gang«, ADR-0038).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexEntry {
+    pub name: String,
+    pub path: String,
+    pub folder: String,
+    pub modified_ms: u64,
+    pub dimmed: bool,
+    pub preview: String,
+    pub status: Option<String>,
+    pub tags: Vec<String>,
+    pub deadline: Option<String>,
+}
+
+/// Læste tekster efter sti, med (størrelse, ændret) fra sidst. Kun ændrede filer læses igen.
+type Cache = HashMap<PathBuf, (u64, u64, Meta)>;
+static INDEX: OnceLock<Mutex<Cache>> = OnceLock::new();
+/// Er indekset ændret, siden det sidst blev gemt? Så skrives `bibliotek-indeks.json` kun, når der
+/// er noget nyt (12/10: hver mappevisning gemte og fsync'ede hele indekset).
+static INDEX_DIRTY: AtomicBool = AtomicBool::new(false);
+/// Én skrivning ad gangen, så en ældre udgave af indekset aldrig når disken efter en nyere.
+static INDEX_SAVE: Mutex<()> = Mutex::new(());
+
+pub fn invalidate_meta(path: &Path) {
+    if let Some(cache) = INDEX.get() {
+        if let Ok(mut c) = cache.lock() {
+            if c.remove(path).is_some() {
+                INDEX_DIRTY.store(true, Ordering::Relaxed);
+            }
+        }
+    }
+}
+fn cached_meta(path: &Path, meta: &fs::Metadata) -> Meta {
+    let cache = INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    let stamp = (meta.len(), modified_ms(meta));
+    if let Ok(c) = cache.lock() {
+        if let Some((len, ms, value)) = c.get(path) {
+            if (*len, *ms) == stamp {
+                return value.clone();
+            }
+        }
+    }
+    let value = read_meta(path, meta);
+    if fs::metadata(path).is_ok_and(|m| (m.len(), modified_ms(&m)) == stamp) {
+        if let Ok(mut c) = cache.lock() {
+            c.insert(path.to_path_buf(), (stamp.0, stamp.1, value.clone()));
+            INDEX_DIRTY.store(true, Ordering::Relaxed);
+        }
+    }
+    value
+}
+
+/// Alle tekster i bibliotekerne med status, tags og frist. Første gang læses hver fils hoved og
+/// hale (et par sekunder ved tusinder af filer); derefter kun det, der er ændret.
+#[tauri::command]
+pub async fn library_index(app: AppHandle) -> Vec<IndexEntry> {
+    let libraries = settings::load(&app).libraries;
+    let file = index_file(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        load_index(file.as_deref());
+        let out = index_of(libraries);
+        save_index(file.as_deref());
+        out
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// Indekset gemmes i `<data>\bibliotek-indeks.json`, så en ny start kun læser nye og ændrede filer.
+/// Første gang kan det tage et minut eller to for tusinder af filer på en kold disk (målt 8/10:
+/// 5.900 filer på 105 s), bagefter få sekunder. Det er en cache: mangler eller fejler den, bygges den igen.
+fn index_file(app: &AppHandle) -> Option<PathBuf> {
+    crate::paths::data_dir(app)
+        .ok()
+        .map(|d| d.join("bibliotek-indeks.json"))
+}
+
+fn load_index(file: Option<&Path>) {
+    let cache = INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    let Ok(mut c) = cache.lock() else { return };
+    if !c.is_empty() {
+        return;
+    }
+    let Some(raw) = file.and_then(|f| fs::read(f).ok()) else {
+        return;
+    };
+    if let Ok(saved) = serde_json::from_slice::<Vec<(PathBuf, u64, u64, Meta)>>(&raw) {
+        *c = saved
+            .into_iter()
+            .map(|(p, len, ms, m)| (p, (len, ms, m)))
+            .collect();
+    }
+}
+
+/// Gemmer kun, når indekset er ændret, og skriver filen uden at holde indekset låst.
+fn save_index(file: Option<&Path>) {
+    let (Some(file), Some(cache)) = (file, INDEX.get()) else {
+        return;
+    };
+    let Ok(_saving) = INDEX_SAVE.lock() else {
+        return;
+    };
+    if !INDEX_DIRTY.swap(false, Ordering::Relaxed) {
+        return;
+    }
+    let json = {
+        let Ok(c) = cache.lock() else { return };
+        let rows: Vec<(&PathBuf, u64, u64, &Meta)> = c
+            .iter()
+            .map(|(p, (len, ms, m))| (p, *len, *ms, m))
+            .collect();
+        serde_json::to_vec(&rows)
+    };
+    let written = json.is_ok_and(|json| crate::files::write_atomic(file, &json).is_ok());
+    if !written {
+        INDEX_DIRTY.store(true, Ordering::Relaxed);
+    }
+}
+
+/// Indekset: kendte filer fra cachen, nye og ændrede læses parallelt (otte tråde, mest ventetid på disken).
+fn index_of(libraries: Vec<PathBuf>) -> Vec<IndexEntry> {
+    let hits = files_in(libraries);
+    let cache = INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    let known = cache.lock().map(|c| c.clone()).unwrap_or_default();
+    // (størrelse, ændret) pr. fil, og hvilke der skal læses igen.
+    let stamps: Vec<Option<(u64, u64)>> =
+        hits.iter().map(|h| Some((h.size, h.modified_ms))).collect();
+    let todo: Vec<usize> = (0..hits.len())
+        .filter(|&i| {
+            let p = PathBuf::from(&hits[i].path);
+            stamps[i].is_some_and(|s| !known.get(&p).is_some_and(|(l, ms, _)| (*l, *ms) == s))
+        })
+        .collect();
+    let threads = 8.min(todo.len().max(1));
+    let read: Vec<(usize, Meta)> = std::thread::scope(|scope| {
+        let chunks: Vec<_> = todo
+            .chunks(todo.len().div_ceil(threads).max(1))
+            .map(|chunk| {
+                let hits = &hits;
+                scope.spawn(move || {
+                    chunk
+                        .iter()
+                        .filter_map(|&i| {
+                            let p = Path::new(&hits[i].path);
+                            let meta = fs::metadata(p).ok()?;
+                            Some((i, read_meta(p, &meta)))
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        chunks
+            .into_iter()
+            .flat_map(|c| c.join().unwrap_or_default())
+            .collect()
+    });
+    let mut fresh_meta: HashMap<usize, Meta> = read.into_iter().collect();
+    let mut fresh: Cache = HashMap::with_capacity(hits.len());
+    let mut out = Vec::with_capacity(hits.len());
+    for (i, h) in hits.into_iter().enumerate() {
+        let Some((len, ms)) = stamps[i] else { continue };
+        let p = PathBuf::from(&h.path);
+        let m = match fresh_meta.remove(&i) {
+            Some(m) => m,
+            None => match known.get(&p) {
+                Some((_, _, m)) => m.clone(),
+                None => continue,
+            },
+        };
+        out.push(IndexEntry {
+            name: h.name,
+            path: h.path,
+            folder: h.folder,
+            modified_ms: h.modified_ms,
+            dimmed: h.dimmed,
+            preview: m.preview.clone(),
+            status: m.status.clone(),
+            tags: m.tags.clone(),
+            deadline: m.deadline.clone(),
+        });
+        fresh.insert(p, (len, ms, m));
+    }
+    // Nye eller ændrede filer er læst, eller filer er forsvundet: så skal indekset gemmes.
+    let changed = !todo.is_empty() || fresh.len() != known.len();
+    if let Ok(mut c) = cache.lock() {
+        *c = fresh;
+        if changed {
+            INDEX_DIRTY.store(true, Ordering::Relaxed);
+        }
+    }
+    out
+}
+
+/// Sætter eller fjerner statuslinjen øverst i en tekst, der ikke er åben (ADR-0038). Forfatterblokken
+/// (ADR-0009) skrives igen med intervallerne flyttet, så iA Writer stadig ser de samme forfattere.
+/// Filen gemmes atomisk og kun, hvis den ikke er ændret, siden den blev læst.
+#[tauri::command]
+pub fn set_status(app: AppHandle, path: String, status: Option<String>) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    guard(&app, &p)?;
+    if let Some(id) = &status {
+        if !textmeta::valid_id(id) {
+            return Err(t!(
+                "Statussen har et ugyldigt navn.",
+                "The status has an invalid name."
+            )
+            .to_owned());
+        }
+    }
+    let not_saved = |e: &dyn std::fmt::Display| {
+        t!(
+            format!("Statussen kunne ikke gemmes: {e}"),
+            format!("The status could not be saved: {e}")
+        )
+    };
+    let opened = crate::files::open(&p).map_err(|e| not_saved(&e))?;
+    let parsed = crate::annotations::parse(&opened.text, opened.meta.eol);
+    let (text, authors) = textmeta::with_status(&parsed.text, &parsed.authors, status.as_deref());
+    let full = crate::annotations::write(&text, &authors, parsed.block.as_ref(), opened.meta.eol);
+    crate::files::save(&p, &full, &opened.meta, Some(&opened.meta.stamp), false)
+        .map_err(|e| not_saved(&e))?;
+    Ok(())
+}
+
+/// Ingen tekst at starte på (5/10): en blank tekst i mappen, den sidste tekst lå i, hvis
+/// den er i et bibliotek, ellers i det første bibliotek, ellers i Dokumenter\Gode Tekster (som så
+/// bliver bibliotek). En tom »Uden titel« dér genbruges, så tomme filer ikke hober sig op. Navnet
+/// kommer, når første linje er skrevet (ui/autoName.ts).
+pub fn blank_text(app: &AppHandle, last: Option<&Path>) -> Option<PathBuf> {
+    let libs = settings::load(app).libraries;
+    let dir = last
+        .and_then(Path::parent)
+        .filter(|d| d.is_dir() && library_root_of(&libs, d).is_some())
+        .map(Path::to_path_buf)
+        .or_else(|| libs.iter().find(|l| l.is_dir()).cloned())
+        .or_else(|| {
+            let d = crate::settings::documents_dir(app)
+                .ok()?
+                .join("Gode Tekster");
+            fs::create_dir_all(&d).ok()?;
+            settings::add_library_path(app, &d);
+            Some(d)
+        })?;
+    let base = t!("Uden titel", "Untitled");
+    let empty_untitled = fs::read_dir(&dir).ok()?.flatten().find(|e| {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let stem = name.strip_suffix(".md").unwrap_or("");
+        let numbered = stem
+            .strip_prefix(base)
+            .is_some_and(|rest| rest.is_empty() || rest.trim_start().parse::<u32>().is_ok());
+        numbered && e.metadata().is_ok_and(|m| m.is_file() && m.len() == 0)
+    });
+    if let Some(e) = empty_untitled {
+        return Some(e.path());
+    }
+    create_unique(&dir, base, ".md", b"").ok()
+}
+
+/// Ctrl+N og »Ny tekst« i et vindue uden tekst (20/10): en blank tekst ved siden af `near` (den åbne
+/// eller den seneste tekst), ellers i det første bibliotek. Før åbnede Ctrl+N kun et tomt vindue, og
+/// der var ingen vej til en ny tekst derfra.
+#[tauri::command]
+pub async fn new_text(app: AppHandle, near: Option<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        blank_text(&app, near.as_deref().map(Path::new))
+            .map(|p| p.to_string_lossy().into_owned())
+            .ok_or_else(|| {
+                t!(
+                    "Der kunne ikke laves en ny tekst. Tjek, at bibliotekets mappe findes.",
+                    "A new text could not be created. Check that the library folder exists."
+                )
+                .to_owned()
+            })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// En ny fil med et ledigt navn (»Uden titel.md«, »Uden titel 2.md« …), som aldrig lægges oven på en
+/// fil, der kom imens. `exists()` og så `fs::write` kunne tømme en fil, synken lige havde hentet med
+/// samme navn (kodegennemgang 20/10).
+pub(crate) fn create_unique(
+    dir: &Path,
+    base: &str,
+    ext: &str,
+    bytes: &[u8],
+) -> std::io::Result<PathBuf> {
+    for i in 1..10_000 {
+        let p = if i == 1 {
+            dir.join(format!("{base}{ext}"))
+        } else {
+            dir.join(format!("{base} {i}{ext}"))
+        };
+        if p.exists() {
+            continue;
+        }
+        match crate::files::write_atomic_new(&p, bytes) {
+            Ok(()) => return Ok(p),
+            Err(_) if p.exists() => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::other("ingen ledige navne"))
+}
+
+fn unique(dir: &Path, base: &str, ext: &str) -> PathBuf {
+    let mut candidate = dir.join(format!("{base}{ext}"));
+    let mut i = 2;
+    while candidate.exists() {
+        candidate = dir.join(format!("{base} {i}{ext}"));
+        i += 1;
+    }
+    candidate
+}
+
+#[tauri::command]
+pub async fn create_file(app: AppHandle, dir: String) -> Result<String, String> {
+    let d = PathBuf::from(&dir);
+    guard(&app, &d)?;
+    let p = create_unique(&d, t!("Uden titel", "Untitled"), ".md", b"").map_err(|e| {
+        t!(
+            format!("Filen kunne ikke oprettes: {e}"),
+            format!("The file could not be created: {e}")
+        )
+    })?;
+    Ok(p.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub async fn create_folder(app: AppHandle, dir: String) -> Result<String, String> {
+    let d = PathBuf::from(&dir);
+    guard(&app, &d)?;
+    let p = unique(&d, t!("Ny mappe", "New folder"), "");
+    fs::create_dir(&p).map_err(|e| {
+        t!(
+            format!("Mappen kunne ikke oprettes: {e}"),
+            format!("The folder could not be created: {e}")
+        )
+    })?;
+    Ok(p.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub async fn rename_entry(
+    app: AppHandle,
+    path: String,
+    new_name: String,
+) -> Result<String, String> {
+    rename_path(&app, &PathBuf::from(&path), &new_name).map(|t| t.to_string_lossy().into_owned())
+}
+
+/// Som `rename_path`, men er navnet taget, prøves »navn 2«, »navn 3« … op til 9. Fladen genkendte
+/// før fejlen »findes allerede« på ordlyden og prøvede selv igen (kodegennemgang 20/10).
+pub fn rename_path_free(app: &AppHandle, p: &Path, new_name: &str) -> Result<PathBuf, String> {
+    let parent = p
+        .parent()
+        .ok_or(t!("Ingen mappe over.", "There is no folder above."))?;
+    let ext = if Path::new(new_name).extension().is_none() {
+        p.extension()
+            .map(|e| format!(".{}", e.to_string_lossy()))
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+    for i in 1..=9 {
+        let name = if i == 1 {
+            new_name.to_owned()
+        } else {
+            format!("{new_name} {i}")
+        };
+        let target = parent.join(format!("{name}{ext}"));
+        if target.exists() && target != p {
+            continue;
+        }
+        return rename_path(app, p, &name);
+    }
+    Err(t!(
+        "Der findes allerede noget med det navn.",
+        "Something with that name already exists."
+    )
+    .to_owned())
+}
+
+/// Omdøb en fil eller mappe inden for bibliotekerne. Også document.rs, når en ny tekst får navn
+/// efter sin første linje (5/10).
+pub fn rename_path(app: &AppHandle, p: &Path, new_name: &str) -> Result<PathBuf, String> {
+    let p = p.to_path_buf();
+    guard(app, &p)?;
+    let name = valid_name(new_name)?;
+    let parent = p
+        .parent()
+        .ok_or(t!("Ingen mappe over.", "There is no folder above."))?;
+    // En fil må kun hedde noget, biblioteket viser som tekst. Ellers kunne en tekst blive til en
+    // .cmd, der kører ved næste login (sikkerhedsreview 2/10).
+    if p.is_file() {
+        let ext = Path::new(name)
+            .extension()
+            .map(|e| e.to_string_lossy().to_ascii_lowercase());
+        if ext.as_deref().is_some_and(|e| !TEXT_EXT.contains(&e)) {
+            return Err(t!(
+                "En tekst kan kun hedde .md, .markdown, .txt eller .docx.",
+                "A text can only end in .md, .markdown, .txt or .docx."
+            )
+            .to_owned());
+        }
+    }
+    // En fil uden filtype beholder sin gamle (»ARTIKEL« → »ARTIKEL.md«).
+    let target = if p.is_file() && Path::new(name).extension().is_none() {
+        let ext = p
+            .extension()
+            .map(|e| format!(".{}", e.to_string_lossy()))
+            .unwrap_or_default();
+        parent.join(format!("{name}{ext}"))
+    } else {
+        parent.join(name)
+    };
+    if target.exists() && !target.eq(&p) {
+        return Err(t!(
+            "Der findes allerede noget med det navn.",
+            "Something with that name already exists."
+        )
+        .to_owned());
+    }
+    fs::rename(&p, &target).map_err(|e| {
+        t!(
+            format!("Kunne ikke omdøbe: {e}"),
+            format!("Could not rename: {e}")
+        )
+    })?;
+    Ok(target)
+}
+
+/// »Vis i Stifinder« (7/10): Stifinder åbner mappen med filen markeret. Kun inden for bibliotekerne.
+#[tauri::command]
+pub async fn reveal_entry(app: AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    // guard kanoniserer stien, så den skal findes og ligge i et bibliotek.
+    guard(&app, Path::new(&path))?;
+    app.opener()
+        .reveal_item_in_dir(Path::new(&path))
+        .map_err(|e| {
+            t!(
+                format!("Stifinder kunne ikke åbnes: {e}"),
+                format!("File Explorer could not be opened: {e}")
+            )
+        })
+}
+
+/// Til papirkurven, aldrig slettet for altid.
+#[tauri::command]
+pub async fn delete_entry(app: AppHandle, path: String) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    let root = guard(&app, &p)?;
+    if canonical(&p).as_deref() == Some(root.as_path()) {
+        return Err(t!(
+            "Et helt bibliotek kan ikke slettes herfra.",
+            "A whole library cannot be deleted from here."
+        )
+        .to_owned());
+    }
+    crate::files::to_trash(&p).map_err(|e| {
+        t!(
+            format!("Kunne ikke lægge i papirkurven: {e}"),
+            format!("Could not move to the Recycle Bin: {e}")
+        )
+    })
+}
+
+#[tauri::command]
+pub async fn move_entry(app: AppHandle, path: String, dir: String) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    let d = PathBuf::from(&dir);
+    guard(&app, &p)?;
+    guard(&app, &d)?;
+    if d.starts_with(&p) {
+        return Err(t!(
+            "En mappe kan ikke flyttes ind i sig selv.",
+            "A folder cannot be moved into itself."
+        )
+        .to_owned());
+    }
+    let name = p.file_name().ok_or(t!("Intet navn.", "No name."))?;
+    let target = d.join(name);
+    if target.exists() {
+        return Err(t!(
+            "Der findes allerede noget med det navn i mappen.",
+            "Something with that name already exists in the folder."
+        )
+        .to_owned());
+    }
+    fs::rename(&p, &target).map_err(|e| {
+        t!(
+            format!("Kunne ikke flytte: {e}"),
+            format!("Could not move: {e}")
+        )
+    })?;
+    Ok(target.to_string_lossy().into_owned())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Clipping {
+    pub name: String,
+    pub path: String,
+}
+
+/// Fraklipsfiler ved siden af teksten (`FRAKLIP.md`, `FRAKLIP-kopi.md` …), som kan hentes ind i
+/// fanen Fraklip (ADR-0008). Kræver ikke, at teksten ligger i et bibliotek: brugeren har åbnet den.
+#[tauri::command]
+pub async fn sibling_clippings(app: AppHandle, path: String) -> Vec<Clipping> {
+    let p = PathBuf::from(&path);
+    if !crate::document::open_paths(&app).contains(&p) {
+        return Vec::new();
+    }
+    let Some(dir) = p.parent() else {
+        return Vec::new();
+    };
+    let Ok(rd) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    rd.filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|f| {
+            let name = f
+                .file_name()
+                .map(|n| n.to_string_lossy().to_uppercase())
+                .unwrap_or_default();
+            name.starts_with("FRAKLIP") && name.ends_with(".MD") && !f.eq(&p)
+        })
+        .map(|f| Clipping {
+            name: f
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            path: f.to_string_lossy().into_owned(),
+        })
+        .collect()
+}
+
+/// Teksten i en fil uden forfatterblok (til import af fraklip). Kun FRAKLIP*.md i samme mappe
+/// som en åben tekst.
+#[tauri::command]
+pub async fn read_clipping(app: AppHandle, path: String) -> Result<String, String> {
+    let p = PathBuf::from(&path)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let name = p
+        .file_name()
+        .map(|n| n.to_string_lossy().to_uppercase())
+        .unwrap_or_default();
+    let beside_open = crate::document::open_paths(&app).iter().any(|o| {
+        o.parent()
+            .and_then(|parent| parent.canonicalize().ok())
+            .as_deref()
+            == p.parent()
+    });
+    if !name.starts_with("FRAKLIP") || !name.ends_with(".MD") || !beside_open {
+        return Err(t!(
+            "Kun fraklipsfiler ved siden af den åbne tekst kan hentes ind.",
+            "Only clippings files next to the open text can be brought in."
+        )
+        .to_owned());
+    }
+    let opened = crate::files::open(&p).map_err(|e| {
+        t!(
+            format!("Fraklipsfilen kunne ikke læses: {e}"),
+            format!("The clippings file could not be read: {e}")
+        )
+    })?;
+    Ok(crate::annotations::parse(&opened.text, opened.meta.eol).text)
+}
+
+/// En teksts indhold uden forfatterblok, uden at åbne den: telefonens »Del« fra listen (16/10).
+#[tauri::command]
+pub async fn read_text(app: AppHandle, path: String) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    guard(&app, &p)?;
+    // Kun tekster. Et bibliotek kan være en mappe med andet i, fx en `.env` (kodegennemgang 20/10).
+    let ext = p
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    if !["md", "markdown", "txt"].contains(&ext.as_str()) {
+        return Err(t!(
+            "Kun tekstfiler kan læses her.",
+            "Only text files can be read here."
+        )
+        .to_owned());
+    }
+    let opened = crate::files::open(&p).map_err(|e| {
+        t!(
+            format!("Teksten kunne ikke læses: {e}"),
+            format!("The text could not be read: {e}")
+        )
+    })?;
+    Ok(crate::annotations::parse(&opened.text, opened.meta.eol).text)
+}
+
+/// Et kapitel i en hovedfil (lange tekster fase 1, 21/10): navnet fra linjen `/Kapitel.md`, og
+/// teksten uden forfatterblok, eller `None`, når filen ikke findes eller ikke må læses.
+#[derive(Debug, Serialize)]
+pub struct Chapter {
+    pub name: String,
+    pub text: Option<String>,
+}
+
+/// Stien til et kapitel: relativ, uden `..` og drev, en tekstfil, og efter kanonisering stadig i
+/// hovedfilens mappe eller en undermappe af den. Ellers `None`.
+fn chapter_path(dir: &Path, name: &str) -> Option<PathBuf> {
+    let rel = Path::new(name);
+    if !rel.components().all(|c| matches!(c, Component::Normal(_))) {
+        return None;
+    }
+    let ext = rel
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())?;
+    if !["md", "markdown", "txt"].contains(&ext.as_str()) {
+        return None;
+    }
+    let base = canonical(dir)?;
+    let full = canonical(&dir.join(rel))?;
+    (full.starts_with(&base) && full.is_file()).then_some(full)
+}
+
+/// Kapitlerne i en åben hovedfil, læst uden at åbne dem. Kun ved siden af en åben tekst, som
+/// fraklipsfilerne, og højst 500 (en bog har sjældent over hundrede).
+#[tauri::command]
+pub async fn read_chapters(app: AppHandle, path: String, names: Vec<String>) -> Vec<Chapter> {
+    let p = PathBuf::from(&path);
+    let Some(dir) = p
+        .parent()
+        .filter(|_| crate::document::open_paths(&app).contains(&p))
+    else {
+        return Vec::new();
+    };
+    names
+        .into_iter()
+        .take(500)
+        .map(|name| {
+            let text = chapter_path(dir, &name)
+                .and_then(|f| crate::files::open(&f).ok())
+                .map(|o| crate::annotations::parse(&o.text, o.meta.eol).text);
+            Chapter { name, text }
+        })
+        .collect()
+}
+
+/// Word-import (del G): bytes af en .docx i et bibliotek. Fladen oversætter dem til markdown.
+#[tauri::command]
+pub async fn read_docx(app: AppHandle, path: String) -> Result<tauri::ipc::Response, String> {
+    let p = PathBuf::from(&path);
+    guard(&app, &p)?;
+    let is_docx = p
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("docx"));
+    if !is_docx {
+        return Err(t!(
+            "Kun Word-filer (.docx) kan hentes ind.",
+            "Only Word files (.docx) can be imported."
+        )
+        .to_owned());
+    }
+    let size = fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+    if size > 50 * 1024 * 1024 {
+        return Err(t!(
+            "Word-filen er over 50 MB og kan ikke hentes ind.",
+            "The Word file is over 50 MB and cannot be imported."
+        )
+        .to_owned());
+    }
+    let bytes = fs::read(&p).map_err(|e| {
+        t!(
+            format!("Word-filen kunne ikke læses: {e}"),
+            format!("The Word file could not be read: {e}")
+        )
+    })?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// Den nye .md ved siden af Word-filen, med samme navn (eller »Navn 2.md«, hvis det er taget).
+/// Word-filen røres ikke.
+#[tauri::command]
+pub async fn create_import(app: AppHandle, source: String, text: String) -> Result<String, String> {
+    let src = PathBuf::from(&source);
+    guard(&app, &src)?;
+    let dir = src
+        .parent()
+        .ok_or(t!("Mappen findes ikke.", "The folder does not exist."))?;
+    let stem = src
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| t!("Fra Word", "From Word").to_owned());
+    let target = create_unique(dir, &stem, ".md", text.as_bytes()).map_err(|e| e.to_string())?;
+    Ok(target.to_string_lossy().into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kapitler_kun_tekstfiler_i_hovedfilens_mappe() {
+        let root = std::env::temp_dir().join(format!("gt-kapitler-{}", std::process::id()));
+        let dir = root.join("bog");
+        fs::create_dir_all(dir.join("dele")).unwrap();
+        fs::write(dir.join("Indledning.md"), "# Ind").unwrap();
+        fs::write(dir.join("dele").join("To.md"), "# To").unwrap();
+        fs::write(root.join("Udenfor.md"), "hemmelig").unwrap();
+        fs::write(dir.join(".env"), "NØGLE=x").unwrap();
+        assert!(chapter_path(&dir, "Indledning.md").is_some());
+        assert!(chapter_path(&dir, "dele/To.md").is_some());
+        assert!(chapter_path(&dir, "../Udenfor.md").is_none());
+        assert!(chapter_path(&dir, &root.join("Udenfor.md").to_string_lossy()).is_none());
+        assert!(chapter_path(&dir, ".env").is_none());
+        assert!(chapter_path(&dir, "Mangler.md").is_none());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Måling på rigtige biblioteker: `GT_SOEG_LIB="C:\a;C:\b" cargo test tid_paa_indeks -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn tid_paa_indekset() {
+        let libs: Vec<PathBuf> = std::env::var("GT_SOEG_LIB")
+            .unwrap_or_default()
+            .split(';')
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .collect();
+        for runde in ["kold", "varm"] {
+            let t = std::time::Instant::now();
+            let idx = index_of(libs.clone());
+            let med = idx
+                .iter()
+                .filter(|e| e.status.is_some() || !e.tags.is_empty())
+                .count();
+            println!(
+                "{runde}: {} tekster, {med} med status eller tags, {:?}",
+                idx.len(),
+                t.elapsed()
+            );
+        }
+    }
+
+    // Samme sager som den tidligere `library.test.ts`, med stier som i et rigtigt bibliotek (2/10).
+
+    #[test]
+    fn skribentens_egne_tekster_vises_normalt() {
+        for f in [
+            "Fagbladet/artikler/en-sag/udkast.md",
+            "Kunde B/dokumenter/Egen research/noter.md",
+            "Kunde A/dokumenter/aftale/Oplæg for redaktionen.md",
+            "Strategi_Kunde.docx.md",
+            "Fagbladet/artikler/en-sag/ARTIKEL.md",
+            "Fagbladet/artikler/en-sag/FRAKLIP.md",
+            "RÅNOTER.md",
+            "VIDEO MANUS.md",
+            "KILDER.md",
+            "strategi.md",
+            "politik.md",
+            "kunde.md",
+        ] {
+            assert_eq!(visibility_of(f), Visibility::Normal, "{f}");
+        }
+    }
+
+    #[test]
+    fn husets_kontraktfiler_daempes() {
+        for f in [
+            "AGENTS.md",
+            "CLAUDE.md",
+            "HANDOFF.md",
+            "HANDOFF-ARKIV.md",
+            "TODO.md",
+            "TODO-teknisk.md",
+            "Kunde A/KUNDE.md",
+            "Kunde A/ARKIV.md",
+            "LÆSMIG.md",
+            "LICENSE.md",
+            "projekt/todo.md",
+            "Kunde A/docs/styring/politik.md",
+            "noter\\lektioner\\git.md",
+        ] {
+            assert_eq!(visibility_of(f), Visibility::Dimmed, "{f}");
+        }
+    }
+
+    #[test]
+    fn maskinens_mapper_skjules() {
+        for f in [
+            "app/node_modules/pkg/notes.md",
+            "Kunde A/.claude/worktrees/x/AGENTS.md",
+            "Kunde A/web/.next/server/x.md",
+            "gode-tekster/src-tauri/target/debug/x.md",
+            "spejl/bruger/x.md",
+        ] {
+            assert_eq!(visibility_of(f), Visibility::Hidden, "{f}");
+        }
+    }
+
+    #[test]
+    fn uddrag_uden_markdown_og_forfatterblok() {
+        let text = "# Overskrift\n\n**Fed** start af teksten.\n\n---\nAnnotations: 0,5 SHA-256 abc  \n...\n";
+        assert_eq!(preview_of(text), "Overskrift Fed start af teksten.");
+    }
+
+    #[test]
+    fn uddrag_springer_hele_skjulte_blokke_over() {
+        let text = "# Løn\n\nNoter.\n\n<!-- gt:claude id=c1 type=faktatjek dato=2026-10-07\n{\"what\": \"x\"}\n-->\nEfter.\n";
+        assert_eq!(preview_of(text), "Løn Noter. Efter.");
+        assert_eq!(preview_of("<!-- kort -->\nTekst"), "Tekst");
+    }
+
+    #[test]
+    fn ugyldige_navne_afvises() {
+        assert!(valid_name("ARTIKEL").is_ok());
+        assert!(valid_name("Ny mappe").is_ok());
+        for bad in ["", "..", "a/b", "a\\b", "x:y", "spørgsmål?"] {
+            assert!(valid_name(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn worktree_genkendes_paa_git_filen() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join(".git"), "gitdir: x").unwrap();
+        assert!(is_worktree(dir.path()));
+        let repo = tempfile::tempdir().unwrap();
+        fs::create_dir(repo.path().join(".git")).unwrap();
+        assert!(!is_worktree(repo.path()));
+    }
+
+    #[test]
+    fn mappeliste_springer_skjult_over() {
+        let root = tempfile::tempdir().unwrap();
+        let r = root.path();
+        fs::create_dir(r.join("artikler")).unwrap();
+        fs::create_dir(r.join("node_modules")).unwrap();
+        fs::create_dir(r.join("wt")).unwrap();
+        fs::write(r.join("wt/.git"), "gitdir: x").unwrap();
+        fs::write(r.join("ARTIKEL.md"), "# Titel\nTekst").unwrap();
+        fs::write(r.join("AGENTS.md"), "regler").unwrap();
+        fs::write(r.join("billede.png"), "x").unwrap();
+        let f = list(r, r).unwrap();
+        let mut names: Vec<_> = f
+            .entries
+            .iter()
+            .map(|e| (e.name.as_str(), e.visibility))
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            vec![
+                ("AGENTS.md", Visibility::Dimmed),
+                ("ARTIKEL.md", Visibility::Normal),
+                ("artikler", Visibility::Normal)
+            ]
+        );
+    }
+
+    #[test]
+    fn mappens_uddrag_genbruger_cache_men_opdateres_ved_aendring() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("tekst.md");
+        fs::write(&path, "Original tekst").unwrap();
+        assert_eq!(
+            list(root.path(), root.path()).unwrap().entries[0].preview,
+            "Original tekst"
+        );
+        assert!(INDEX.get().unwrap().lock().unwrap().contains_key(&path));
+        fs::write(&path, "En nyere og laengere tekst").unwrap();
+        assert_eq!(
+            list(root.path(), root.path()).unwrap().entries[0].preview,
+            "En nyere og laengere tekst"
+        );
+        invalidate_meta(&path);
+        assert!(!INDEX.get().unwrap().lock().unwrap().contains_key(&path));
+    }
+}

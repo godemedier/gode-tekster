@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Gode Tekster</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/del.css" />
+    <script type="module" src="/src/del.ts"></script>
+  </head>
+  <body class="gaest">
+    <div id="banner" role="status" aria-live="polite" hidden></div>
+    <header class="g-bar">
+      <a class="g-mark" href="https://godemedier.dk/apps/gode-tekster/" rel="noreferrer" target="_blank">Gode Tekster</a>
+      <div class="g-head">
+        <p id="g-afsender" class="g-afsender" hidden></p>
+        <h1 id="g-titel" class="g-title">Delt tekst</h1>
+      </div>
+      <span id="g-gemt" class="g-saved" aria-live="polite"></span>
+      <div class="g-handlinger">
+        <button type="button" id="g-vis" class="g-button" aria-pressed="false" hidden>Vis rettelser</button>
+        <button type="button" id="g-kommentar" class="g-button g-primary" hidden>Kommentar</button>
+      </div>
+    </header>
+    <form id="g-form" class="g-form" hidden>
+      <label for="g-tekst" id="g-form-label">Din kommentar</label>
+      <textarea id="g-tekst" rows="3"></textarea>
+      <div class="g-form-knapper">
+        <button type="button" id="g-slet" class="g-button g-slet" hidden>Slet</button>
+        <button type="button" id="g-annuller" class="g-button">Annullér</button>
+        <button type="submit" id="g-tilfoej" class="g-button g-primary">Tilføj kommentar</button>
+      </div>
+    </form>
+    <section id="g-intro" class="g-intro" hidden>
+      <button type="button" id="g-luk" class="g-luk" aria-label="Luk hilsenen"></button>
+      <strong id="g-hej"></strong>
+      <span id="g-hilsen"></span>
+    </section>
+    <section id="g-doed" class="g-doed" hidden>
+      <h2 id="g-doed-titel">Linket virker ikke længere</h2>
+      <p id="g-doed-tekst">Det kan være udløbet, eller delingen er stoppet. Spørg den, der sendte dig linket, om et nyt.</p>
+    </section>
+    <main id="editor" class="g-editor">
+      <aside id="g-margen" class="g-margen" hidden><div id="g-noter"></div></aside>
+    </main>
+    <footer class="g-foot">
+      <p class="g-fodlinje"><span id="g-fod-tekst">Delt fra Gode Tekster, et gratis skriveprogram til Windows fra</span> <a class="g-husmaerke" href="https://godemedier.dk/" rel="noreferrer" target="_blank">Gode Medier</a></p>
+      <a id="g-privatliv" href="https://tekster.godemedier.dk/privatliv" rel="noreferrer" target="_blank">Privatliv</a>
+    </footer>
+  </body>
+</html>

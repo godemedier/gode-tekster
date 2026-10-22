@@ -1,0 +1,439 @@
+/* Gæstens side til en delt tekst (ADR-0060). Bjælken, hilsenen, foden og den døde side. Resten er
+   skrivefladens egne styles, så forslag, noter og overskrifter ser ud som i programmet.
+   Designet er bud A fra gennemgangen 21/10: programmets egne
+   farver, Schibsted Grotesk til navne og titel, vermilion kun som streg (som den valgte fane i
+   programmet), blæk som primær knap. Før var siden generisk og sagde ikke, hvem teksten var fra. */
+body.gaest {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--flade);
+  color: var(--blæk);
+  font-family: var(--ui);
+}
+
+/* --- Bjælken: programmets navn, afsender og titel, gemt-status og de to handlinger --- */
+.g-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 66px;
+  box-sizing: border-box;
+  padding: 10px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--kant);
+}
+.g-mark {
+  flex: none;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding-right: 16px;
+  border-right: 1px solid var(--kant);
+  font-family: "Schibsted Grotesk", var(--ui);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--blæk);
+  text-decoration: none;
+}
+.g-head {
+  flex: 1;
+  min-width: 0;
+}
+.g-afsender {
+  margin: 0 0 1px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--svag);
+}
+.g-title {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  padding-bottom: 3px;
+  vertical-align: top;
+  font-family: "Schibsted Grotesk", var(--ui);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.g-saved {
+  font-size: 13px;
+  color: var(--svag);
+  white-space: nowrap;
+}
+.g-handlinger {
+  display: flex;
+  gap: 8px;
+}
+.g-button {
+  min-height: 36px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid var(--kant-hover);
+  background: var(--kort);
+  color: var(--blæk);
+  cursor: pointer;
+}
+.g-button[aria-pressed="true"] {
+  background: var(--valgt);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+/* Blæk, ikke vermilion: husets farve er kun streg og markør, aldrig flade (ADR-0037). */
+.g-primary {
+  background: var(--blæk);
+  border-color: var(--blæk);
+  color: var(--flade);
+}
+.g-button:focus-visible,
+.g-mark:focus-visible,
+.g-foot a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Hover kun med mus, så en tappet knap ikke bliver hængende i hoverfarven på telefonen. */
+@media (hover: hover) {
+  .g-button:hover {
+    background: var(--hover);
+  }
+  .g-primary:hover {
+    background: var(--manchet);
+    border-color: var(--manchet);
+  }
+}
+
+/* --- Hilsenen: navnet som overskrift på et kort, ikke en gul flade, der ligner en kommentar --- */
+.g-intro {
+  box-sizing: border-box;
+  max-width: 680px;
+  width: calc(100% - 32px);
+  margin: 28px auto 0;
+  padding: 16px 20px;
+  border: 1px solid var(--kant);
+  border-radius: 8px;
+  background: var(--kort);
+  color: var(--svag);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.g-intro strong {
+  display: block;
+  margin-bottom: 4px;
+  font-family: "Schibsted Grotesk", var(--ui);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--blæk);
+}
+
+/* --- Kommentarfeltet og boblen ved en markering --- */
+.g-form {
+  box-sizing: border-box;
+  max-width: 680px;
+  width: calc(100% - 32px);
+  margin: 12px auto 0;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--kant);
+  border-radius: 8px;
+  background: var(--kort);
+  box-shadow: var(--skygge);
+  position: sticky;
+  top: 76px;
+  z-index: 4;
+}
+/* `display: flex` ovenfor slår ellers `hidden` ihjel. */
+.g-form[hidden] {
+  display: none;
+}
+.g-form label {
+  font-size: 13px;
+  color: var(--svag);
+}
+.g-form textarea {
+  font: inherit;
+  font-size: 15px;
+  padding: 8px;
+  border: 1px solid var(--kant);
+  border-radius: 6px;
+  background: var(--flade);
+  color: var(--blæk);
+  resize: vertical;
+}
+.g-form-knapper {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* Slet står til venstre, væk fra Gem. */
+.g-slet {
+  margin-right: auto;
+}
+
+/* --- Hilsenen kan lukkes (21/10: den forstyrrede) --- */
+.g-intro {
+  position: relative;
+  padding-right: 44px;
+}
+.g-luk {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--svag);
+  cursor: pointer;
+}
+.g-luk:hover {
+  background: var(--hover);
+  color: var(--blæk);
+}
+.g-luk:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* --- Margenen på en bred skærm: hilsenen, kommentarerne og feltet som kort ud for teksten --- */
+.g-margen[hidden] {
+  display: none;
+}
+@media (min-width: 1100px) and (pointer: fine) {
+  /* Tekstspalten er den samme som før, margenen kommer til højre for den. */
+  .g-editor {
+    position: relative;
+    max-width: 1060px;
+    padding-right: 300px;
+    box-sizing: border-box;
+  }
+  .g-margen {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    width: 256px;
+  }
+  .g-margen .g-intro {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 12px 40px 14px 14px;
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  .g-margen .g-intro strong {
+    font-size: 16px;
+  }
+  .g-margen .g-form,
+  .g-note {
+    position: absolute;
+    left: 0;
+    right: 0;
+  }
+  .g-margen .g-form {
+    width: auto;
+    max-width: none;
+    margin: 0;
+  }
+  .g-margen .g-form-knapper .g-button {
+    padding: 0 10px;
+    font-size: 13px;
+  }
+}
+.g-note {
+  box-sizing: border-box;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--kant);
+  border-radius: 8px;
+  background: var(--kort);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.g-note p {
+  margin: 4px 0 0;
+  color: var(--blæk);
+  overflow-wrap: anywhere;
+}
+/* Samme lille tal som i teksten. */
+.g-note-nr {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--note-tekst);
+  background: var(--note-flade);
+}
+.g-note-knapper {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: 4px;
+}
+.g-note-knapper button {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--svag);
+  cursor: pointer;
+}
+.g-note-knapper button:hover {
+  background: var(--hover);
+  color: var(--blæk);
+}
+
+/* --- Skrivefladen --- */
+.g-editor {
+  flex: 1;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.g-editor .cm-editor {
+  min-height: 70vh;
+}
+/* Gæsten foreslår og kan fortryde sine egne forslag, men ikke godtage dem. */
+body.gaest .gt-suggest-bubble button:first-of-type {
+  display: none;
+}
+
+/* --- Den døde side: en rigtig side i stedet for et banner over en tom flade --- */
+.g-doed {
+  /* Fylder siden, så foden står nederst, når der ingen tekst er. */
+  flex: 1 0 auto;
+  box-sizing: border-box;
+  max-width: 680px;
+  width: calc(100% - 32px);
+  margin: 15vh auto 0;
+}
+.g-doed[hidden] {
+  display: none;
+}
+.g-doed h2 {
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+  font-family: "Schibsted Grotesk", var(--ui);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--blæk);
+  border-bottom: 1px solid var(--streg);
+}
+.g-doed p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--svag);
+}
+
+/* --- Foden: hvem programmet er fra, med husets ordmærke i linjen --- */
+.g-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 40px;
+  padding: 28px 16px 40px;
+  border-top: 1px solid var(--streg);
+  font-size: 13px;
+  color: var(--svag);
+}
+.g-fodlinje {
+  margin: 0;
+  text-align: center;
+  line-height: 2;
+}
+.g-foot a {
+  color: var(--svag);
+}
+.g-foot a.g-husmaerke {
+  margin-left: 4px;
+  padding: 3px 7px 2px;
+  font-family: "Schibsted Grotesk", var(--ui);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  text-decoration: none;
+  /* Husets ordmærke: papir på rubis, som på godemedier.dk. Vendt i mørkt tema. */
+  color: #e2e7dc;
+  background: #6c2b3b;
+}
+body.dark .g-foot a.g-husmaerke {
+  color: #6c2b3b;
+  background: #e2e7dc;
+}
+
+/* --- Telefonen: titlen får sin egen linje, og knapperne ligger fast nederst og er store nok --- */
+@media (max-width: 700px), (pointer: coarse) {
+  .g-bar {
+    position: static;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 12px 16px 14px;
+  }
+  .g-mark {
+    border: 0;
+    padding: 0;
+    font-size: 14px;
+  }
+  .g-saved {
+    margin-left: auto;
+  }
+  .g-head {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .g-title {
+    white-space: normal;
+    font-size: 21px;
+  }
+  .g-handlinger {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--kant);
+  }
+  .g-handlinger:not(:has(> button:not([hidden]))) {
+    display: none;
+  }
+  .g-button {
+    min-height: 48px;
+    font-size: 16px;
+  }
+  body.gaest {
+    padding-bottom: 72px;
+  }
+  .g-form {
+    top: 8px;
+  }
+}

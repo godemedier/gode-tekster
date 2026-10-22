@@ -1,0 +1,187 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { EditorState, type TransactionSpec } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
+import type { DocumentDto, SessionIO } from "./document.ts";
+
+// Timerne kører kun, når en test beder om det (`tick`).
+const timers = new Map<number, () => void>();
+let nextTimer = 0;
+const setTimeout = (fn: () => void) => (timers.set(++nextTimer, fn), nextTimer);
+const clearTimeout = (id: number) => void timers.delete(id);
+const tick = async () => {
+  const due = [...timers.values()];
+  timers.clear();
+  for (const fn of due) fn();
+  for (let i = 0; i < 5; i++) await new Promise<void>((resolve) => setImmediate(resolve));
+};
+Object.defineProperty(globalThis, "window", { configurable: true, value: { setTimeout, clearTimeout, dispatchEvent: () => true, addEventListener: () => {} } });
+const { DocumentSession, NotSaved } = await import("./document.ts");
+
+const dto: DocumentDto = { path: "test.md", name: "test.md", text: "start", authors: [], me: { kind: "human", name: "", identifier: null }, staleBlocks: [], mixedEol: false, repaired: 0, cursor: null, hasBlock: false, external: [] };
+function fixture(handler: (command: string, args: Record<string, unknown>) => unknown | Promise<unknown>) {
+  const view = {
+    state: EditorState.create({ doc: dto.text }),
+    dispatch(spec: TransactionSpec) { this.state = this.state.update(spec).state; },
+  };
+  const messages: string[] = [];
+  const io: SessionIO = {
+    invoke: <T>(command: string, args?: unknown) => Promise.resolve().then(() => handler(command, (args ?? {}) as Record<string, unknown>)) as Promise<T>,
+    showBanner: (message) => { messages.push(message); return messages.length; }, hideBanner: () => {}, notify: () => {},
+  };
+  const session = new DocumentSession(view as unknown as EditorView, { ...dto }, () => {}, io);
+  const type = (text: string) => { view.dispatch({ changes: { from: view.state.doc.length, insert: text } }); session.changed(); };
+  return { session, view, messages, type };
+}
+
+test("lukning nægtes, når både gem og nødkopi fejler", async () => {
+  const calls: string[] = [];
+  const f = fixture((command) => {
+    calls.push(command);
+    if (command === "save_document") throw { kind: "io", message: "låst" };
+    if (command === "backup_text") throw new Error("fuldt drev");
+  });
+  f.type(" nyere tekst");
+  await assert.rejects(f.session.close(), /fuldt drev/);
+  assert.ok(!calls.includes("release_document"));
+  assert.equal(f.view.state.doc.toString(), "start nyere tekst");
+  await assert.rejects(f.session.saveForHandoff(), /kunne ikke gemmes/);
+});
+
+test("versionsvisning nægtes, hvis aktuelle rettelser ikke kan gemmes", async () => {
+  const f = fixture((command) => {
+    if (command === "save_document") throw { kind: "mixed-eol", message: "blandet" };
+  });
+  f.type(" ugemt");
+  await assert.rejects(f.session.pause(true), /kunne ikke gemmes/);
+  assert.equal(f.view.state.doc.toString(), "start ugemt");
+});
+
+test("lukning bevarer den nyeste tekst, også når der skrives under nødkopieringen", async () => {
+  const copies: string[] = [];
+  const f = fixture((command, args) => {
+    if (command === "save_document") throw { kind: "mixed-eol", message: "blandet" };
+    if (command === "backup_text") {
+      copies.push(String(args.text));
+      if (copies.length === 1) f.type(" sidste ord");
+    }
+  });
+  f.type(" ændret");
+  await assert.rejects(f.session.close(), NotSaved);
+  assert.equal(copies.at(-1), "start ændret sidste ord");
+});
+
+test("fletning bruger nye positioner efter hvert tastetryk under IPC", async () => {
+  let merges = 0;
+  const f = fixture((command, args) => {
+    if (command === "open_document") return { ...dto, text: "start ekstern" };
+    if (command === "merge_texts") {
+      const mine = String(args.mine);
+      if (merges++ < 2) f.type(String(merges));
+      return { conflict: false, changes: [{ from: mine.length, insert: " ekstern" }] };
+    }
+  });
+  f.type(" lokal");
+  await f.session.externalChange();
+  assert.equal(merges, 3);
+  assert.equal(f.view.state.doc.toString(), "start lokal12 ekstern");
+});
+
+test("lukning venter på en langsom fletning før editoren kan bruges til næste fil", async () => {
+  let loaded!: (value: unknown) => void;
+  const fresh = new Promise((resolve) => { loaded = resolve; });
+  const f = fixture((command, args) => {
+    if (command === "open_document") return fresh;
+    if (command === "merge_texts") return { conflict: false, changes: [{ from: String(args.mine).length, insert: " ekstern" }] };
+  });
+  f.type(" lokal");
+  const merge = f.session.externalChange();
+  let closed = false;
+  const closing = f.session.close().then(() => { closed = true; });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(closed, false);
+  loaded({ ...dto, text: "start ekstern" });
+  await Promise.all([merge, closing]);
+  assert.equal(f.view.state.doc.toString(), "start lokal ekstern");
+  await f.session.externalChange();
+  assert.equal(f.view.state.doc.toString(), "start lokal ekstern");
+});
+
+test("mislykket afslutning af et andet vindue stopper ikke autosave i det første", async () => {
+  let saves = 0;
+  const f = fixture((command) => { if (command === "save_document") saves++; });
+  f.type(" først");
+  await f.session.prepareExit();
+  f.type(" siden");
+  await f.session.flush();
+  assert.equal(saves, 2);
+});
+
+test("genindlaesning overskriver ikke tastetryk under backup eller laesning", async () => {
+  for(const step of ["backup_text","open_document"]) {
+    const f=fixture((command)=>{
+      if(command===step)f.type(" sidste ord");
+      if(command==="open_document")return {...dto,text:"ekstern"};
+    });
+    await (f.session as unknown as {reloadFromDisk():Promise<void>}).reloadFromDisk();
+    assert.equal(f.view.state.doc.toString(),"start sidste ord");
+  }
+});
+
+test("en låst fil gemmes, når låsen slipper, og autogem går videre (fejljagt 19/10)", async () => {
+  let saves = 0;
+  const f = fixture((command) => {
+    if (command === "save_document" && ++saves === 1) throw { kind: "locked", message: "låst" };
+  });
+  f.type(" ny");
+  await tick(); // autogem: filen er låst
+  assert.equal(saves, 1);
+  await tick(); // nyt forsøg af sig selv
+  assert.equal(saves, 2);
+  f.type(" mere");
+  await tick();
+  assert.equal(saves, 3);
+  await f.session.prepareExit();
+});
+
+test("Afslut spørger, når teksten kun ligger i backup, og der kommer kun én kopi pr. tekst", async () => {
+  const copies: string[] = [];
+  const f = fixture((command, args) => {
+    if (command === "save_document") throw { kind: "io", message: "låst" };
+    if (command === "backup_text") copies.push(String(args.text));
+  });
+  f.type(" ny");
+  await tick();
+  await tick();
+  await tick();
+  assert.deepEqual(copies, ["start ny"]);
+  await assert.rejects(f.session.prepareExit(), NotSaved);
+  await f.session.prepareExit(true);
+  assert.deepEqual(copies, ["start ny"]);
+});
+
+test("blandede linjeskift giver ingen backupkopi, kun valget", async () => {
+  const calls: string[] = [];
+  const f = fixture((command) => {
+    calls.push(command);
+    if (command === "save_document") throw { kind: "mixed-eol", message: "blandet" };
+  });
+  f.type(" ny");
+  await tick();
+  await tick();
+  assert.ok(!calls.includes("backup_text"), calls.join());
+});
+
+test("ved en konflikt kommer brugerens udgave i Versioner med det samme", async () => {
+  const kept: string[] = [];
+  const f = fixture((command, args) => {
+    if (command === "open_document") return { ...dto, text: "start ekstern" };
+    if (command === "merge_texts") return { conflict: true, changes: [] };
+    if (command === "history_keep") kept.push(String(args.text));
+  });
+  f.type(" lokal");
+  await f.session.externalChange();
+  await tick();
+  assert.deepEqual(kept, ["start lokal"]);
+  await assert.rejects(f.session.close(), NotSaved);
+});

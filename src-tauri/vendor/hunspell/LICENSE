@@ -1,0 +1,29 @@
+Hunspell 1.7.5, vendoreret i Gode Tekster
+=========================================
+
+Kilde:   https://github.com/hunspell/hunspell/releases/tag/v1.7.5
+Arkiv:   hunspell-1.7.5.tar.gz
+sha256:  2e559f0c2a592ba48e421477f58e9bf7e01062277a4a7821afb52fc9401010ae
+
+Kun bibliotekets egne filer fra src/hunspell/ er med, uændrede. Programmerne (src/tools),
+testene og byggefilerne er ikke med. Gode Tekster bygger biblioteket statisk med `cc` i
+src-tauri/build.rs.
+
+Licens
+------
+
+Hunspell er tre-licenseret: Mozilla Public License 1.1 (COPYING.MPL), GNU General Public
+License 2 eller senere (COPYING) eller GNU Lesser General Public License 2.1 eller senere
+(COPYING.LESSER). Modtageren vælger selv.
+
+Gode Tekster bruger Hunspell under LGPL 2.1 eller senere. Grunden: Gode Tekster er under
+GPL-3.0, og MPL 1.1 kan ikke kombineres med GPL i samme program. LGPL 2.1 eller senere kan.
+Licensblokken i hver fil står uændret, så en modtager af disse filer stadig kan vælge en af de
+tre licenser.
+
+Hunspell bygger på MySpell, der har sin egen BSD-lignende licens (license.myspell). Den
+gælder fortsat for de dele, der stammer fra MySpell. license.hunspell er Hunspells egen
+licensblok. AUTHORS er listen over bidragydere.
+
+Copyright (C) 2002-2022 Németh László og bidragyderne i AUTHORS.
+Copyright 2002 Kevin B. Hendricks, Stratford, Ontario, Canada (MySpell).

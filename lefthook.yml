@@ -1,0 +1,4 @@
+pre-commit:
+  commands:
+    safety-net:
+      run: node .claude/hooks/check.mjs

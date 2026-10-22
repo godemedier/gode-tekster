@@ -1,0 +1,284 @@
+//! Ét vindue pr. tekst (3/10), som i Word og iA Writer på Windows. Hovedvinduet »main« findes
+//! altid og skjules ved luk (ADR-0014). Ekstra vinduer hedder »tekst-1«, »tekst-2« … og lukker helt,
+//! når teksten er gemt. Samme tekst åbnes aldrig i to vinduer: det vindue, der har den, hentes frem.
+//! Ctrl+Q og »Afslut« venter, til alle vinduer har gemt eller lagt en nødkopi.
+
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Mutex;
+
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+
+#[derive(Default)]
+pub struct WindowState {
+    next: AtomicU32,
+    /// Et nyt vindue, der endnu ikke har spurgt efter sin tekst: etiket → sti.
+    pending: Mutex<HashMap<String, PathBuf>>,
+    /// Hvilken tekst hvert vindue viser: etiket → sti.
+    shows: Mutex<HashMap<String, PathBuf>>,
+    /// Under Ctrl+Q: de vinduer, der endnu ikke har gemt.
+    quitting: Mutex<Option<HashSet<String>>>,
+}
+
+pub(crate) fn same(a: &Path, b: &Path) -> bool {
+    let a = std::fs::canonicalize(a).unwrap_or_else(|_| a.to_path_buf());
+    let b = std::fs::canonicalize(b).unwrap_or_else(|_| b.to_path_buf());
+    a.to_string_lossy()
+        .eq_ignore_ascii_case(&b.to_string_lossy())
+}
+
+pub fn path_for(app: &AppHandle, label: &str) -> Option<PathBuf> {
+    app.state::<WindowState>()
+        .shows
+        .lock()
+        .ok()?
+        .get(label)
+        .cloned()
+}
+
+/// Vinduet, der viser teksten, hvis nogen gør.
+pub fn window_with(app: &AppHandle, path: &Path) -> Option<String> {
+    let state = app.state::<WindowState>();
+    if let Ok(shows) = state.shows.lock() {
+        if let Some((l, _)) = shows.iter().find(|(_, p)| same(p, path)) {
+            return Some(l.clone());
+        }
+    }
+    if let Ok(pending) = state.pending.lock() {
+        if let Some((l, _)) = pending.iter().find(|(_, p)| same(p, path)) {
+            return Some(l.clone());
+        }
+    }
+    None
+}
+
+/// Vinduet har åbnet en tekst (document.rs `open_path`).
+pub fn showing(app: &AppHandle, label: &str, path: &Path) {
+    if let Ok(mut shows) = app.state::<WindowState>().shows.lock() {
+        shows.insert(label.to_owned(), path.to_path_buf());
+    }
+}
+
+/// Har hovedvinduet en tekst, og kan det ses? Ellers åbnes en ny fil dér i stedet for i et nyt vindue.
+pub fn main_is_busy(app: &AppHandle) -> bool {
+    let has_text = app
+        .state::<WindowState>()
+        .shows
+        .lock()
+        .is_ok_and(|s| s.contains_key("main"));
+    let visible = app
+        .get_webview_window("main")
+        .is_some_and(|w| w.is_visible().unwrap_or(false));
+    has_text && visible
+}
+
+/// Hent et vindue frem og giv det fokus (ikke i testtilstand, så en test aldrig stjæler tastetryk).
+pub fn focus(app: &AppHandle, label: &str) {
+    if label == "main" {
+        crate::show_main(app);
+        return;
+    }
+    if let Some(w) = app.get_webview_window(label) {
+        #[cfg(desktop)]
+        let _ = w.unminimize();
+        let _ = w.show();
+        if !std::env::var("GT_TEST").is_ok_and(|v| v == "1") {
+            let _ = w.set_focus();
+        }
+    }
+}
+
+/// Et nyt vindue, tomt eller med en tekst. Vinduet henter selv teksten (`take_pending`), når fladen er klar.
+pub fn open_window(app: &AppHandle, path: Option<PathBuf>) -> Result<(), String> {
+    let state = app.state::<WindowState>();
+    let label = format!("tekst-{}", state.next.fetch_add(1, Ordering::SeqCst) + 1);
+    if let Some(p) = path {
+        if let Ok(mut pending) = state.pending.lock() {
+            pending.insert(label.clone(), p);
+        }
+    }
+    let w = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
+        .title("Gode Tekster")
+        .inner_size(1280.0, 840.0)
+        .min_inner_size(640.0, 480.0)
+        // Fladen tegner selv titellinjen (ADR-0065, ui/titlebar.ts).
+        .decorations(false)
+        .visible(false)
+        .disable_drag_drop_handler()
+        .build()
+        .map_err(|e| {
+            if let Ok(mut pending) = state.pending.lock() {
+                pending.remove(&label);
+            }
+            t!(
+                format!("Vinduet kunne ikke åbnes: {e}"),
+                format!("The window could not be opened: {e}")
+            )
+        })?;
+    #[cfg(windows)]
+    crate::contextmenu::install(&w);
+    #[cfg(not(windows))]
+    let _ = w;
+    Ok(())
+}
+
+/// Et vindue, der ikke laves af `open_window` (noterne, notes.rs), skal også kunne hente sin tekst.
+pub fn set_pending(app: &AppHandle, label: &str, path: &Path) {
+    if let Ok(mut p) = app.state::<WindowState>().pending.lock() {
+        p.insert(label.to_owned(), path.to_path_buf());
+    }
+}
+
+/// Teksten, et nyt vindue skal vise (null for et tomt vindue). Kaldes én gang fra `initial_document`.
+pub fn take_pending(app: &AppHandle, label: &str) -> Option<PathBuf> {
+    app.state::<WindowState>()
+        .pending
+        .lock()
+        .ok()?
+        .remove(label)
+}
+
+/// Et vindue er lukket for alvor: glem dets tekst og overvågning.
+pub fn forget(app: &AppHandle, label: &str) {
+    if let Ok(mut shows) = app.state::<WindowState>().shows.lock() {
+        shows.remove(label);
+    }
+    if let Ok(mut pending) = app.state::<WindowState>().pending.lock() {
+        pending.remove(label);
+    }
+    crate::document::forget_window(app, label);
+    crate::watcher::forget_window(app, label);
+}
+
+/// Ctrl+N, Ctrl+klik i biblioteket eller »Åbn i nyt vindue«. Er teksten allerede åben, hentes dens vindue.
+/// Asynkron: et vindue, der oprettes i en synkron kommando, låser fast på Windows (Tauri, set i
+/// trykprøven 3/10: det nye vindue blev aldrig færdigt).
+#[tauri::command]
+pub async fn new_window(app: AppHandle, path: Option<String>) -> Result<(), String> {
+    let path = path.map(PathBuf::from);
+    if let Some(p) = &path {
+        crate::document::may_open(&app, &app.state::<crate::document::AppState>(), p)
+            .map_err(|e| e.message)?;
+        if let Some(label) = window_with(&app, p) {
+            focus(&app, &label);
+            return Ok(());
+        }
+    }
+    open_window(&app, path)
+}
+
+/// Er teksten åben i et andet vindue? Så hentes det frem, og svaret er sandt (main.ts åbner den ikke igen).
+#[tauri::command]
+pub fn focus_if_open(app: AppHandle, window: tauri::Window, path: String) -> bool {
+    match window_with(&app, Path::new(&path)) {
+        Some(label) if label != window.label() => {
+            focus(&app, &label);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Et ekstra vindue har gemt efter »luk«: nu lukkes det helt. Hovedvinduet skjules i stedet.
+#[tauri::command]
+pub async fn close_window(app: AppHandle, window: tauri::WebviewWindow) {
+    if window.label() == "main" {
+        let _ = window.hide();
+        crate::webview_visible(&app, false);
+        return;
+    }
+    forget(&app, window.label());
+    let _ = window.destroy();
+}
+
+/// Ctrl+Q og »Afslut«: alle vinduer gemmer og melder tilbage (`quit_app`). En gemfejl må ikke
+/// afslutte processen, mens et vindue stadig har ugemte rettelser. `anyway` (»Afslut alligevel«)
+/// sendes med til alle vinduer, så også et notesark, der ikke kan gemme, nøjes med backup.
+#[tauri::command]
+pub fn request_quit(app: AppHandle, anyway: Option<bool>) {
+    // Det forvarmede ark har ingen note og ville aldrig svare (ADR-0052). Tauri lukker det først
+    // i næste runde af hændelsesløkken, så det står stadig i listen og skal tages ud her. Ellers
+    // venter afslutningen på det, og først et nyt Afslut lukker programmet (set 18/10).
+    let spare = crate::notes::drop_spare(&app);
+    let labels: HashSet<String> = app
+        .webview_windows()
+        .into_keys()
+        .filter(|label| spare.as_deref() != Some(label.as_str()))
+        // Notelisten har intet at gemme og svarer aldrig (kodegennemgang 20/10: en åben liste fik
+        // Afslut til at vente for evigt, og opdateringen blev aldrig installeret).
+        .filter(|label| label != crate::notes::LIST)
+        .collect();
+    if let Ok(mut q) = app.state::<WindowState>().quitting.lock() {
+        *q = Some(labels);
+    }
+    let _ = app.emit("quit-requested", anyway.unwrap_or(false));
+}
+
+/// Et vindue har gemt under Ctrl+Q. Når det sidste har, lukkes programmet.
+#[tauri::command]
+pub fn quit_app(app: AppHandle, window: tauri::Window) {
+    let done = match app.state::<WindowState>().quitting.lock() {
+        Ok(mut q) => match q.as_mut() {
+            Some(left) => {
+                left.remove(window.label());
+                left.is_empty()
+            }
+            None => false,
+        },
+        Err(_) => false,
+    };
+    if done {
+        app.exit(0);
+    }
+}
+
+/// En gemfejl afbryder afslutningen i alle vinduer.
+#[tauri::command]
+pub fn cancel_quit(app: AppHandle, window: tauri::Window) {
+    if let Ok(mut q) = app.state::<WindowState>().quitting.lock() {
+        *q = None;
+    }
+    // »Genstart nu« er aflyst sammen med afslutningen: et senere almindeligt Afslut må ikke
+    // genstarte programmet (kodegennemgang 20/10).
+    crate::updater::cancel_restart();
+    // Hovedvinduet kan være skjult (Luk skjuler det): spørgsmålet om ugemt tekst skal kunne ses.
+    if window.label() == "main" {
+        crate::show_main(&app);
+    }
+    let _ = app.emit("quit-cancelled", ());
+}
+
+/// Titellinjen i programmets egen farve (visuel gennemgang 5/10): samme flade og tekstfarve som
+/// skrivefladen (--flade, --blæk i styles.css) i det aktuelle udseende (ADR-0037). Windows 11
+/// farver den gennem DWM; på Windows 10 sker der intet. Kaldes fra fladen, når udseendet sættes.
+#[tauri::command]
+pub fn set_titlebar(window: tauri::WebviewWindow, theme: String) {
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() {
+        use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
+        // COLORREF er 0x00BBGGRR. 20: mørke vinduesknapper, 35: titellinjens farve, 36: titlens.
+        let (caption, text, dark): (u32, u32, bool) = match theme.as_str() {
+            "moerk" => (0x001c_1917, 0x00dd_d9d5, true),
+            "aften" => (0x000f_1316, 0x009a_c7e6, true),
+            _ => (0x00f7_f6f5, 0x0025_211d, false),
+        };
+        let immersive: u32 = u32::from(dark);
+        for (attr, value) in [(20u32, immersive), (35, caption), (36, text)] {
+            // SAFETY: et gyldigt vindueshåndtag og en u32 på 4 byte, som DWM forventer.
+            unsafe {
+                DwmSetWindowAttribute(hwnd.0 as _, attr, (&value as *const u32).cast(), 4);
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = (window, theme);
+}
+
+/// Vinduets titel: tekstens navn uden .md (visuel gennemgang 5/10).
+pub fn title_of(name: &str) -> String {
+    name.strip_suffix(".md")
+        .or_else(|| name.strip_suffix(".markdown"))
+        .unwrap_or(name)
+        .to_owned()
+}

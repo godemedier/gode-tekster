@@ -1,0 +1,20 @@
+name: Idé / Idea
+description: Noget, der mangler. Something that's missing.
+labels: ["idé"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Projektet har én vedligeholder. Alt bliver læst, men ikke alt bliver bygget.
+        This project has one maintainer. Everything is read, not everything gets built.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Hvad prøver du at gøre? / What are you trying to do?
+      description: Beskriv behovet, før du beskriver løsningen. Describe the need before the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: forslag
+    attributes:
+      label: Forslag / Suggestion

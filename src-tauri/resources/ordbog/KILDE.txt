@@ -1,0 +1,15 @@
+Dansk ordbog til stavekontrollen (ADR-0063). Opdateres med: node scripts/ordbog.mjs
+
+  Version:  2.9.148
+  Hentet:   2026-10-09
+  Kilde:    https://stavekontrolden.dk/dictionaries/da_DK/da_DK-2.9.148.oxt
+  Ophav:    Stavekontrolden (Foreningen for frit tilgængelige sprogværktøjer), bygget på data fra
+            Det Danske Sprog- og Litteraturselskab
+  Licens:   GPL 2.0, LGPL 2.1 eller MPL 1.1 efter eget valg. Gode Tekster bruger den under LGPL 2.1.
+
+  sha256
+    e679cebd2045102d5927cd8bb61ebcf71af6e3fdbe11cc37d23019b161cd74a9  da_DK-2.9.148.oxt
+    91fd265a3904fe4f3ebddd511184df8bb4d9964984234db168d73fd9a4704275  da_DK.aff
+    d280e912f83422936fd55d45de9ac92c9f1790fa94096444ab173c1dfbac041e  da_DK.dic
+    42bd2095c0d28b854f8785a46d320d69b82b4b243721092be10060d53ef77a32  README_da_DK.txt
+  

@@ -1,0 +1,91 @@
+[package]
+name = "gode-tekster"
+version = "0.2.27"
+description = "Gode Tekster: et skriveprogram fra Gode Medier"
+authors = ["Gode Medier"]
+license = "GPL-3.0-only"
+repository = "https://github.com/godemedier/gode-tekster"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "gode_tekster_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+# Hunspell (vendor/hunspell) bygges med cc i build.rs (ADR-0063). Lå allerede i Cargo.lock.
+cc = "1.5.1"
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "protocol-asset"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+encoding_rs = "0.8.42"
+blake3 = "1.8.7"
+unicode-segmentation = "1.13.3"
+# Ord fra en Mac eller en PDF kan have »å« som a plus ring. Hunspell kender kun »å« (spelling.rs).
+# Lå der allerede gennem tauri.
+unicode-normalization = "0.1.25"
+sha2 = "0.10.9"
+getrandom = "0.3.4"
+tauri-plugin-dialog = "=2.8.0"
+notify = "8.2.0"
+notify-debouncer-full = "0.6.0"
+zstd = "0.13.3"
+dissimilar = "1.0.11"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+ureq = { version = "3.4.2", default-features = false, features = ["gzip"] }
+minisign-verify = "=0.2.5"
+base64 = "0.22.1"
+semver = "1.0.28"
+# Søgning i alle tekster (search.rs). Lå der allerede gennem regex og tauri, nu også direkte.
+memchr = "2.8.3"
+# Synken (ADR-0054): stiregler, filter og protokol, delt med serveren i synk/.
+synk-kerne = { path = "../synk/kerne" }
+
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
+
+# Constitution: intet unwrap()/expect() uden for tests. Håndhæves af clippy i commit-gaten
+# (-D warnings), så reglen ikke kun står på papir. Tests er undtaget i clippy.toml.
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+# Serverens lager i simulationstesten (synk/sim.rs).
+synk-kerne = { path = "../synk/kerne", features = ["store"] }
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Shutdown", "Win32_System_SystemInformation", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+# Windows bruger systemets TLS og certifikatlager (net.rs).
+ureq = { version = "3.4.2", default-features = false, features = ["native-tls"] }
+# Papirkurven (files::to_trash). Telefonen har ingen.
+trash = "5.2.9"
+webview2-com = "=0.39.1"
+windows-core = "0.62.2"
+# WIC: HEIC og TIFF laves om til JPEG (convert.rs). Samme version som webview2-com bruger.
+windows = { version = "0.62.2", features = ["Devices_Radios", "Foundation", "Foundation_Collections", "Win32_Foundation", "Win32_Globalization", "Win32_Graphics_Imaging", "Win32_Storage_EnhancedStorage", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_Shell_PropertiesSystem"] }
+
+# Kun på pc'en: ét kørende program.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "=2.5.1"
+
+# Telefonen har hverken OpenSSL eller Windows' certifikatlager: rustls med de indbyggede rødder (net.rs).
+[target.'cfg(target_os = "android")'.dependencies]
+ureq = { version = "3.4.2", default-features = false, features = ["rustls"] }
+# localtime_r: telefonens tidszone til tidsstemplerne (notes::local_stamp). Ligger allerede i træet.
+libc = "0.2.189"

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Sikkerhedshul / Security issue
+    url: https://github.com/godemedier/gode-tekster/security/advisories/new
+    about: Meld det privat, ikke som issue. Report it privately, not as an issue.
+  - name: Skriv i stedet / Write instead
+    url: mailto:troels@godemedier.dk
+    about: Til alt, der ikke skal stå offentligt. For anything that shouldn't be public.

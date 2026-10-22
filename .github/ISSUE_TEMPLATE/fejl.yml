@@ -1,0 +1,45 @@
+name: Fejl / Bug
+description: Noget virker ikke, som det skal. Something doesn't work as it should.
+labels: ["fejl"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues er offentlige. Vedhæft aldrig en tekst eller en fil, andre ikke må se.
+        Issues are public. Never attach a text or file others mustn't see.
+
+        Er det et sikkerhedshul, så brug »Report a vulnerability« under Security i stedet.
+        For a security issue, use »Report a vulnerability« under Security instead.
+  - type: textarea
+    id: gjorde
+    attributes:
+      label: Hvad gjorde du? / What did you do?
+      description: Trin for trin, så fejlen kan gentages. Step by step, so it can be reproduced.
+    validations:
+      required: true
+  - type: textarea
+    id: ventede
+    attributes:
+      label: Hvad ventede du? / What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: skete
+    attributes:
+      label: Hvad skete der? / What happened instead?
+      description: Fejlbeskeder ordret, gerne et skærmbillede. Error messages verbatim, a screenshot helps.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Står nederst i Indstillinger. At the bottom of Settings.
+      placeholder: "0.2.27"
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      placeholder: "Windows 11 24H2"

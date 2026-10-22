@@ -1,0 +1,13 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Gode Tekster",
+        "url": "mobile.html",
+        "visible": true,
+        "backgroundColor": "#f5f6f7"
+      }
+    ]
+  }
+}
