@@ -2,7 +2,7 @@
   "name": "gode-tekster",
   "private": true,
   "license": "GPL-3.0-only",
-  "version": "0.2.27",
+  "version": "0.2.28",
   "description": "Free markdown writing app for Windows: dimmed text, plain files, AI help on request",
   "homepage": "https://godemedier.dk/apps/gode-tekster/",
   "repository": {

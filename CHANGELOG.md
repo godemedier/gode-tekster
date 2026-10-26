@@ -10,23 +10,9 @@ versions. Releases up to 0.2.27 are described in one paragraph each, as on the
 
 ## [Unreleased]
 
-### Changed
+## [0.2.28] - 2026-10-26
 
-- Windows' titellinje er væk. Toppen af vinduet er tom, mens du skriver, og en tynd linje med
-  tekstens navn, minimer, maksimer og luk kommer frem, når musen er deroppe. Teksten toner ud,
-  før den når toppen.
-
-### Added
-
-- Rækker og kolonner i en tabel kan flyttes. Træk i håndtaget, der kommer frem ud for rækken og
-  over kolonnen, eller tryk Alt og en piletast i en celle. Højreklik har også »Flyt række op« og
-  de tre andre.
-- Udskriv og eksportér har fået et ikon nederst i højre spalte. Det åbner det samme som Ctrl+P.
-
-### Fixed
-
-- Gæstens side for en delt tekst ruller nu som én side. Før blev kommentarerne i margenen stående,
-  når teksten blev rullet, og man kunne ikke komme ned til de sidste.
+Windows' titellinje er væk. Toppen af vinduet er tom, mens du skriver, og en tynd linje med tekstens navn og knapperne til at minimere, maksimere og lukke kommer frem, når musen er deroppe. Teksten toner ud, før den når toppen. Rækker og kolonner i en tabel kan nu flyttes. Træk i håndtaget ud for rækken eller over kolonnen, eller tryk Alt og en piletast. Udskriv og eksportér har fået et ikon nederst i højre spalte. Deler du en tekst, kan den, du deler med, nu rulle hele vejen ned og læse alle kommentarerne.
 
 ## [0.2.27] - 2026-10-22
 
