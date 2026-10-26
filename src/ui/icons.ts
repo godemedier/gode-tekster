@@ -31,6 +31,8 @@ export const ICON = {
   language: svg('<path d="M3 16 7.5 4 12 16M4.8 12h5.4"></path><path d="m13 16.5 3 3 6-7"></path>'),
   people: svg('<circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20v-1a5 5 0 0 1 5-5h3a5 5 0 0 1 5 5v1"></path><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.2a5 5 0 0 1 3 4.8v1"></path>'),
   mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"></path>'),
+  // Udskriv og eksportér nederst i højre spalte (26/10, Lucide »printer«).
+  printer: svg('<path d="M6 9V3h12v6"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="7"></rect>'),
   // Kortenes hjørne i Fraklip: tilbage i teksten (pil, Lucide »undo-2«) og flere valg (tre prikker).
   undo: svg('<path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path>'),
   more: svg('<circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle>'),

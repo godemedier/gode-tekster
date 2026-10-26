@@ -4,7 +4,7 @@ import { EditorState } from "@codemirror/state";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 
-import { escapeCell, formatDelimiter, formatRow, formatTable, inlineParts, modelOf, parseTable, placeholderSpaces, repairPastedTable, splitRow, tablePreview } from "./tables.ts";
+import { escapeCell, formatDelimiter, formatRow, formatTable, inlineParts, modelOf, moveColumn, moveRow, parseTable, placeholderSpaces, repairPastedTable, splitRow, tablePreview } from "./tables.ts";
 
 test("en række deles ved lodrette streger, også uden streg yderst, og \\| er en streg i teksten", () => {
   assert.deepEqual(splitRow("| A | B |", 0), [
@@ -132,6 +132,18 @@ test("cellerne skrives tilbage som markdown: streger escapes, justeringen bevare
   const back = parseTable(again.map((text) => ({ text, from: (pos += text.length + 1) - text.length - 1 })));
   assert.ok(back);
   assert.deepEqual(modelOf(back), m);
+});
+
+test("rækker og kolonner flyttes med deres celler og justering (26/10)", () => {
+  const m = { header: ["A", "B", "C"], align: ["left", "center", "right"] as ("left" | "center" | "right")[], rows: [["1", "2", "3"], ["4", "5", "6"], ["7"]] };
+  assert.deepEqual(moveRow(m, 0, 2).rows, [["4", "5", "6"], ["7"], ["1", "2", "3"]]);
+  assert.deepEqual(moveRow(m, 2, 0).rows, [["7"], ["1", "2", "3"], ["4", "5", "6"]]);
+  assert.deepEqual(moveRow(m, 1, 1), m, "på samme plads er intet ændret");
+  const c = moveColumn(m, 0, 2);
+  assert.deepEqual(c.header, ["B", "C", "A"]);
+  assert.deepEqual(c.align, ["center", "right", "left"]);
+  assert.deepEqual(c.rows, [["2", "3", "1"], ["5", "6", "4"], ["", "", "7"]], "en kort række fyldes ud, så cellerne bliver i deres kolonne");
+  assert.equal(formatTable(moveColumn(m, 2, 1)), "| A | C | B |\n|---|--:|:-:|\n| 1 | 3 | 2 |\n| 4 | 6 | 5 |\n| 7 |  |  |");
 });
 
 // En rigtig tabel fra 6/10, kopieret fra en terminal: rykket ind og med brudte rækker.

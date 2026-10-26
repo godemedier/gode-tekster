@@ -16,6 +16,18 @@ versions. Releases up to 0.2.27 are described in one paragraph each, as on the
   tekstens navn, minimer, maksimer og luk kommer frem, når musen er deroppe. Teksten toner ud,
   før den når toppen.
 
+### Added
+
+- Rækker og kolonner i en tabel kan flyttes. Træk i håndtaget, der kommer frem ud for rækken og
+  over kolonnen, eller tryk Alt og en piletast i en celle. Højreklik har også »Flyt række op« og
+  de tre andre.
+- Udskriv og eksportér har fået et ikon nederst i højre spalte. Det åbner det samme som Ctrl+P.
+
+### Fixed
+
+- Gæstens side for en delt tekst ruller nu som én side. Før blev kommentarerne i margenen stående,
+  når teksten blev rullet, og man kunne ikke komme ned til de sidste.
+
 ## [0.2.27] - 2026-10-22
 
 Højreklik på et ord fryser ikke vinduet mere, mens fanen Sprog leder efter stavefejl. En lang tekst med kapitler reagerer hurtigere, når du skriver og flytter markøren. Det samme gør »Ret som forslag«. En fejlbesked i Indstillinger kan nu ses og lukkes, uden at Indstillinger lukker. Fejler forbindelsen under Synkronisering, står det, du har tastet, der stadig.

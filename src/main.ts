@@ -429,6 +429,7 @@ window.addEventListener("gt-ai-changed", () => void claude.refreshAi(true));
 // --- indstillingerne slår igennem med det samme -----------------------------------------------
 
 const printing = new PrintPreview(view, () => session?.path ?? null);
+rightPanel.addAction(ICON.printer, [tr("Udskriv", "Print"), tr("Eksportér", "Export")], tr("Udskriv, PDF og Word (Ctrl+P)", "Print, PDF and Word (Ctrl+P)"), () => void printing.open());
 
 const counter = new CountCorner(document.getElementById("count") as HTMLElement, view);
 onSelectionChange(() => {

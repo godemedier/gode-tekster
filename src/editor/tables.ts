@@ -318,6 +318,37 @@ function removeColumn(m: TableModel, at: number): TableModel {
   return { header: del(m.header), align: del(m.align), rows: m.rows.map(del) };
 }
 
+/** Flyt række `from` hen på plads `to`, talt i rækkerne under overskriften. */
+export function moveRow(m: TableModel, from: number, to: number): TableModel {
+  const rows = [...m.rows];
+  const [row] = rows.splice(from, 1);
+  if (row) rows.splice(to, 0, row);
+  return { ...m, rows };
+}
+
+/** Flyt kolonne `from` hen på plads `to`, med justeringen. En kort række fyldes ud først. */
+export function moveColumn(m: TableModel, from: number, to: number): TableModel {
+  const move = <T,>(a: T[]): T[] => {
+    const b = [...a];
+    b.splice(to, 0, ...b.splice(from, 1));
+    return b;
+  };
+  return { header: move(m.header), align: move(m.align), rows: m.rows.map((r) => move(m.header.map((_, i) => r[i] ?? ""))) };
+}
+
+/** Kan rækken (dr) eller kolonnen (dc) ved cellen (r, c) flyttes ét skridt? Overskriften står fast. */
+function canMove(m: TableModel, r: number, c: number, dr: number, dc: number): boolean {
+  if (dr) return r > 0 && r - 1 + dr >= 0 && r - 1 + dr < m.rows.length;
+  return c + dc >= 0 && c + dc < m.header.length;
+}
+
+/** Flyt rækken eller kolonnen ét skridt (højreklik og Alt+pil, 26/10). Markøren følger med. */
+function moveBy(view: EditorView, wrap: HTMLElement, m: TableModel, r: number, c: number, dr: number, dc: number): void {
+  if (!canMove(m, r, c, dr, dc)) return;
+  if (dr) commitAll(view, wrap, moveRow(m, r - 1, r - 1 + dr), { row: r + dr, col: c });
+  else commitAll(view, wrap, moveColumn(m, c, c + dc), { row: r, col: c + dc });
+}
+
 /** Et punkt i højrekliksmenuen (ui/contextMenu.ts bygger WebView2's egen menu af dem). */
 export type TableMenuItem = { label: string; run: () => void; checked?: boolean } | { separator: true };
 
@@ -338,6 +369,11 @@ export function tableMenuAt(view: EditorView, target: Element): TableMenuItem[] 
     { label: tr("Ny række under", "New row below"), run: () => commitAll(view, wrap, addRow(m, r), { row: r + 1, col: c }) },
     { label: tr("Ny kolonne til venstre", "New column to the left"), run: () => commitAll(view, wrap, addColumn(m, c), { row: r, col: c }) },
     { label: tr("Ny kolonne til højre", "New column to the right"), run: () => commitAll(view, wrap, addColumn(m, c + 1), { row: r, col: c + 1 }) },
+    { separator: true },
+    ...(canMove(m, r, c, -1, 0) ? [{ label: tr("Flyt række op", "Move row up"), run: () => moveBy(view, wrap, m, r, c, -1, 0) }] : []),
+    ...(canMove(m, r, c, 1, 0) ? [{ label: tr("Flyt række ned", "Move row down"), run: () => moveBy(view, wrap, m, r, c, 1, 0) }] : []),
+    ...(canMove(m, r, c, 0, -1) ? [{ label: tr("Flyt kolonne til venstre", "Move column left"), run: () => moveBy(view, wrap, m, r, c, 0, -1) }] : []),
+    ...(canMove(m, r, c, 0, 1) ? [{ label: tr("Flyt kolonne til højre", "Move column right"), run: () => moveBy(view, wrap, m, r, c, 0, 1) }] : []),
     { separator: true },
     ...(r > 0 ? [{ label: tr("Slet række", "Delete row"), run: () => commitAll(view, wrap, { ...m, rows: m.rows.filter((_, i) => i !== r - 1) }, { row: Math.min(r, m.rows.length - 1), col: c }) }] : []),
     ...(m.header.length > 1 ? [{ label: tr("Slet kolonne", "Delete column"), run: () => commitAll(view, wrap, removeColumn(m, c), { row: r, col: Math.max(0, c - 1) }) }] : []),
@@ -370,6 +406,126 @@ function caretKey(): string {
   const node = sel?.focusNode;
   if (!node) return "";
   return `${[...(node.parentNode?.childNodes ?? [])].indexOf(node as ChildNode)}:${sel.focusOffset}:${node.nodeName}`;
+}
+
+const STEPS: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+
+/** Seks prikker: håndtaget, man trækker en række eller kolonne i. */
+const GRIP =
+  '<svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><g fill="currentColor"><circle cx="3" cy="3" r="1.3"/><circle cx="7" cy="3" r="1.3"/><circle cx="3" cy="8" r="1.3"/><circle cx="7" cy="8" r="1.3"/><circle cx="3" cy="13" r="1.3"/><circle cx="7" cy="13" r="1.3"/></g></svg>';
+
+/**
+ * Træk i en række eller kolonne (26/10). Ét håndtag for rækken og ét for kolonnen, musen står over.
+ * Under trækket viser en streg, hvor den lander. Overskriftsrækken står fast: markdown har den øverst.
+ */
+function wireDrag(wrap: HTMLElement, view: EditorView): void {
+  const make = (cls: string, label: string) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = `gt-table-grip ${cls}`;
+    b.tabIndex = -1;
+    b.title = label;
+    b.setAttribute("aria-label", label);
+    b.innerHTML = GRIP;
+    wrap.append(b);
+    return b;
+  };
+  const rowGrip = make("gt-table-grip-row", tr("Træk for at flytte rækken (Alt+↑ og Alt+↓)", "Drag to move the row (Alt+↑ and Alt+↓)"));
+  const colGrip = make("gt-table-grip-col", tr("Træk for at flytte kolonnen (Alt+← og Alt+→)", "Drag to move the column (Alt+← and Alt+→)"));
+  const line = document.createElement("div");
+  line.className = "gt-table-drop";
+  line.hidden = true;
+  wrap.append(line);
+
+  /** Et rektangel i tabelboksens koordinater, også når tabellen er rullet vandret. */
+  const local = (el: Element) => {
+    const box = wrap.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    return { top: r.top - box.top + wrap.scrollTop, left: r.left - box.left + wrap.scrollLeft, width: r.width, height: r.height };
+  };
+
+  let drag: { kind: "row" | "col"; from: number; to: number } | null = null;
+
+  // Håndtagene står ud for den række og over den kolonne, musen er over.
+  wrap.addEventListener("pointermove", (e) => {
+    if (drag) return;
+    const cell = e.target instanceof Element ? e.target.closest<HTMLElement>("th, td") : null;
+    const table = wrap.querySelector("table");
+    if (!cell || !table) return;
+    const t = local(table);
+    const r = Number(cell.dataset.row);
+    const c = Number(cell.dataset.col);
+    rowGrip.hidden = r === 0 || table.tBodies[0]?.rows.length === 1;
+    if (!rowGrip.hidden && cell.parentElement) {
+      const row = local(cell.parentElement);
+      rowGrip.dataset.row = String(r);
+      rowGrip.style.top = `${row.top + row.height / 2 - 8}px`;
+      rowGrip.style.left = `${Math.max(0, t.left - 18)}px`;
+    }
+    const head = table.tHead?.rows[0]?.cells[c];
+    colGrip.hidden = !head || (table.tHead?.rows[0]?.cells.length ?? 0) < 2;
+    if (head && !colGrip.hidden) {
+      const h = local(head);
+      colGrip.dataset.col = String(c);
+      colGrip.style.top = `${Math.max(0, t.top - 11)}px`;
+      colGrip.style.left = `${h.left + h.width / 2 - 8}px`;
+    }
+  });
+
+  const start = (kind: "row" | "col", grip: HTMLElement) => (e: PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const from = Number(kind === "row" ? grip.dataset.row : grip.dataset.col);
+    if (Number.isNaN(from)) return;
+    // `to` tælles som i moveRow, under overskriften: et klik uden træk lander på samme plads.
+    drag = { kind, from, to: kind === "row" ? from - 1 : from };
+    grip.setPointerCapture(e.pointerId);
+    wrap.classList.add("gt-table-dragging");
+    for (const cell of wrap.querySelectorAll<HTMLElement>(kind === "row" ? `td[data-row="${from}"]` : `[data-col="${from}"]`)) cell.classList.add("gt-drag-source");
+  };
+  rowGrip.addEventListener("pointerdown", start("row", rowGrip));
+  colGrip.addEventListener("pointerdown", start("col", colGrip));
+
+  // Hvor rækken eller kolonnen lander: før den første række (kolonne), hvis midte musen er over.
+  const track = (e: PointerEvent) => {
+    const table = wrap.querySelector("table");
+    if (!drag || !table) return;
+    const t = local(table);
+    const parts = drag.kind === "row" ? [...(table.tBodies[0]?.rows ?? [])] : [...(table.tHead?.rows[0]?.cells ?? [])];
+    const gap = parts.findIndex((p) => {
+      const r = p.getBoundingClientRect();
+      return drag?.kind === "row" ? e.clientY < r.top + r.height / 2 : e.clientX < r.left + r.width / 2;
+    });
+    const at = gap === -1 ? parts.length : gap;
+    const edge = parts[Math.min(at, parts.length - 1)];
+    if (!edge) return;
+    const p = local(edge);
+    const end = at === parts.length;
+    // `to` er pladsen efter flytningen. Rækkerne tælles under overskriften.
+    const from = drag.kind === "row" ? drag.from - 1 : drag.from;
+    drag.to = at > from ? at - 1 : at;
+    line.hidden = drag.to === from;
+    if (drag.kind === "row") Object.assign(line.style, { top: `${(end ? p.top + p.height : p.top) - 1}px`, left: `${t.left}px`, width: `${t.width}px`, height: "2px" });
+    else Object.assign(line.style, { top: `${t.top}px`, left: `${(end ? p.left + p.width : p.left) - 1}px`, width: "2px", height: `${t.height}px` });
+  };
+  rowGrip.addEventListener("pointermove", track);
+  colGrip.addEventListener("pointermove", track);
+
+  const finish = (commit: boolean) => () => {
+    const d = drag;
+    drag = null;
+    line.hidden = true;
+    wrap.classList.remove("gt-table-dragging");
+    for (const cell of wrap.querySelectorAll(".gt-drag-source")) cell.classList.remove("gt-drag-source");
+    if (!d || !commit) return;
+    const m = domModel(wrap);
+    if (d.kind === "row" && d.to !== d.from - 1) commitAll(view, wrap, moveRow(m, d.from - 1, d.to), { row: d.to + 1, col: 0 });
+    if (d.kind === "col" && d.to !== d.from) commitAll(view, wrap, moveColumn(m, d.from, d.to), { row: 0, col: d.to });
+  };
+  for (const g of [rowGrip, colGrip]) {
+    g.addEventListener("pointerup", finish(true));
+    g.addEventListener("pointercancel", finish(false));
+  }
 }
 
 /** Lytterne sidder på tabellens yderste element og læser alt fra DOM'en, når de kaldes. */
@@ -445,6 +601,12 @@ function wire(wrap: HTMLElement, view: EditorView): void {
       }
       return;
     }
+    // Alt+pil flytter rækken eller kolonnen, som Alt+↑/↓ flytter et afsnit i teksten.
+    const step = STEPS[e.key];
+    if (e.altKey && !mod && !e.shiftKey && step) {
+      stop();
+      return moveBy(view, wrap, domModel(wrap), r, c, step[0], step[1]);
+    }
     if (mod || e.altKey) return;
     if (e.key === "Tab") {
       stop();
@@ -511,6 +673,7 @@ function wire(wrap: HTMLElement, view: EditorView): void {
     const m = domModel(wrap);
     commitAll(view, wrap, addColumn(m, m.header.length), { row: 0, col: m.header.length });
   });
+  wireDrag(wrap, view);
 }
 
 /**
@@ -709,6 +872,33 @@ export const tableTheme = [
     ".gt-table-add:hover": { color: "var(--blæk)", borderColor: "var(--kant-hover)" },
     ".gt-table-add-row": { left: "0", bottom: "0" },
     ".gt-table-add-col": { right: "0", top: "0.55em" },
+    // Håndtagene til at trække i, kun med mus: på telefonen er der ikke plads ved siden af tabellen.
+    ".gt-table-grip": {
+      position: "absolute",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "16px",
+      height: "16px",
+      padding: "0",
+      border: "none",
+      borderRadius: "3px",
+      background: "none",
+      color: "var(--dæmpet)",
+      cursor: "grab",
+      opacity: "0",
+      transition: "opacity 120ms ease",
+      touchAction: "none",
+    },
+    ".gt-table-grip[hidden]": { display: "none" },
+    ".gt-table-grip-col svg": { transform: "rotate(90deg)" },
+    ".gt-tablebox:hover .gt-table-grip, .gt-table-dragging .gt-table-grip": { opacity: "1" },
+    ".gt-table-grip:hover": { color: "var(--blæk)", background: "var(--hover)" },
+    ".gt-table-dragging, .gt-table-dragging *": { cursor: "grabbing !important" },
+    ".gt-drag-source": { opacity: "0.45" },
+    ".gt-table-drop": { position: "absolute", background: "var(--accent)", borderRadius: "1px", pointerEvents: "none" },
+    ".gt-table-drop[hidden]": { display: "none" },
+    "@media (pointer: coarse)": { ".gt-table-grip": { display: "none" } },
   }),
 ];
 

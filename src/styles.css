@@ -430,6 +430,10 @@ body.left-open:not(.left-pinned) .panel-left, body.right-open:not(.right-pinned)
 .rp-title-count { font-weight: 400; color: var(--dæmpet); }
 .rp-rail-line { width: 22px; height: 1px; margin: 5px 0; background: var(--kant-hover); }
 .rp-rail .panel-foot { flex-direction: column; padding: 8px 0; }
+/* Udskriv/Eksportér under fanerne: to linjer under ikonet, så knappen er højere end en fane. */
+.rp-actions { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.rp-action { height: auto; padding: 7px 0 6px; }
+.rp-action .rp-rail-label + .rp-rail-label { margin-top: -1px; }
 /* Fælles byggeklodser til alle fanerne i højre spalte (UX-gennemgang 20/10): én knap, én primærknap,
    ét link og én skala for skrift. Før havde hver fane sine egne, seks knaptyper og otte størrelser. */
 .panel-right { --rp-xs: 11px; --rp-s: 12px; --rp-m: 13px; --rp-l: 15px; --rp-xl: 19px; }

@@ -49,6 +49,8 @@ const PARAGRAPH_TYPE = "application/x-gt-afsnit";
 export class RightPanel {
   private view: EditorView;
   private tabsEl: HTMLElement;
+  /** Knapper under fanerne, der gør noget i stedet for at vise en fane (Udskriv/Eksportér). */
+  private actionsEl: HTMLElement;
   private body: HTMLElement;
   private title: HTMLElement;
   private titleCount: HTMLElement;
@@ -77,7 +79,9 @@ export class RightPanel {
     this.tabsEl.setAttribute("aria-orientation", "vertical");
     this.tabsEl.setAttribute("aria-label", tr("Vælg værktøj", "Choose a tool"));
     this.tabsEl.addEventListener("keydown", (e) => this.railKey(e));
-    rail.append(this.tabsEl, footer);
+    this.actionsEl = document.createElement("div");
+    this.actionsEl.className = "rp-actions";
+    rail.append(this.tabsEl, this.actionsEl, footer);
     const head = document.createElement("header");
     head.className = "rp-head";
     this.title = document.createElement("h2");
@@ -151,6 +155,30 @@ export class RightPanel {
     if (at >= 0) this.tabs.splice(at, 0, tab);
     else this.tabs.push(tab);
     this.renderTabs();
+  }
+
+  /**
+   * En knap nederst i bjælken, der åbner noget andet end en fane (26/10: Ctrl+P som »Udskriv« og
+   * »Eksportér« på hver sin linje). Den er ikke en fane og står derfor uden for tablisten.
+   */
+  addAction(icon: string, lines: string[], title: string, run: () => void): void {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "rp-rail-btn rp-action";
+    b.title = title;
+    b.setAttribute("aria-label", title);
+    b.innerHTML = icon;
+    for (const text of lines) {
+      const label = document.createElement("span");
+      label.className = "rp-rail-label";
+      label.textContent = text;
+      b.append(label);
+    }
+    b.addEventListener("click", run);
+    const line = document.createElement("span");
+    line.className = "rp-rail-line";
+    line.setAttribute("aria-hidden", "true");
+    this.actionsEl.append(line, b);
   }
 
   /** En fane, der kun gælder nogle gange (Deling uden synk). Står den åben, vises Fraklip. */

@@ -3,7 +3,14 @@
    Designet er bud A fra gennemgangen 21/10: programmets egne
    farver, Schibsted Grotesk til navne og titel, vermilion kun som streg (som den valgte fane i
    programmet), blæk som primær knap. Før var siden generisk og sagde ikke, hvem teksten var fra. */
+/* Siden ruller som én side. Programmets regler (styles.css) låser body og lader skrivefladen rulle
+   i sin egen boks, og så fulgte kortene i margenen ikke med teksten, og foden kunne ikke nås (26/10). */
+html:has(> body.gaest),
 body.gaest {
+  height: auto;
+}
+body.gaest {
+  overflow: visible;
   margin: 0;
   min-height: 100vh;
   display: flex;
@@ -311,8 +318,16 @@ body.gaest {
   max-width: 760px;
   margin: 0 auto;
 }
+/* Med id, for programmets `#editor .cm-editor` og CodeMirrors egne styles skal slås. */
+#editor.g-editor,
+#editor.g-editor .cm-editor {
+  height: auto;
+}
 .g-editor .cm-editor {
   min-height: 70vh;
+}
+#editor.g-editor .cm-scroller {
+  overflow: visible;
 }
 /* Gæsten foreslår og kan fortryde sine egne forslag, men ikke godtage dem. */
 body.gaest .gt-suggest-bubble button:first-of-type {

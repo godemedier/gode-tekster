@@ -192,6 +192,9 @@ function arrange(): void {
         s.el.style.top = `${top}px`;
         next = top + s.el.offsetHeight + 10;
       }
+      // Mange kommentarer nederst skubber kortene ud over teksten: siden bliver lang nok til dem,
+      // så de ikke lægger sig over foden.
+      $("editor").style.minHeight = `${next + 24}px`;
     },
   });
 }
@@ -204,6 +207,7 @@ function placeSide(): void {
   else {
     $("g-doed").before($("g-form"), $("g-intro"));
     $("g-form").style.top = "";
+    $("editor").style.minHeight = "";
   }
   view.dispatch({ effects: noteDisplay() });
   arrange();
