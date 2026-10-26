@@ -21,6 +21,7 @@ import {
   LevelFormat,
   LineRuleType,
   Packer,
+  PageBreak,
   PageNumber,
   Paragraph,
   Tab,
@@ -36,7 +37,7 @@ import {
 import JSZip from "jszip";
 import type { Token } from "markdown-it";
 
-import { bodyFor, markdownIt, SPACE_MARK, type Meta, type Template } from "./render.ts";
+import { bodyFor, markdownIt, PAGE_MARK, SPACE_MARK, type Meta, type Template } from "./render.ts";
 import { REFERENCE_MARK, type CitationStyle } from "../editor/references.ts";
 import { defaultLayout, nativeFont, pageRows, rowEmpty, type PageFont, type PageLayout, type Part, type Row } from "./layout.ts";
 import { tr, isEnglish } from "../i18n.ts";
@@ -337,6 +338,11 @@ function blocks(tokens: Token[], ctx: Ctx): (Paragraph | Table)[] {
       }
       case "paragraph_open": {
         const inline = tokens[i + 1];
+        if (inline.content === PAGE_MARK) {
+          out.push(new Paragraph({ spacing: { before: 0, after: 0 }, children: [new PageBreak()] }));
+          i += 2;
+          break;
+        }
         if (inline.content === SPACE_MARK) {
           if (ctx.book) out.push(new Paragraph({ spacing: { after: 0 }, children: [] }));
           i += 2;

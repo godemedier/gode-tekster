@@ -212,6 +212,18 @@ export function build(view: EditorView): DecorationSet {
           return;
         }
 
+        // Sideskift (26/10): `+++` på en linje for sig, som i iA Writer. Print og Word skifter side
+        // (print/render.ts). Her en stiplet streg med ordet, til markøren kommer ind på linjen.
+        // Linje for linje, for print tæller også en `+++` lige op ad en tekstlinje.
+        if (name === "Paragraph" && n.node.parent?.name === "Document" && state.doc.sliceString(n.from, n.to).includes("+++")) {
+          for (let i = state.doc.lineAt(n.from).number; i <= state.doc.lineAt(n.to).number; i++) {
+            const l = state.doc.line(i);
+            if (l.text.trim() !== "+++") continue;
+            out.push(line("gt-pagebreak").range(l.from));
+            if (!onLines(state, l.from, l.to)) out.push(Decoration.replace({ widget: new TextWidget(tr("Sideskift", "Page break"), "gt-pagebreak-mark") }).range(l.from, l.to));
+          }
+        }
+
         if (name === "Blockquote") {
           const first = state.doc.lineAt(n.from).number;
           const last = state.doc.lineAt(n.to).number;
@@ -795,6 +807,8 @@ export const livePreviewTheme = EditorView.theme({
   ".gt-task": { margin: "0 0.4em 0 0", accentColor: "var(--blæk)", verticalAlign: "-1px" },
   ".gt-hr": { textAlign: "center" },
   ".gt-hr-mark": { color: "var(--pynt)", letterSpacing: "0.6em" },
+  ".gt-pagebreak-mark": { display: "flex", alignItems: "center", gap: "0.8em", color: "var(--dæmpet)", fontFamily: "var(--ui)", fontSize: "0.75em", letterSpacing: "0.04em" },
+  ".gt-pagebreak-mark::before, .gt-pagebreak-mark::after": { content: '""', flex: "1", borderTop: "1px dashed var(--kant-hover)" },
   ".gt-dim": { color: "var(--dæmpet)" },
   // noBreak.ts: tegnene om skjulte markdowntegn må ikke brydes fra hinanden.
   ".gt-nobreak": { whiteSpace: "pre" },

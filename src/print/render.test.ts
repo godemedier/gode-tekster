@@ -110,6 +110,16 @@ test("en ekstra tom linje bliver et luft-afsnit i print, også ikke inde i kode"
   assert.doesNotMatch(html, /⁣/);
 });
 
+test("+++ på en linje for sig er et sideskift i print, men ikke først, sidst eller i kode (26/10)", async () => {
+  const { articleHtml, metaFor } = await import("./render.ts");
+  const md = "+++\n\nEt.\n\n+++\n\nTo.\nTre.\n+++\nFire.\n\n```\n+++\n```\n\n+++";
+  const html = articleHtml(md, { template: "manuskript", includeDimmed: false } as never, metaFor(md, "x.md", ""));
+  assert.equal((html.match(/class="pv-pagebreak"/g) ?? []).length, 2, "efter Et og efter Tre");
+  assert.match(html, /<code>\+\+\+\n<\/code>/, "i kode står tegnene");
+  assert.doesNotMatch(html, /\u2064/);
+  assert.match(html, /^<p>Et\.<\/p>/, "intet sideskift før første afsnit");
+});
+
 test("bogstavlister bliver til ordnede lister i print, med formatering i punkterne", async () => {
   const { articleHtml, metaFor } = await import("./render.ts");
   const html = (md: string) => articleHtml(md, { template: "manuskript", includeDimmed: false } as never, metaFor(md, "x.md", ""));

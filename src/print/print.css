@@ -196,6 +196,9 @@ body.pv-dragging, body.pv-dragging * { cursor: grabbing !important; }
 .pv-article p.luft { margin: 0; height: 0; }
 .pv-article.afsnit-indryk p.luft { height: 1.5em; }
 .pv-article.afsnit-indryk p.luft + p { text-indent: 0; }
+/* Sideskift (`+++`): en stiplet streg i forhåndsvisningen, en ny side på papiret og i PDF. */
+.pv-article .pv-pagebreak { margin: 1.5em 0; border-top: 1px dashed #b9b9b9; }
+@media print { .pv-article .pv-pagebreak { margin: 0; border: none; break-after: page; } }
 /* Litteraturlisten (ADR-0049): hængende indrykning på 1,27 cm som i APA, også i bogafsnit. */
 .pv-article p.pv-ref.pv-ref { padding-left: 1.27cm; text-indent: -1.27cm; margin: 0 0 0.6em; }
 

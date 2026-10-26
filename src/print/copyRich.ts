@@ -11,7 +11,7 @@ import { errorText, notify, showBanner } from "../ui/banner.ts";
 import { tr } from "../i18n.ts";
 
 export async function copyRich(view: EditorView, withMarkdown = false): Promise<void> {
-  const { markdownIt, prepare, SPACE_MARK } = await import("./render.ts");
+  const { markdownIt, prepare, PAGE_MARK, SPACE_MARK } = await import("./render.ts");
   const { plainText } = await import("./plain.ts");
   const { from, to } = view.state.selection.main;
   const source = to > from ? view.state.sliceDoc(from, to) : view.state.doc.toString();
@@ -19,10 +19,11 @@ export async function copyRich(view: EditorView, withMarkdown = false): Promise<
   const it = markdownIt();
   try {
     if (withMarkdown) {
-      await navigator.clipboard.writeText(md.replaceAll(SPACE_MARK, ""));
+      await navigator.clipboard.writeText(md.replaceAll(SPACE_MARK, "").replaceAll(PAGE_MARK, "+++"));
     } else {
       // Billeder peger på lokale filer, som modtageren ikke kan se: de bliver deres billedtekst.
-      const html = it.render(md).replace(/<span class="img-missing">\[(?:Billede|Image): ([^\]]*)\]<\/span>/g, "$1");
+      // Et sideskift betyder intet i en mail eller et CMS.
+      const html = it.render(md).replaceAll(`<p>${PAGE_MARK}</p>\n`, "").replace(/<span class="img-missing">\[(?:Billede|Image): ([^\]]*)\]<\/span>/g, "$1");
       await navigator.clipboard.write([
         new ClipboardItem({
           "text/html": new Blob([html], { type: "text/html" }),

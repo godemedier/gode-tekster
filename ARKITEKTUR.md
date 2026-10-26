@@ -1411,3 +1411,18 @@ Kommentarer og dokumenter henviste til programmer, en udefrakommende ikke kan se
 - ADR-0016 (fælles MCP-server) er afløst og bliver ikke bygget.
 **Alternativ der tabte:** at beholde kopien og synkroniseringen. Én regel ét sted er godt i et
 hus, men i et offentligt repo er en afhængighed af privat kode en, ingen udefra kan følge.
+
+### ADR-0067 — Sideskift skrives `+++` på en linje for sig, som i iA Writer (26/10-2026)
+**Baggrund:** ønske 26/10: et sideskift i print, PDF og Word. Markdown har intet, og der fandtes
+ingen form i programmet.
+**Beslutning:**
+- `+++` alene på en linje uden for kode er et sideskift. Det er iA Writers form, så filen betyder
+  det samme dér. Står det lige op ad en tekstlinje, tæller det stadig.
+- Print og Word: `prepare` (print/render.ts) gør linjen til et afsnit med et usynligt mærke
+  (`PAGE_MARK`, U+2064), som `SPACE_MARK`. Print får `break-after: page`, Word en `PageBreak`. Et
+  sideskift først eller sidst i teksten fjernes, så der ikke kommer en tom side. Kopiér uden markdown
+  dropper det, kopiér med markdown skriver `+++` igen.
+- Skrivefladen viser en stiplet streg med »Sideskift«, til markøren kommer ind på linjen. `/sideskift`
+  og højreklik › Tilføj › Sideskift sætter det på sin egen linje (`planOwnLines` i commands/run.ts).
+**Alternativer der tabte:** `\newpage` (pandoc, LaTeX: fremmed for skribenter) og
+`<div style="page-break-after: always">` (HTML i teksten, som print escaper).

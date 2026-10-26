@@ -62,11 +62,27 @@ export function pageMargins(t: Template, layout?: PageLayout): Margins {
  */
 export const SPACE_MARK = "\u2063";
 
+/**
+ * Sideskift (26/10): `+++` på en linje for sig, som i iA Writer. Bliver et afsnit med kun dette
+ * usynlige tegn, som print (render.ts) og Word (word.ts) kender. Et sideskift først eller sidst i
+ * teksten ville give en tom side og tages væk.
+ */
+export const PAGE_MARK = "⁤";
+const PAGE_LINE = /(^|\n)[ \t]*\+\+\+[ \t]*(?=\n|$)/g;
+const PAGE_EDGE = /^\s*(?:⁤\s*)+|(?:\s*⁤)+\s*$/g;
+
 /** Teksten, som den skal trykkes: uden fraklip, (som standard) uden dæmpet tekst og med henvisningerne sat. */
 export function prepare(markdown: string, includeDimmed: boolean, citations: CitationStyle = "forfatter-aar"): string {
   let md = withoutParked(markdown);
   md = resolveDimmed(md, includeDimmed);
-  md = outsideCode(md, (part) => typography(part).replace(/\n(?:[ \t]*\n){2,}(?=\S)/g, `\n\n${SPACE_MARK}\n\n`).replace(/\n{3,}/g, "\n\n")).trimEnd();
+  md = outsideCode(md, (part) =>
+    typography(part)
+      .replace(/\n(?:[ \t]*\n){2,}(?=\S)/g, `\n\n${SPACE_MARK}\n\n`)
+      .replace(PAGE_LINE, `$1\n${PAGE_MARK}\n`)
+      .replace(/\n{3,}/g, "\n\n"),
+  )
+    .replace(PAGE_EDGE, "")
+    .trimEnd();
   // Henvisninger og litteraturliste (ADR-0049). Kilderne står i hele filen, ikke i det, der trykkes.
   return resolveCitations(markdown, md, isEnglish() ? "en" : "da", citations).trimEnd();
 }
@@ -210,6 +226,7 @@ export function articleHtml(markdown: string, opts: PrintOptions, meta: Meta, im
   const html = markdownIt(imageUrl, opts.images !== false)
     .render(bodyFor(markdown, opts.includeDimmed, meta, opts.citations))
     .replaceAll(`<p>${SPACE_MARK}</p>`, '<p class="luft" aria-hidden="true"></p>')
+    .replaceAll(`<p>${PAGE_MARK}</p>`, '<div class="pv-pagebreak" aria-hidden="true"></div>')
     .replaceAll(`<p>${REFERENCE_MARK}`, '<p class="pv-ref">')
     // Et afsnit med kun et billede bliver en figur, der må gå ud i margenen.
     .replace(/<p><span class="pv-fig">([\s\S]*?)<\/span><\/p>/g, '<figure class="pv-wide pv-fig">$1</figure>')

@@ -30,6 +30,11 @@ const PAIRS: [da: string, en: string][] = [
     file("name: table\nkind: transform\ndescription: The selection as a table, otherwise an empty table", "table"),
   ],
   [
+    // `+++` på en linje for sig, som i iA Writer (26/10). run.ts sætter det på sin egen linje.
+    file("name: sideskift\nkind: template\ndescription: Ny side i print, PDF og Word", "+++"),
+    file("name: pagebreak\nkind: template\ndescription: New page in print, PDF and Word", "+++"),
+  ],
+  [
     file(
       "name: møde\nkind: template\ndescription: Mødenoter med beslutninger og opgaver",
       `

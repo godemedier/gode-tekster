@@ -36,6 +36,12 @@ test("en ekstra tom linje giver luft i Word, og næste afsnit står ude", async 
   assert.doesNotMatch(xml, /⁣/, "mærket må ikke stå i dokumentet");
 });
 
+test("Word: +++ bliver et rigtigt sideskift (26/10)", async () => {
+  const xml = await bodyXml("Første.\n\n+++\n\nAndet.", true);
+  assert.equal((xml.match(/<w:br w:type="page"\/>/g) ?? []).length, 1);
+  assert.doesNotMatch(xml, /\u2064|\+\+\+/, "hverken mærket eller tegnene i dokumentet");
+});
+
 test("Word: bogstavliste og valgt punkttegn", async () => {
   const numbering = await part("a. Et\nb. To\n\n- punkt", "word/numbering.xml", { bullet: "–" });
   assert.match(numbering, /w:numFmt w:val="lowerLetter"/);

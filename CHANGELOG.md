@@ -10,6 +10,11 @@ versions. Releases up to 0.2.27 are described in one paragraph each, as on the
 
 ## [Unreleased]
 
+### Added
+
+- Sideskift: skriv +++ på en linje for sig, eller brug /sideskift eller højreklik › Tilføj › Sideskift.
+  Print, PDF og Word begynder en ny side dér. Det er samme form som i iA Writer.
+
 ### Fixed
 
 - Håndtaget til at flytte en række stod oven på teksten i første kolonne, når tabellen var bred.

@@ -176,6 +176,7 @@ export function installContextMenu(view: EditorView): void {
         add(tr("Billede …", "Image …"), () => pickImage(view)),
         add(tr("Tabel", "Table"), () => void import("../commands/run.ts").then((m) => m.insertEmptyTable(view))),
         add(tr("Skillelinje", "Divider"), () => insertRule(view)),
+        add(tr("Sideskift", "Page break"), () => void import("../commands/run.ts").then((m) => m.insertPageBreak(view))),
       ],
     });
     // Spor ændringer (ADR-0060): det, der skrives, bliver forslag, som kan godtages eller afvises.

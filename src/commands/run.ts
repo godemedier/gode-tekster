@@ -280,6 +280,8 @@ function planTemplate(state: EditorState, command: Command, file: FileContext, r
   };
   const ex = expandTemplate(command.body, ctx);
   if (command.newfile) return { ran: true, spec: replace ? removeTyped(replace) : undefined, newFile: ex };
+  // Et sideskift (/sideskift) virker kun på sin egen linje.
+  if (ex.text.trim() === "+++") return planOwnLines(state, replace, "+++");
   // En markering erstattes kun, når skabelonen selv bruger den. Ellers sættes der ind efter den.
   const usesSelection = !sel.empty && SELECTION_FIELD.test(command.body);
   const range = replace ?? (usesSelection ? { from: sel.from, to: sel.to } : { from: sel.to, to: sel.to });
@@ -305,6 +307,11 @@ export const EMPTY_TABLE = "|  |  |  |\n|---|---|---|\n|  |  |  |";
  * en tom linje imellem, ellers læser markdown den ikke som en tabel.
  */
 function planEmptyTable(state: EditorState, replace: Span | undefined): Plan {
+  return planOwnLines(state, replace, EMPTY_TABLE, true);
+}
+
+/** Det, der kun virker på sine egne linjer (en tabel, et sideskift), sat ind med en tom linje på hver side. */
+function planOwnLines(state: EditorState, replace: Span | undefined, block: string, table = false): Plan {
   const at = replace ?? { from: state.selection.main.head, to: state.selection.main.head };
   const line = state.doc.lineAt(at.from);
   const before = state.sliceDoc(line.from, at.from);
@@ -313,13 +320,15 @@ function planEmptyTable(state: EditorState, replace: Span | undefined): Plan {
   const nextLine = line.number < state.doc.lines ? state.doc.line(line.number + 1).text : "";
   const lead = before.trim() !== "" ? "\n\n" : prevLine.trim() !== "" ? "\n" : "";
   const tail = after.trim() !== "" ? "\n\n" : nextLine.trim() !== "" ? "\n" : "";
-  // Hele linjen skrives om: teksten før og efter det skrevne bliver stående på hver sin side af tabellen.
-  const insert = before.trimEnd() + lead + EMPTY_TABLE + tail + after.trimStart();
-  const tableAt = line.from + before.trimEnd().length + lead.length;
+  // Hele linjen skrives om: teksten før og efter det skrevne bliver stående på hver sin side af blokken.
+  const insert = before.trimEnd() + lead + block + tail + after.trimStart();
+  const blockAt = line.from + before.trimEnd().length + lead.length;
+  // Markøren efter et sideskift: på linjen under, så man skriver videre på den nye side.
+  const anchor = table ? blockAt : Math.min(blockAt + block.length + (tail ? 1 : 0), line.from + insert.length);
   return {
     ran: true,
-    spec: { changes: { from: line.from, to: line.to, insert }, selection: { anchor: tableAt }, userEvent: "input.command", scrollIntoView: true },
-    table: tableAt,
+    spec: { changes: { from: line.from, to: line.to, insert }, selection: { anchor }, userEvent: "input.command", scrollIntoView: true },
+    ...(table ? { table: blockAt } : {}),
   };
 }
 
@@ -329,6 +338,13 @@ export function insertEmptyTable(view: EditorView): void {
   if (!plan.spec) return;
   view.dispatch(plan.spec);
   if (plan.table !== undefined) focusTable(view, plan.table);
+}
+
+/** »Tilføj › Sideskift« i højreklik (26/10): `+++` på sin egen linje ved markøren. */
+export function insertPageBreak(view: EditorView): void {
+  const plan = planOwnLines(view.state, undefined, "+++");
+  if (plan.spec) view.dispatch(plan.spec);
+  view.focus();
 }
 
 function planTransform(state: EditorState, command: Command, replace: Span | undefined): Plan {

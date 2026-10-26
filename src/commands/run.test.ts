@@ -284,6 +284,17 @@ test("/tabel uden markering sætter en tom tabel ind på sine egne linjer og peg
   assert.equal(mid, `Før\n\n${EMPTY_TABLE}\n\nefter`);
 });
 
+test("/sideskift sætter +++ på sin egen linje, og markøren står klar på linjen under (26/10)", () => {
+  const sideskift = cmd("template", "+++");
+  const a = typed("Et afsnit.\n");
+  const after = run(a.s, planCommand(a.s, sideskift, file, a.replace));
+  assert.equal(after.doc.toString(), "Et afsnit.\n\n+++");
+  const b = typed("Før ", " efter");
+  const mid = run(b.s, planCommand(b.s, sideskift, file, b.replace));
+  assert.equal(mid.doc.toString(), "Før\n\n+++\n\nefter");
+  assert.equal(mid.doc.lineAt(mid.selection.main.head).text, "", "markøren på den tomme linje efter");
+});
+
 test("/tabel med markering laver linjerne om til en tabel", () => {
   const doc = "navn;titel\nMette;kontorchef";
   const s = state(doc, 0, doc.length);

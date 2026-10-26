@@ -35,15 +35,15 @@ test("startbiblioteket er 12 kommandoer: 3 skabeloner, 5 omformninger, 1 tjek og
   for (const lang of LANGS) {
     const all = builtinCommands(lang);
     const count = (kind: string) => all.filter((c) => c.kind === kind).length;
-    assert.deepEqual([all.length, count("template"), count("transform"), count("check"), count("ai")], [14, 3, 5, 1, 5], lang);
+    assert.deepEqual([all.length, count("template"), count("transform"), count("check"), count("ai")], [15, 4, 5, 1, 5], lang);
   }
   assert.deepEqual(
     builtinCommands("da").map((c) => c.name),
-    ["dato", "tabel", "møde", "brev", "ryd", "liste", "sorter", "citat", "tjek", "nylæser", "redaktør", "argument", "modargument", "halver"],
+    ["dato", "tabel", "sideskift", "møde", "brev", "ryd", "liste", "sorter", "citat", "tjek", "nylæser", "redaktør", "argument", "modargument", "halver"],
   );
   assert.deepEqual(
     builtinCommands("en").map((c) => c.name),
-    ["date", "table", "meeting", "letter", "tidy", "list", "sort", "quote", "check", "newreader", "editor", "argument", "counter", "half"],
+    ["date", "table", "pagebreak", "meeting", "letter", "tidy", "list", "sort", "quote", "check", "newreader", "editor", "argument", "counter", "half"],
   );
 });
 

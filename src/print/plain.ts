@@ -5,7 +5,7 @@
 
 import type { MarkdownIt } from "markdown-it";
 
-import { SPACE_MARK } from "./render.ts";
+import { PAGE_MARK, SPACE_MARK } from "./render.ts";
 
 type Token = ReturnType<MarkdownIt["parse"]>[number];
 
@@ -73,6 +73,7 @@ export function plainText(md: MarkdownIt, markdown: string): string {
   }
   return out
     .replaceAll(SPACE_MARK, "")
+    .replaceAll(PAGE_MARK, "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
