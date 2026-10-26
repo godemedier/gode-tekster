@@ -889,6 +889,7 @@ export const tableTheme = [
       opacity: "0",
       transition: "opacity 120ms ease",
       touchAction: "none",
+      zIndex: "1",
     },
     ".gt-table-grip[hidden]": { display: "none" },
     ".gt-table-grip-col svg": { transform: "rotate(90deg)" },
@@ -899,6 +900,13 @@ export const tableTheme = [
     ".gt-table-drop": { position: "absolute", background: "var(--accent)", borderRadius: "1px", pointerEvents: "none" },
     ".gt-table-drop[hidden]": { display: "none" },
     "@media (pointer: coarse)": { ".gt-table-grip": { display: "none" } },
+    // Håndtagene har deres egen margen på 20 px (26/10): en bred tabel fyldte boksen helt ud, og
+    // rækkehåndtaget stod oven på teksten i første kolonne. Mindstebredden lægger margenen til igen,
+    // så en smal tabel stadig flugter med teksten.
+    "@media (pointer: fine)": {
+      ".gt-tablebox": { paddingInline: "20px" },
+      ".gt-tablebox table": { minWidth: "min(100%, calc(100% - 2 * var(--udfald, 0px) + 40px))" },
+    },
   }),
 ];
 

@@ -10,6 +10,10 @@ versions. Releases up to 0.2.27 are described in one paragraph each, as on the
 
 ## [Unreleased]
 
+### Fixed
+
+- Håndtaget til at flytte en række stod oven på teksten i første kolonne, når tabellen var bred.
+
 ## [0.2.28] - 2026-10-26
 
 Windows' titellinje er væk. Toppen af vinduet er tom, mens du skriver, og en tynd linje med tekstens navn og knapperne til at minimere, maksimere og lukke kommer frem, når musen er deroppe. Teksten toner ud, før den når toppen. Rækker og kolonner i en tabel kan nu flyttes. Træk i håndtaget ud for rækken eller over kolonnen, eller tryk Alt og en piletast. Udskriv og eksportér har fået et ikon nederst i højre spalte. Deler du en tekst, kan den, du deler med, nu rulle hele vejen ned og læse alle kommentarerne.
