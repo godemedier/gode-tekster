@@ -42,6 +42,10 @@ const live = await fetch(`${BASE}/opdatering/latest.json`).then((r) => (r.ok ? r
 if (live?.version === version) die(`${version} er allerede udgivet. Hæv versionen først.`);
 
 execSync("node scripts/licenser.mjs --check", { cwd: root, stdio: "inherit" });
+// Kører Gode Tekster, stopper starttesten (enkeltinstans). Det skete to gange 26/10 efter 17 minutters
+// byg, så sig det nu, og vent på lukningen i stedet for at stoppe.
+const running = () => /gode-tekster.exe/i.test(execSync('tasklist /FI "IMAGENAME eq gode-tekster.exe"').toString());
+if (running()) console.log("Gode Tekster kører. Luk det med Ctrl+Q, før bygget er færdigt. Starttesten venter på det.");
 if (!process.argv.includes("--uden-byg")) execSync("npm run tauri build", { cwd: root, stdio: "inherit" });
 
 const built = join(root, "src-tauri", "target", "release", "bundle", "nsis", `Gode Tekster_${version}_x64-setup.exe`);
@@ -50,6 +54,14 @@ if (!existsSync(built)) die(`installeren findes ikke: ${built}`);
 // Starttest (4/10): 0.1.3 byggede uden fejl, men fladen manglede en fil og åbnede med et tomt
 // vindue. Bygget lykkedes ≠ programmet starter. Start den byggede exe på en prøvefil og kræv, at
 // fladen melder »klar« i loggen, før noget lægges op.
+if (running()) {
+  console.log("Venter på, at Gode Tekster lukkes (Ctrl+Q) …");
+  const until = Date.now() + 30 * 60_000;
+  while (running()) {
+    if (Date.now() > until) die("Gode Tekster kører stadig efter 30 minutter. Luk det, og kør igen med --uden-byg.");
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+}
 if (!(await startTest(join(root, "src-tauri", "target", "release", "gode-tekster.exe")).catch((e) => die(e.message)))) {
   die("starttesten fejlede: fladen meldte aldrig »klar«. Byg forfra: slet dist, kør cargo clean -p gode-tekster --release.");
 }
