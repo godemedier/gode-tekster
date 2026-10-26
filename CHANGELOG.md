@@ -10,14 +10,9 @@ versions. Releases up to 0.2.27 are described in one paragraph each, as on the
 
 ## [Unreleased]
 
-### Added
+## [0.2.29] - 2026-10-26
 
-- Sideskift: skriv +++ på en linje for sig, eller brug /sideskift eller højreklik › Tilføj › Sideskift.
-  Print, PDF og Word begynder en ny side dér. Det er samme form som i iA Writer.
-
-### Fixed
-
-- Håndtaget til at flytte en række stod oven på teksten i første kolonne, når tabellen var bred.
+Du kan nu sætte et sideskift i teksten. Skriv +++ på en linje for sig, eller brug /sideskift eller højreklik › Tilføj › Sideskift. Print, PDF og Word begynder en ny side dér, og i skrivefladen står en stiplet streg. Det er samme form som i iA Writer. Håndtaget til at flytte en række i en bred tabel står ikke længere oven på teksten.
 
 ## [0.2.28] - 2026-10-26
 
