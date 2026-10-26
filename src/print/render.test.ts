@@ -120,6 +120,15 @@ test("+++ på en linje for sig er et sideskift i print, men ikke først, sidst e
   assert.match(html, /^<p>Et\.<\/p>/, "intet sideskift før første afsnit");
 });
 
+test("<br> i en tabelcelle er et linjeskift i print, ikke tegnene (26/10)", async () => {
+  const { articleHtml, metaFor } = await import("./render.ts");
+  const md = "| A | B |\n|---|---|\n| en <br><br>to | tre<BR />fire |";
+  const html = articleHtml(md, { template: "manuskript", includeDimmed: false } as never, metaFor(md, "x.md", ""));
+  assert.match(html, /<td>en <br><br>to<\/td>/);
+  assert.match(html, /<td>tre<br>fire<\/td>/);
+  assert.doesNotMatch(html, /&lt;br/i);
+});
+
 test("bogstavlister bliver til ordnede lister i print, med formatering i punkterne", async () => {
   const { articleHtml, metaFor } = await import("./render.ts");
   const html = (md: string) => articleHtml(md, { template: "manuskript", includeDimmed: false } as never, metaFor(md, "x.md", ""));

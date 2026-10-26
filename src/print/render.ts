@@ -110,15 +110,26 @@ function danish(text: string): string {
 /** Slår et billedes sti op til en URL, fladen kan vise. Uden en (tests, Word) bliver billedet en plads. */
 export type ImageUrl = (src: string) => string | null;
 
+/** Et linjeskift skrevet som HTML: `<br>`, `<br/>` og `<BR />`, som tabellerne læser det. */
+export const BR = /^<br\s*\/?>$/i;
+
 export function markdownIt(imageUrl?: ImageUrl, withImages = true): MarkdownIt {
   const md = new MarkdownItLib({ html: true, linkify: false, typographer: false });
   md.use(footnote);
   md.use(fancyLists);
   // Kun <u> og </u> må stå som HTML i teksten. Alt andet vises som tekst (ingen scripts, ingen
   // billeder udefra, ingen styles i print-DOM'en).
+  // <br> er et linjeskift i en tabelcelle (tables.ts skriver det, 15/10). Før 26/10 stod det som
+  // tegnene »<br>« på papiret, i PDF og i Word.
   const allowed = /^<\/?u>$/i;
   md.renderer.rules.html_inline = (tokens, idx) =>
-    /^<!--[\s\S]*-->\s*$/.test(tokens[idx].content) ? "" : allowed.test(tokens[idx].content) ? tokens[idx].content.toLowerCase() : md.utils.escapeHtml(tokens[idx].content);
+    /^<!--[\s\S]*-->\s*$/.test(tokens[idx].content)
+      ? ""
+      : BR.test(tokens[idx].content)
+        ? "<br>"
+        : allowed.test(tokens[idx].content)
+          ? tokens[idx].content.toLowerCase()
+          : md.utils.escapeHtml(tokens[idx].content);
   md.renderer.rules.html_block = (tokens, idx) => (/^<!--[\s\S]*-->\s*$/.test(tokens[idx].content) ? "" : `<p>${md.utils.escapeHtml(tokens[idx].content)}</p>`);
   // Fodnotetal uden klammer, som i en bog: ¹ ikke [1].
   md.renderer.rules.footnote_caption = (tokens, idx) => String(Number((tokens[idx].meta as { id: number }).id) + 1);

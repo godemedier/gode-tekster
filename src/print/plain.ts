@@ -5,7 +5,7 @@
 
 import type { MarkdownIt } from "markdown-it";
 
-import { PAGE_MARK, SPACE_MARK } from "./render.ts";
+import { BR, PAGE_MARK, SPACE_MARK } from "./render.ts";
 
 type Token = ReturnType<MarkdownIt["parse"]>[number];
 
@@ -18,6 +18,8 @@ export function plainText(md: MarkdownIt, markdown: string): string {
         if (c.type === "text" || c.type === "code_inline") return c.content;
         if (c.type === "softbreak" || c.type === "hardbreak") return "\n";
         if (c.type === "image") return c.content;
+        // <br> i en tabelcelle: et mellemrum, så rækken bliver på én linje.
+        if (c.type === "html_inline" && BR.test(c.content)) return " ";
         if (c.type === "footnote_ref") return `[${Number((c.meta as { id: number }).id) + 1}]`;
         // Kun <u> må stå som HTML (render.ts). Noter og andet HTML vises ikke.
         return "";

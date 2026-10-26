@@ -37,7 +37,7 @@ import {
 import JSZip from "jszip";
 import type { Token } from "markdown-it";
 
-import { bodyFor, markdownIt, PAGE_MARK, SPACE_MARK, type Meta, type Template } from "./render.ts";
+import { BR, bodyFor, markdownIt, PAGE_MARK, SPACE_MARK, type Meta, type Template } from "./render.ts";
 import { REFERENCE_MARK, type CitationStyle } from "../editor/references.ts";
 import { defaultLayout, nativeFont, pageRows, rowEmpty, type PageFont, type PageLayout, type Part, type Row } from "./layout.ts";
 import { tr, isEnglish } from "../i18n.ts";
@@ -281,7 +281,8 @@ function runs(children: Token[], notes: Map<number, number>, linesKept = false):
         marks.strike = t.type === "s_open";
         break;
       case "html_inline":
-        if (/^<u>$/i.test(t.content)) marks.underline = true;
+        if (BR.test(t.content)) out.push(new TextRun({ break: 1 }));
+        else if (/^<u>$/i.test(t.content)) marks.underline = true;
         else if (/^<\/u>$/i.test(t.content)) marks.underline = false;
         else if (!/^<!--/.test(t.content)) text(t.content);
         break;

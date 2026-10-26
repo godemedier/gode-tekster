@@ -42,6 +42,12 @@ test("Word: +++ bliver et rigtigt sideskift (26/10)", async () => {
   assert.doesNotMatch(xml, /\u2064|\+\+\+/, "hverken mærket eller tegnene i dokumentet");
 });
 
+test("Word: <br> i en tabelcelle bliver et linjeskift, ikke tegnene (26/10)", async () => {
+  const xml = await bodyXml("| A |\n|---|\n| en<br>to |", true);
+  assert.equal((xml.match(/<w:br\/>/g) ?? []).length, 1);
+  assert.doesNotMatch(xml, /&lt;br|<br>/i);
+});
+
 test("Word: bogstavliste og valgt punkttegn", async () => {
   const numbering = await part("a. Et\nb. To\n\n- punkt", "word/numbering.xml", { bullet: "–" });
   assert.match(numbering, /w:numFmt w:val="lowerLetter"/);
