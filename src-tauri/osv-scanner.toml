@@ -37,3 +37,13 @@ reason = "zbus_names er uvedligeholdt, flyttet ind i zbus 6 (D-Bus, kun Linux vi
 id = "RUSTSEC-2026-0372"
 ignoreUntil = 2027-04-01
 reason = "zvariant_derive er uvedligeholdt, flyttet ind i zbus 6 (D-Bus, kun Linux via Tauri). Ikke i Windows- eller Android-bygget."
+
+# block-buffer 0.10.4 (27/10-2026): en fanget panik kan efterlade bufferens position forkert.
+# Kassen kommer kun med gennem sha2 i tauri-codegen, som tauri-macros bruger, mens programmet
+# oversættes. Den er ikke i programmet. Efterprøvet med `cargo tree -i block-buffer@0.10.4
+# --edges normal --target x86_64-pc-windows-msvc`: eneste vej er tauri-macros (proc-macro).
+# Ingen rettet 0.10-version endnu.
+[[IgnoredVulns]]
+id = "GHSA-qwgh-2vcv-g2f7"
+ignoreUntil = 2027-01-31
+reason = "block-buffer 0.10.4 kun i tauri-codegen (sha2), som bruges, mens programmet oversættes. Ikke i programmet."

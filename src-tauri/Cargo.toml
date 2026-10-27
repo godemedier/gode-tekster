@@ -1,6 +1,6 @@
 [package]
 name = "gode-tekster"
-version = "0.2.29"
+version = "0.2.30"
 description = "Gode Tekster: et skriveprogram fra Gode Medier"
 authors = ["Gode Medier"]
 license = "GPL-3.0-only"
@@ -37,7 +37,7 @@ getrandom = "0.3.4"
 tauri-plugin-dialog = "=2.8.0"
 notify = "8.2.0"
 notify-debouncer-full = "0.6.0"
-zstd = "0.13.3"
+zstd = "0.14.3"
 dissimilar = "1.0.11"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 ureq = { version = "3.4.2", default-features = false, features = ["gzip"] }
