@@ -49,6 +49,11 @@ if (rustStaged && existsSync("src-tauri/Cargo.toml")) {
     }
   }
 }
+// 3c) LICENSER (Gode Tekster, 27/10-2026). LICENSES.txt foelger med installeren og skal passe til
+// det, der distribueres. Hunspell-commit'en (22/10) og tokio 1.53.3 (26/10) kom igennem gaten uden
+// ny fil, og foerst udgiv.mjs stoppede. Koeres kun, naar noget distribueret er staged.
+const distStaged = files.some(f => /^(src-tauri\/Cargo\.lock|package-lock\.json)$|^src-tauri\/vendor\/|^src-tauri\/resources\/ordbog\/|^src\/assets\//.test(f));
+if (distStaged && existsSync("scripts/licenser.mjs")) { const r = sh("node scripts/licenser.mjs --check"); if (!r.ok) failures.push("LICENSER (koer 'node scripts/licenser.mjs' og stage src-tauri/resources/LICENSES.txt):\n" + r.out); }
 // 4) KODEMOENSTRE (SAST) - kun aendrede kodefiler. VERIFICÉR flags mod 'semgrep --help'. --metrics off af privatshensyn.
 if (have("semgrep --version")) { if (codeFiles.length) { const cfg = existsSync(".semgrep.yml") ? ".semgrep.yml" : "auto"; const r = sh(`semgrep scan --config ${cfg} --error --quiet --metrics off --disable-version-check ${codeFiles.map(f=>`"${f}"`).join(" ")}`); if (!r.ok) failures.push("KODEMOENSTRE (semgrep):\n" + r.out); } } else skipped.push("semgrep");
 // 5) SAARBARE AFHAENGIGHEDER (SCA) - kun naar et lockfile er staged. VERIFICÉR syntax mod 'osv-scanner --help'.
