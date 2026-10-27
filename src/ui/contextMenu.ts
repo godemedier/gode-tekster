@@ -8,7 +8,8 @@ import type { EditorView } from "@codemirror/view";
 
 import { dismissFlag, flagAt } from "../editor/styleCheck.ts";
 import { settings, updateSettings } from "../settings.ts";
-import { tableMenuAt } from "../editor/tables.ts";
+import { tableFormatMenu, tableMenuAt } from "../editor/tables.ts";
+import { wordRangeAt } from "../editor/editing.ts";
 import { selectionGroups } from "../editor/selectionToolbar.ts";
 import type { MenuItem } from "./menu.ts";
 import { cmd } from "../editor/shortcuts.ts";
@@ -71,6 +72,13 @@ function wordUnder(view: EditorView, at: { target: Element; x: number; y: number
       view.focus();
     },
   };
+}
+
+/** Står `pos` i eller lige ved et ord? */
+function onWord(view: EditorView, pos: number): boolean {
+  const line = view.state.doc.lineAt(pos);
+  const { start, end } = wordRangeAt(line.text, pos - line.from);
+  return end > start;
 }
 
 /** En skillelinje på sin egen linje, med tomme linjer omkring, så markdown læser den. */
@@ -145,16 +153,27 @@ export function installContextMenu(view: EditorView): void {
       );
     }
 
-    // En tabelcelle: tabellens punkter som undermenu, og intet andet.
+    // En tabelcelle: formatering og tabellens punkter som undermenuer, og intet andet.
     const table = tableMenuAt(view, at.target);
     if (table) {
+      const format = tableFormatMenu(view, at.target, at.x, at.y);
+      if (format) out.groups.push({ label: tr("Formatér", "Format"), items: entries(format) });
       out.groups.push({ label: tr("Tabel", "Table"), items: entries(table) });
       return out;
     }
 
-    // En markering, og klikket står i den: værktøjslinjens punkter.
+    // Et ord uden markering (27/10): formateringen gælder ordet under musen, som Ctrl+B gør ved markøren.
     const sel = view.state.selection.main;
-    if (!sel.empty && pos !== null && pos >= sel.from && pos <= sel.to) {
+    const inSelection = !sel.empty && pos !== null && pos >= sel.from && pos <= sel.to;
+    if (!inSelection && pos !== null && onWord(view, pos)) {
+      const caret = () => view.dispatch({ selection: { anchor: pos } });
+      const onIt = (items: MenuItem[]): MenuItem[] => items.map((m) => ("separator" in m ? m : { ...m, run: () => (caret(), m.run()) }));
+      out.groups.push({ label: tr("Formatér", "Format"), items: entries(onIt(selectionGroups(view).format)) });
+      out.plain.push(add(tr("Dæmp", "Dim"), () => (caret(), void cmd.dim(view))));
+    }
+
+    // En markering, og klikket står i den: værktøjslinjens punkter.
+    if (inSelection) {
       const g = selectionGroups(view);
       out.groups.push({ label: tr("Formatér", "Format"), items: entries(g.format) }, { label: tr("AI-hjælp", "AI help"), items: entries(g.ai) });
       out.plain.push(

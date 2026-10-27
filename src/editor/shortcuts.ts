@@ -33,10 +33,21 @@ function run(planner: Planner): Command {
   };
 }
 
-/** Erstat markeringen med en omformet udgave (tabel, uden formatering). */
-function transformSelection(fn: (s: string) => string): Command {
+/**
+ * Erstat markeringen med en omformet udgave (tabel, uden formatering). `word`: en tom markering
+ * gælder ordet ved markøren med de tegn, der står op ad det (»**ord**,«), så tegnene kan fjernes.
+ */
+function transformSelection(fn: (s: string) => string, word = false): Command {
   return (view) => {
-    const sel = view.state.selection.main;
+    let sel = view.state.selection.main;
+    if (sel.empty && word) {
+      const line = view.state.doc.lineAt(sel.head);
+      let from = sel.head - line.from;
+      let to = from;
+      while (from > 0 && /\S/.test(line.text[from - 1])) from--;
+      while (to < line.text.length && /\S/.test(line.text[to])) to++;
+      sel = EditorSelection.range(line.from + from, line.from + to);
+    }
     if (sel.empty) return false;
     const next = fn(view.state.sliceDoc(sel.from, sel.to));
     view.dispatch({
@@ -63,7 +74,7 @@ export const cmd = {
   tasks: run((t, f, e) => toggleLinePrefix(t, f, e, "- [ ] ")),
   quote: run((t, f, e) => toggleLinePrefix(t, f, e, "> ")),
   table: transformSelection(toTable),
-  clear: transformSelection(clearFormatting),
+  clear: transformSelection(clearFormatting, true),
 
   /** Ctrl+Alt+F: ny fodnote. Fanen Fodnoter åbner med noten klar til at skrive (ADR-0017). */
   footnote(view: EditorView): boolean {

@@ -17,6 +17,19 @@ import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate
 
 import { tr } from "../i18n.ts";
 import { currentMarkMode, markModeChanged } from "./livePreview.ts";
+import {
+  type CellFormat,
+  caretAtCellEnd,
+  caretAtPoint,
+  cellRange,
+  cellsAsText,
+  formatCells,
+  formatInCell,
+  holdFocus,
+  paintCells,
+  selectedCells,
+  setCellRange,
+} from "./tableCells.ts";
 
 type Align = "left" | "center" | "right";
 /** En celle: teksten og hvor den står i dokumentet. */
@@ -74,9 +87,13 @@ export function modelOf(t: ParsedTable): TableModel {
   return { header: pad(t.header), align: Array.from({ length: width }, (_, i) => t.align[i] ?? "left"), rows: t.rows.map(pad) };
 }
 
-/** En celle som markdown: lodrette streger escapes, linjeskift bliver mellemrum. */
+/**
+ * En celle som markdown: lodrette streger escapes, linjeskift bliver mellemrum. En streg er escapet,
+ * når der står et ulige antal \ foran. `a\\|b` er en escapet \ og så en streg, der delte cellen i to
+ * (fejljagt F2-M5, 27/10).
+ */
 export function escapeCell(text: string): string {
-  return trimCell(text.replace(/[ \t]*\n[ \t]*/g, " ").replace(/(?<!\\)\|/g, "\\|"));
+  return trimCell(text.replace(/[ \t]*\n[ \t]*/g, " ").replace(/(\\*)\|/g, (m, bs: string) => (bs.length % 2 === 0 ? `${bs}\\|` : m)));
 }
 
 export function formatRow(cells: string[]): string {
@@ -92,14 +109,17 @@ export function formatTable(m: TableModel): string {
 }
 
 /**
- * Fed, kursiv, kode, links og linjeskift i en celle, som elementer med textContent. Resten står som
- * tekst. <br> er en markdown-tabels eneste linjeskift i en celle (15/10: cellen viste »<br>«).
+ * Fed, kursiv, understreget, gennemstreget, kode, links og linjeskift i en celle, som elementer.
+ * Resten står som tekst. <br> er en markdown-tabels eneste linjeskift i en celle (15/10: cellen
+ * viste »<br>«). Fed kan rumme kursiv og omvendt (27/10: en hel kolonne gjort kursiv, hvor en celle
+ * var fed i forvejen, viste stjernerne).
  */
+// Kursiv prøves før fed: `***Bo** Sand*` er kursiv om »**Bo** Sand«, ikke fed om »*Bo«.
 // Understreg kun ved en ordgrænse, som i CommonMark. »fil_navn_ny.txt« blev ellers til kursiv og skrevet
 // tilbage som »fil*navn*ny.txt«, når man skrev i en anden celle i rækken (fejljagt 19/10).
-const INLINE = /(<br\s*\/?>|\*\*[^*]+\*\*|(?<![\p{L}\p{N}_])__[^_]+__(?![\p{L}\p{N}_])|\*[^*]+\*|(?<![\p{L}\p{N}_])_[^_]+_(?![\p{L}\p{N}_])|`[^`]+`|\[[^\]]*\]\([^)]*\))/iu;
+const INLINE = /(<br\s*\/?>|<u>.*?<\/u>|~~[^~]+~~|\*\*\*[^*]+\*\*\*|\*(?:[^*]|\*\*[^*]+\*\*)+\*|\*\*(?:[^*]|\*[^*]+\*)+\*\*|(?<![\p{L}\p{N}_])__[^_]+__(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])_[^_]+_(?![\p{L}\p{N}_])|`[^`]+`|\[[^\]]*\]\([^)]*\))/iu;
 /** `mark` er markøren fra filen (`**` eller `__`), så den skrives tilbage, som den stod. */
-export type InlinePart = { kind: "text" | "strong" | "em" | "code" | "link" | "br"; text: string; href?: string; mark?: string };
+export type InlinePart = { kind: "text" | "strong" | "em" | "u" | "s" | "code" | "link" | "br"; text: string; href?: string; mark?: string };
 export function inlineParts(text: string): InlinePart[] {
   // split med én gruppe giver tekst og fund på skift. Kun fundene må tolkes: tekst, der selv
   // begynder med »[«, blev før til et link med hele cellen som adresse (19/10).
@@ -110,7 +130,10 @@ export function inlineParts(text: string): InlinePart[] {
 
 function token(p: string): InlinePart {
   if (/^<br/i.test(p)) return { kind: "br", text: "" };
-  if (/^(\*\*|__)/.test(p) && p.length > 4) return { kind: "strong", text: p.slice(2, -2), mark: p.slice(0, 2) };
+  if (/^<u>/i.test(p)) return { kind: "u", text: p.slice(3, -4) };
+  if (/^~~/.test(p)) return { kind: "s", text: p.slice(2, -2) };
+  // Fed begynder og slutter med to tegn. `***Bo** Sand*` begynder med to, men er kursiv.
+  if (/^(\*\*|__)[\s\S]*\1$/.test(p) && p.length > 4) return { kind: "strong", text: p.slice(2, -2), mark: p.slice(0, 2) };
   if (/^`/.test(p)) return { kind: "code", text: p.slice(1, -1) };
   if (/^\[/.test(p)) return { kind: "link", text: p.slice(1, p.indexOf("](")), href: p.slice(p.indexOf("](") + 2, -1) };
   if (/^[*_]/.test(p) && p.length > 2) return { kind: "em", text: p.slice(1, -1), mark: p[0] };
@@ -127,7 +150,7 @@ function fill(el: HTMLElement, text: string): void {
       el.append(document.createElement("br"));
       continue;
     }
-    const tag = part.kind === "strong" ? "strong" : part.kind === "em" ? "em" : part.kind === "code" ? "code" : "span";
+    const tag = part.kind === "link" ? "span" : part.kind;
     const child = document.createElement(tag);
     if (part.kind === "link") {
       child.className = "gt-link";
@@ -135,7 +158,9 @@ function fill(el: HTMLElement, text: string): void {
     }
     if (part.kind === "code") child.className = "gt-code";
     if (part.mark) child.dataset.mark = part.mark;
-    child.textContent = part.text;
+    // Kode og links viser deres tekst, som den står. Resten kan rumme mere formatering.
+    if (part.kind === "code" || part.kind === "link") child.textContent = part.text;
+    else fill(child, part.text);
     el.append(child);
   }
 }
@@ -175,6 +200,7 @@ function inlineMarkdown(el: Node): string {
     else if (tag === "strong" || tag === "b") out += `${n.dataset.mark ?? "**"}${inner}${n.dataset.mark ?? "**"}`;
     else if (tag === "em" || tag === "i") out += `${n.dataset.mark ?? "*"}${inner}${n.dataset.mark ?? "*"}`;
     else if (tag === "u") out += `<u>${inner}</u>`;
+    else if (tag === "s" || tag === "strike" || tag === "del") out += `~~${inner}~~`;
     else if (tag === "code") out += `\`${inner}\``;
     else if (n.dataset.href !== undefined) out += `[${inner}](${n.dataset.href})`;
     else out += inner;
@@ -400,15 +426,112 @@ function caretAtEdge(cell: HTMLElement, up: boolean): boolean | null {
     : box.bottom - parseFloat(style.paddingBottom) - rect.bottom < line / 2;
 }
 
-/** Markørens plads som tekst, så to øjeblikke kan sammenlignes. */
-function caretKey(): string {
-  const sel = window.getSelection();
-  const node = sel?.focusNode;
-  if (!node) return "";
-  return `${[...(node.parentNode?.childNodes ?? [])].indexOf(node as ChildNode)}:${sel.focusOffset}:${node.nodeName}`;
+// `Range` er CodeMirrors her. DOM'ens hedder det samme.
+type DomRange = ReturnType<typeof document.createRange>;
+
+/** Markørens kasse. Lige efter et linjeskift har den ingen, så måles det, der står ved den. */
+function caretBox(range: DomRange): DOMRect | null {
+  const own = range.getClientRects()[0];
+  if (own) return own;
+  const n = range.startContainer;
+  const near = n.nodeType === Node.TEXT_NODE ? n : (n.childNodes[range.startOffset] ?? n.childNodes[range.startOffset - 1]);
+  if (!near) return null;
+  const probe = document.createRange();
+  probe.selectNode(near);
+  const rects = probe.getClientRects();
+  return rects[rects.length - 1] ?? null;
 }
 
+/**
+ * Pil op eller ned inden for en celle med flere linjer. Browserens egen linjebevægelse prøves, og
+ * kom markøren ikke på en anden linje i cellen, lægges den tilbage. På første linje flyttede Chrome
+ * den ellers til linjens begyndelse, altså vandret (27/10: »pil op skal altid gå lodret«).
+ */
+function lineWithinCell(cell: HTMLElement, up: boolean): boolean {
+  const sel = window.getSelection();
+  if (!sel?.rangeCount || !sel.isCollapsed) return false;
+  const before = sel.getRangeAt(0).cloneRange();
+  const y0 = caretBox(before)?.top;
+  sel.modify("move", up ? "backward" : "forward", "line");
+  const after = sel.rangeCount ? sel.getRangeAt(0) : null;
+  const y1 = after ? caretBox(after)?.top : undefined;
+  if (after && cell.contains(after.startContainer) && y0 !== undefined && y1 !== undefined && Math.abs(y1 - y0) > 2) return true;
+  sel.removeAllRanges();
+  sel.addRange(before);
+  return false;
+}
+
+/** Markørens vandrette plads, så den lander lige over eller under i næste række. */
+function caretX(): number | null {
+  const sel = window.getSelection();
+  return sel?.rangeCount ? (caretBox(sel.getRangeAt(0))?.left ?? null) : null;
+}
+
+/** Markøren ind i en celle ved `x`: på sidste linje, når den kommer nedefra, ellers på første. */
+function caretInto(cell: HTMLElement, x: number | null, fromBelow: boolean): void {
+  cell.focus({ preventScroll: true });
+  cell.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const box = cell.getBoundingClientRect();
+  const style = getComputedStyle(cell);
+  const y = fromBelow ? box.bottom - parseFloat(style.paddingBottom) - 4 : box.top + parseFloat(style.paddingTop) + 4;
+  const range = x === null ? null : document.caretRangeFromPoint(Math.min(Math.max(x, box.left + 1), box.right - 1), y);
+  const sel = window.getSelection();
+  if (!range || !sel || !cell.contains(range.startContainer)) return focusCell(cell);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+/** Markøren først eller sidst i en celle. */
+function caretAtSide(cell: HTMLElement, start: boolean): void {
+  cell.focus({ preventScroll: true });
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  range.selectNodeContents(cell);
+  range.collapse(start);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+/**
+ * En række eller kolonne, som en pil har lavet (27/10). Går pilen tilbage, før der er skrevet noget,
+ * forsvinder den igen. Skrives der, eller går fokus ud af tabellen, er den ikke længere ny.
+ */
+const fresh = new WeakMap<HTMLElement, { kind: "row" | "col"; index: number }>();
+
 const STEPS: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+
+/** Formateringsgenvejene, de samme som i teksten (shortcuts.ts). */
+function formatKey(e: KeyboardEvent): CellFormat | null {
+  const mod = e.ctrlKey || e.metaKey;
+  const key = e.key.toLowerCase();
+  if (mod && !e.altKey && !e.shiftKey) return key === "b" ? "bold" : key === "i" ? "italic" : key === "u" ? "underline" : null;
+  if ((mod && e.shiftKey && !e.altKey && key === "x") || (e.altKey && e.shiftKey && !mod && e.code === "Digit5")) return "strikeThrough";
+  return null;
+}
+
+/**
+ * Formatering ved højreklik i en celle (27/10): de markerede celler, eller markeringen eller ordet
+ * under musen i cellen.
+ */
+export function tableFormatMenu(view: EditorView, target: Element, x: number, y: number): TableMenuItem[] | null {
+  const cell = target.closest<HTMLElement>(".gt-tablebox th, .gt-tablebox td");
+  const wrap = cell?.closest<HTMLElement>(".gt-tablebox");
+  if (!cell || !wrap || !view.contentDOM.contains(wrap)) return null;
+  const run = (kind: CellFormat) => () => {
+    if (selectedCells(wrap).includes(cell)) return formatCells(wrap, kind, () => commitAll(view, wrap, domModel(wrap)));
+    setCellRange(wrap, null);
+    caretAtPoint(cell, x, y);
+    if (document.activeElement !== cell) cell.focus({ preventScroll: true });
+    formatInCell(cell, kind);
+  };
+  return [
+    { label: tr("Fed (Ctrl+B)", "Bold (Ctrl+B)"), run: run("bold") },
+    { label: tr("Kursiv (Ctrl+I)", "Italic (Ctrl+I)"), run: run("italic") },
+    { label: tr("Understreget (Ctrl+U)", "Underline (Ctrl+U)"), run: run("underline") },
+    { label: tr("Gennemstreget", "Strikethrough"), run: run("strikeThrough") },
+  ];
+}
 
 /** Seks prikker: håndtaget, man trækker en række eller kolonne i. */
 const GRIP =
@@ -430,8 +553,8 @@ function wireDrag(wrap: HTMLElement, view: EditorView): void {
     wrap.append(b);
     return b;
   };
-  const rowGrip = make("gt-table-grip-row", tr("Træk for at flytte rækken (Alt+↑ og Alt+↓)", "Drag to move the row (Alt+↑ and Alt+↓)"));
-  const colGrip = make("gt-table-grip-col", tr("Træk for at flytte kolonnen (Alt+← og Alt+→)", "Drag to move the column (Alt+← and Alt+→)"));
+  const rowGrip = make("gt-table-grip-row", tr("Træk for at flytte rækken (Alt+↑ og Alt+↓). Klik for at markere den", "Drag to move the row (Alt+↑ and Alt+↓). Click to select it"));
+  const colGrip = make("gt-table-grip-col", tr("Træk for at flytte kolonnen (Alt+← og Alt+→). Klik for at markere den", "Drag to move the column (Alt+← and Alt+→). Click to select it"));
   const line = document.createElement("div");
   line.className = "gt-table-drop";
   line.hidden = true;
@@ -518,6 +641,15 @@ function wireDrag(wrap: HTMLElement, view: EditorView): void {
     wrap.classList.remove("gt-table-dragging");
     for (const cell of wrap.querySelectorAll(".gt-drag-source")) cell.classList.remove("gt-drag-source");
     if (!d || !commit) return;
+    // Et klik uden træk markerer rækken eller kolonnen (27/10), så den kan gøres kursiv i ét greb.
+    if (d.kind === "row" ? d.to === d.from - 1 : d.to === d.from) {
+      const grid = cellsOf(wrap);
+      const width = grid[0]?.length ?? 1;
+      setCellRange(wrap, d.kind === "row" ? { r0: d.from, c0: 0, r1: d.from, c1: width - 1 } : { r0: 0, c0: d.from, r1: grid.length - 1, c1: d.from });
+      const first = d.kind === "row" ? grid[d.from]?.[0] : grid[0]?.[d.from];
+      if (first) holdFocus(first);
+      return;
+    }
     const m = domModel(wrap);
     if (d.kind === "row" && d.to !== d.from - 1) commitAll(view, wrap, moveRow(m, d.from - 1, d.to), { row: d.to + 1, col: 0 });
     if (d.kind === "col" && d.to !== d.from) commitAll(view, wrap, moveColumn(m, d.from, d.to), { row: 0, col: d.to });
@@ -532,6 +664,9 @@ function wireDrag(wrap: HTMLElement, view: EditorView): void {
 function wire(wrap: HTMLElement, view: EditorView): void {
   const cellOf = (e: Event) => (e.target instanceof HTMLElement ? e.target.closest<HTMLElement>("th, td") : null);
   wrap.addEventListener("input", (e) => {
+    // Flere celler formateres på én gang (tableCells.ts): tabellen skrives om bagefter, i ét fortryd-trin.
+    if (wrap.dataset.batch) return;
+    fresh.delete(wrap);
     const cell = cellOf(e);
     if (cell) commitRow(view, wrap, Number(cell.dataset.row));
   });
@@ -558,6 +693,58 @@ function wire(wrap: HTMLElement, view: EditorView): void {
       e.preventDefault();
       e.stopPropagation();
     };
+    const writeAll = () => commitAll(view, wrap, domModel(wrap));
+    // Ctrl+B, I, U og Ctrl+Shift+X: de markerede celler, ellers markeringen eller ordet i cellen.
+    const format = formatKey(e);
+    if (format) {
+      stop();
+      if (cellRange(wrap)) formatCells(wrap, format, writeAll);
+      else formatInCell(cell, format);
+      return;
+    }
+    const step = STEPS[e.key];
+    const range = cellRange(wrap);
+    if (range) {
+      if (e.key === "Escape") {
+        stop();
+        setCellRange(wrap, null);
+        return focusCell(cell);
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        stop();
+        for (const sc of selectedCells(wrap)) sc.replaceChildren();
+        return writeAll();
+      }
+      if (mod && !e.altKey && (e.key.toLowerCase() === "c" || e.key.toLowerCase() === "x")) {
+        stop();
+        void navigator.clipboard.writeText(cellsAsText(wrap));
+        if (e.key.toLowerCase() === "x") {
+          for (const sc of selectedCells(wrap)) sc.replaceChildren();
+          writeAll();
+        }
+        return;
+      }
+      if (e.shiftKey && !mod && !e.altKey && step) {
+        stop();
+        const clamp = (v: number, max: number) => Math.max(0, Math.min(max, v));
+        return setCellRange(wrap, { ...range, r1: clamp(range.r1 + step[0], last), c1: clamp(range.c1 + step[1], width - 1) });
+      }
+      // Alt andet end en genvej: cellemarkeringen slipper, og tasten virker i cellen som før.
+      if (!mod && !["Shift", "Control", "Alt", "Meta"].includes(e.key)) {
+        setCellRange(wrap, null);
+        focusCell(cell);
+      }
+    }
+    // Shift+pil yderst i en celle går videre til nabocellen, og så er det cellerne, der er markeret.
+    if (e.shiftKey && !mod && !e.altKey && step) {
+      const to = grid[r + step[0]]?.[c + step[1]];
+      const edge = step[0] ? caretAtEdge(cell, step[0] < 0) === true : caretAtCellEnd(cell, step[1] > 0);
+      if (to && edge) {
+        stop();
+        setCellRange(wrap, { r0: r, c0: c, r1: r + step[0], c1: c + step[1] });
+        return holdFocus(cell);
+      }
+    }
     if (mod && !e.altKey && (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "y")) {
       stop();
       // Fortryd ruller til CodeMirrors markør, som står uden for tabellen, ofte øverst i teksten.
@@ -586,23 +773,28 @@ function wire(wrap: HTMLElement, view: EditorView): void {
       stop();
       const sel = window.getSelection();
       if (!sel) return;
-      const range = document.createRange();
-      range.selectNodeContents(cell);
+      const all = document.createRange();
+      all.selectNodeContents(cell);
+      // Ctrl+A igen, når hele cellen er markeret: hele tabellen.
+      const text = sel.toString().trim();
+      if (e.key.toLowerCase() === "a" && (range || (text !== "" && text === (cell.textContent ?? "").trim()))) {
+        setCellRange(wrap, { r0: 0, c0: 0, r1: last, c1: width - 1 });
+        return holdFocus(cell);
+      }
       if (e.key.toLowerCase() === "a") {
         sel.removeAllRanges();
-        sel.addRange(range);
+        sel.addRange(all);
         return;
       }
-      range.collapse(e.key === "Home");
-      if (e.shiftKey && sel.anchorNode) sel.setBaseAndExtent(sel.anchorNode, sel.anchorOffset, range.startContainer, range.startOffset);
+      all.collapse(e.key === "Home");
+      if (e.shiftKey && sel.anchorNode) sel.setBaseAndExtent(sel.anchorNode, sel.anchorOffset, all.startContainer, all.startOffset);
       else {
         sel.removeAllRanges();
-        sel.addRange(range);
+        sel.addRange(all);
       }
       return;
     }
     // Alt+pil flytter rækken eller kolonnen, som Alt+↑/↓ flytter et afsnit i teksten.
-    const step = STEPS[e.key];
     if (e.altKey && !mod && !e.shiftKey && step) {
       stop();
       return moveBy(view, wrap, domModel(wrap), r, c, step[0], step[1]);
@@ -629,29 +821,93 @@ function wire(wrap: HTMLElement, view: EditorView): void {
       stop();
       return leave(view, wrap, "after");
     }
-    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+    // Piletasterne (27/10): op og ned går altid lodret, til siderne altid vandret. Ned i sidste række
+    // laver en ny række og til højre i sidste kolonne en ny kolonne. Går pilen tilbage, før der er
+    // skrevet noget i den, forsvinder den igen.
+    const isFresh = (kind: "row" | "col", index: number) => {
+      const f = fresh.get(wrap);
+      if (!f || f.kind !== kind || f.index !== index) return false;
+      const cells = kind === "row" ? (grid[index] ?? []) : grid.map((row) => row[index]);
+      return cells.every((x) => !(x?.textContent ?? "").trim());
+    };
+    if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey) {
       const up = e.key === "ArrowUp";
-      const move = () => {
-        const to = r + (up ? -1 : 1);
-        if (to < 0) return leave(view, wrap, "before");
-        if (to > last) return leave(view, wrap, "after");
-        return focusCell(grid[to]?.[c]);
-      };
-      // En celle med flere linjer: pilen går først op og ned i cellen.
-      const edge = caretAtEdge(cell, up);
-      if (edge === false) return;
-      if (edge === null) {
-        // Markøren har ingen kasse (lige efter et linjeskift). Browseren flytter den, og rækken
-        // skiftes kun, hvis den ikke kom nogen vegne.
-        const before = caretKey();
-        setTimeout(() => {
-          if (caretKey() === before) move();
-        });
-        return;
-      }
       stop();
-      return move();
+      // En celle med flere linjer: pilen går først op og ned i cellen.
+      if (lineWithinCell(cell, up)) return;
+      const x = caretX();
+      if (up && r === last && isFresh("row", r)) {
+        fresh.delete(wrap);
+        const m = domModel(wrap);
+        return commitAll(view, wrap, { ...m, rows: m.rows.slice(0, -1) }, { row: r - 1, col: c });
+      }
+      if (!up && r === last && isFresh("row", r)) {
+        // Ned igen fra den nye, tomme række: den forsvinder, og markøren går ud under tabellen.
+        fresh.delete(wrap);
+        const m = domModel(wrap);
+        commitAll(view, wrap, { ...m, rows: m.rows.slice(0, -1) });
+        return leave(view, wrap, "after");
+      }
+      if (up && r === 0) return leave(view, wrap, "before");
+      if (!up && r === last) {
+        fresh.set(wrap, { kind: "row", index: last + 1 });
+        return commitAll(view, wrap, addRow(domModel(wrap), last), { row: last + 1, col: c });
+      }
+      return caretInto(grid[r + (up ? -1 : 1)][c], x, up);
     }
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.shiftKey && window.getSelection()?.isCollapsed) {
+      const right = e.key === "ArrowRight";
+      if (!caretAtCellEnd(cell, right)) return;
+      stop();
+      if (!right && isFresh("col", c)) {
+        fresh.delete(wrap);
+        return commitAll(view, wrap, removeColumn(domModel(wrap), c), { row: r, col: c - 1 });
+      }
+      // Til højre igen fra den nye, tomme kolonne: der kommer ikke flere.
+      if (right && isFresh("col", c)) return;
+      if (right && c === width - 1) {
+        fresh.set(wrap, { kind: "col", index: width });
+        return commitAll(view, wrap, addColumn(domModel(wrap), width), { row: r, col: width });
+      }
+      const to = grid[r]?.[c + (right ? 1 : -1)];
+      if (to) caretAtSide(to, right);
+    }
+  });
+  // Markér celler med musen (27/10): træk fra én celle til en anden, eller Shift+klik.
+  let dragFrom: HTMLElement | null = null;
+  wrap.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    const cell = cellOf(e);
+    if (!cell) return;
+    const active = document.activeElement instanceof HTMLElement && wrap.contains(document.activeElement) ? document.activeElement.closest<HTMLElement>("th, td") : null;
+    if (e.shiftKey && active && active !== cell) {
+      e.preventDefault();
+      const from = cellRange(wrap) ?? { r0: Number(active.dataset.row), c0: Number(active.dataset.col) };
+      setCellRange(wrap, { r0: from.r0, c0: from.c0, r1: Number(cell.dataset.row), c1: Number(cell.dataset.col) });
+      return holdFocus(active);
+    }
+    setCellRange(wrap, null);
+    dragFrom = cell;
+  });
+  wrap.addEventListener("mousemove", (e) => {
+    if (!dragFrom || !(e.buttons & 1)) return;
+    const over = cellOf(e);
+    if (!over || (over === dragFrom && !cellRange(wrap))) return;
+    setCellRange(wrap, { r0: Number(dragFrom.dataset.row), c0: Number(dragFrom.dataset.col), r1: Number(over.dataset.row), c1: Number(over.dataset.col) });
+    holdFocus(dragFrom);
+  });
+  wrap.addEventListener("mouseup", () => {
+    dragFrom = null;
+  });
+  // Klikkes der uden for tabellen, slipper markeringen. Ikke når hele vinduet mister fokus, fx for
+  // højrekliksmenuen, der skal kunne formatere de markerede celler.
+  wrap.addEventListener("focusout", () => {
+    setTimeout(() => {
+      if (document.hasFocus() && !wrap.contains(document.activeElement)) {
+        setCellRange(wrap, null);
+        fresh.delete(wrap);
+      }
+    });
   });
   // De to små plusser: en række nederst og en kolonne yderst til højre.
   const add = (cls: string, label: string, run: () => void) => {
@@ -727,6 +983,7 @@ class TableWidget extends WidgetType {
     if (!focus && sameModel(domModel(dom), this.model)) return true;
     const keep = focus ?? (active?.dataset.row ? { row: Number(active.dataset.row), col: Number(active.dataset.col) } : null);
     buildTable(dom, this.model);
+    paintCells(dom);
     if (keep) {
       const grid = cellsOf(dom);
       focusCell(grid[Math.min(keep.row, grid.length - 1)]?.[Math.min(keep.col, (grid[0]?.length ?? 1) - 1)]);
@@ -852,6 +1109,10 @@ export const tableTheme = [
     // telefonen, og kolonne 2 stod uden for skærmen (fejljagt F2-B10). Bredt bliver ord hele.
     "@media (max-width: 700px)": { ".gt-tablebox th, .gt-tablebox td": { overflowWrap: "anywhere" } },
     ".gt-tablebox th:focus, .gt-tablebox td:focus": { backgroundColor: "var(--hover)" },
+    // Markerede celler (tableCells.ts). Teksten kan ikke markeres imens, så et træk med musen ikke
+    // også markerer tekst i den første celle.
+    ".gt-tablebox th.gt-cell-selected, .gt-tablebox td.gt-cell-selected": { backgroundColor: "var(--markering)" },
+    ".gt-cells th, .gt-cells td": { userSelect: "none", caretColor: "transparent" },
     ".gt-tablebox th:empty::before": { content: "attr(data-placeholder)", color: "var(--dæmpet)", fontWeight: "400" },
     ".gt-table-add": {
       position: "absolute",

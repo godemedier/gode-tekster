@@ -74,6 +74,30 @@ test("tekst, der begynder med [, * eller _, er tekst og ikke et link eller kursi
   ]);
 });
 
+test("fed om kursiv, kursiv om fed, understreget og gennemstreget i en celle (27/10)", () => {
+  // En kolonne gjort kursiv, hvor en celle var fed: browseren skriver `***ord***` og `**hele *ord***`.
+  assert.deepEqual(inlineParts("***ord***"), [{ kind: "strong", text: "*ord*", mark: "**" }]);
+  assert.deepEqual(inlineParts("**hele *ordet***"), [{ kind: "strong", text: "hele *ordet*", mark: "**" }]);
+  assert.deepEqual(inlineParts("*hele **ordet***"), [{ kind: "em", text: "hele **ordet**", mark: "*" }]);
+  assert.deepEqual(inlineParts("***Bo** Sand*"), [{ kind: "em", text: "**Bo** Sand", mark: "*" }]);
+  assert.deepEqual(inlineParts("**a** og *b*"), [
+    { kind: "strong", text: "a", mark: "**" },
+    { kind: "text", text: " og " },
+    { kind: "em", text: "b", mark: "*" },
+  ]);
+  assert.deepEqual(inlineParts("a <u>b</u> ~~c~~"), [
+    { kind: "text", text: "a " },
+    { kind: "u", text: "b" },
+    { kind: "text", text: " " },
+    { kind: "s", text: "c" },
+  ]);
+  assert.deepEqual(inlineParts("*a* og *b*"), [
+    { kind: "em", text: "a", mark: "*" },
+    { kind: "text", text: " og " },
+    { kind: "em", text: "b", mark: "*" },
+  ]);
+});
+
 test("<br> er et linjeskift i cellen, også skrevet <br/> og <BR />, og ikke tegnene (15/10)", () => {
   assert.deepEqual(inlineParts("☐ Et<br>☐ **To**<br/>tre<BR />"), [
     { kind: "text", text: "☐ Et" },
@@ -116,6 +140,9 @@ test("en ændring i teksten finder tabellen igen, og visningen ændrer aldrig fi
 test("cellerne skrives tilbage som markdown: streger escapes, justeringen bevares, tomme celler står tomme", () => {
   assert.equal(escapeCell("a | b\nc"), "a \\| b c");
   assert.equal(escapeCell("allerede \\| escapet"), "allerede \\| escapet");
+  // En escapet \ foran stregen (F2-M5, 27/10): stregen skal stadig escapes, ellers deler den cellen.
+  assert.equal(escapeCell("a\\\\|b"), "a\\\\\\|b");
+  assert.deepEqual(splitRow(`| ${escapeCell("a\\\\|b")} | c |`, 0).map((c) => c.text), ["a\\\\|b", "c"]);
   assert.equal(formatRow(["Måling", "", "**fed**"]), "| Måling |  | **fed** |");
   assert.equal(formatDelimiter(["left", "center", "right"]), "|---|:-:|--:|");
   const lines = ["| A | B |", "|---|--:|", "| 1 |", "| x \\| y | 2 | ekstra |"];

@@ -19,6 +19,18 @@ test("ordet omkring markøren, også med æøå", () => {
   assert.equal(t.slice(r.start, r.end), "grøn");
 });
 
+test("bindestreg og apostrof inde i et ord hører til ordet, men ikke i kanten (27/10)", () => {
+  const word = (t: string, pos: number) => {
+    const r = wordRangeAt(t, pos);
+    return t.slice(r.start, r.end);
+  };
+  assert.equal(word("send en e-mail nu", 9), "e-mail");
+  assert.equal(word("rock'n'roll", 2), "rock'n'roll");
+  assert.equal(word("før - efter", 1), "før");
+  assert.equal(word("Peters' bil", 2), "Peters");
+  assert.equal(apply("en e-mail", toggleWrap("en e-mail", 4, 4, "**")), "en **e-mail**");
+});
+
 test("fed slås til og fra, også uden markering", () => {
   assert.equal(apply("en grøn æske", toggleWrap("en grøn æske", 5, 5, "**")), "en **grøn** æske");
   assert.equal(apply("en **grøn** æske", toggleWrap("en **grøn** æske", 5, 9, "**")), "en grøn æske");

@@ -18,12 +18,15 @@ export type EditPlan = {
 // \p{L}/\p{N} + /u: JS' \b tæller ikke æøå som ordtegn.
 const isWordChar = (ch: string) => /[\p{L}\p{N}]/u.test(ch);
 
+/** Bindestreg og apostrof inde i et ord hører til ordet: »e-mail« og »rock'n'roll« er ét ord til Ctrl+B. */
+const joinsWord = (text: string, i: number) => /['’-]/.test(text[i] ?? "") && isWordChar(text[i - 1] ?? "") && isWordChar(text[i + 1] ?? "");
+
 /** Udvid en tom markering til ordet omkring markøren (æøå-sikkert). */
 export function wordRangeAt(text: string, pos: number): { start: number; end: number } {
   let start = pos;
   let end = pos;
-  while (start > 0 && isWordChar(text[start - 1])) start--;
-  while (end < text.length && isWordChar(text[end])) end++;
+  while (start > 0 && (isWordChar(text[start - 1]) || joinsWord(text, start - 1))) start--;
+  while (end < text.length && (isWordChar(text[end]) || joinsWord(text, end))) end++;
   return { start, end };
 }
 
