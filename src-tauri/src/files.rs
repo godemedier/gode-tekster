@@ -496,10 +496,21 @@ fn stamp_from(meta: &fs::Metadata, bytes: &[u8]) -> Stamp {
 /// programmet at gemme den på det gamle navn, så der blev to).
 pub fn find_moved(path: &Path, expected: &Stamp) -> Option<PathBuf> {
     let dir = path.parent()?;
-    let mut candidates = std::fs::read_dir(dir)
+    let in_dir = std::fs::read_dir(dir)
         .ok()?
         .filter_map(|e| e.ok())
-        .map(|e| e.path())
+        .map(|e| e.path());
+    find_moved_among(in_dir, path, expected)
+}
+
+/// Som `find_moved`, men blandt de filer, der gives: hele biblioteket, når teksten er flyttet til en
+/// anden mappe (27/10).
+pub fn find_moved_among(
+    files: impl Iterator<Item = PathBuf>,
+    path: &Path,
+    expected: &Stamp,
+) -> Option<PathBuf> {
+    let mut candidates = files
         .filter(|p| p != path && p.is_file())
         .filter(|p| {
             let ext = p
@@ -1027,6 +1038,24 @@ mod tests {
         // Ændret indhold er ikke den samme tekst.
         fs::write(dir.path().join("efter.md"), b"Rettet\n").unwrap();
         assert_eq!(find_moved(&p, &o.meta.stamp), None);
+    }
+
+    #[test]
+    fn flyttet_til_en_anden_mappe_findes_i_biblioteket() {
+        // 27/10: en åben tekst flyttet til en anden mappe gav en fejl ved hvert gem.
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("plan.md");
+        fs::write(&p, b"En plan\n").unwrap();
+        let o = open(&p).unwrap();
+        fs::create_dir(dir.path().join("Strategi")).unwrap();
+        let to = dir.path().join("Strategi").join("plan.md");
+        fs::rename(&p, &to).unwrap();
+        assert_eq!(find_moved(&p, &o.meta.stamp), None);
+        let all = vec![dir.path().join("andet.md"), to.clone()];
+        assert_eq!(
+            find_moved_among(all.into_iter(), &p, &o.meta.stamp),
+            Some(to)
+        );
     }
 
     #[test]

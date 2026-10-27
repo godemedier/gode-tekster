@@ -1106,7 +1106,25 @@ pub async fn move_entry(app: AppHandle, path: String, dir: String) -> Result<Str
             format!("Could not move: {e}")
         )
     })?;
+    // En åben tekst følger med, også i et andet vindue (27/10).
+    crate::document::follow_move(&app, &p, &target);
     Ok(target.to_string_lossy().into_owned())
+}
+
+/// Biblioteket, en fil lå i, også når den ikke findes længere (den er flyttet). Sammenlignes som
+/// tekst uden forskel på store og små bogstaver, for den gamle sti kan ikke kanoniseres.
+pub fn library_holding(app: &AppHandle, path: &Path) -> Option<PathBuf> {
+    let p = path.to_string_lossy().to_lowercase();
+    settings::load(app).libraries.into_iter().find_map(|lib| {
+        let root = canonical(&lib)?;
+        [
+            lib.to_string_lossy().to_lowercase(),
+            root.to_string_lossy().to_lowercase(),
+        ]
+        .iter()
+        .any(|r| p.starts_with(&format!("{}\\", r.trim_end_matches('\\'))))
+        .then_some(root)
+    })
 }
 
 #[derive(Debug, Serialize)]

@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::annotations::{self, Author, Authorship, BlockInfo, Kind, Span};
 use crate::applog;
@@ -208,14 +208,70 @@ pub fn rename_open_document(
     if let Ok(mut set) = state.backed_up.lock() {
         set.insert(to.clone());
     }
-    choose(&app, &to);
-    if let (Some(w), Some(name)) = (app.get_webview_window(window.label()), to.file_name()) {
-        let _ = w.set_title(&crate::windows::title_of(&name.to_string_lossy()));
-    }
-    crate::windows::showing(&app, window.label(), &to);
-    crate::watcher::set_open_file(&app, window.label(), &to);
+    show_moved(&app, window.label(), &to);
     applog::write(&app, "ny tekst fik navn efter første linje");
     Ok(to.to_string_lossy().into_owned())
+}
+
+/// Vinduet viser nu teksten under et nyt navn eller i en ny mappe: titel, »ét vindue pr. tekst« og
+/// filovervågningen følger med.
+fn show_moved(app: &AppHandle, label: &str, to: &Path) {
+    choose(app, to);
+    if let (Some(w), Some(name)) = (app.get_webview_window(label), to.file_name()) {
+        let _ = w.set_title(&crate::windows::title_of(&name.to_string_lossy()));
+    }
+    crate::windows::showing(app, label, to);
+    crate::watcher::set_open_file(app, label, to);
+}
+
+#[derive(Clone, Serialize)]
+struct Moved {
+    from: String,
+    to: String,
+}
+
+/// En fil eller mappe er flyttet i biblioteket (`move_entry`, 27/10). Er en åben tekst med, følger
+/// programmet den, og vinduet med teksten får besked (`document-moved`). Før gemte vinduet videre på
+/// den gamle plads, der ikke fandtes længere, og hvert gem gav en fejl.
+pub fn follow_move(app: &AppHandle, from: &Path, to: &Path) {
+    let state = app.state::<AppState>();
+    let prefix = key(from);
+    let mut moved = Vec::new();
+    if let Ok(mut docs) = state.docs.lock() {
+        let hit: Vec<PathBuf> = docs
+            .keys()
+            .filter(|p| {
+                let k = key(p);
+                k == prefix || k.starts_with(&format!("{prefix}\\"))
+            })
+            .cloned()
+            .collect();
+        for old in hit {
+            // Resten af stien under den flyttede mappe (tom for selve filen).
+            let new: PathBuf = std::iter::once(to.as_os_str())
+                .chain(old.iter().skip(from.iter().count()))
+                .collect();
+            if let Some(doc) = docs.remove(&old) {
+                moved.push((doc.owner.clone(), old, new.clone()));
+                docs.insert(new, doc);
+            }
+        }
+    }
+    for (owner, old, new) in moved {
+        if let Ok(mut set) = state.backed_up.lock() {
+            set.insert(new.clone());
+        }
+        show_moved(app, &owner, &new);
+        let _ = app.emit_to(
+            owner.as_str(),
+            "document-moved",
+            Moved {
+                from: old.to_string_lossy().into_owned(),
+                to: new.to_string_lossy().into_owned(),
+            },
+        );
+        applog::write(app, "aaben fil flyttet i biblioteket, fulgt");
+    }
 }
 
 pub fn choose(app: &AppHandle, path: &Path) {
@@ -546,22 +602,26 @@ pub async fn save_document(
         }
     }
 
-    // Omdøbt eller flyttet i mappen udefra: følg filen i stedet for at genskabe den på det gamle navn.
+    // Omdøbt eller flyttet udefra: følg filen i stedet for at genskabe den på det gamle navn. Først i
+    // samme mappe, så i hele biblioteket (27/10: en tekst flyttet til en anden mappe i Stifinder gav
+    // en fejl ved hvert gem, og programmet kunne ikke lukkes uden »Afslut alligevel«).
     if !req.overwrite_external && !path.exists() {
-        if let Some(moved) = files::find_moved(&path, &meta.stamp) {
+        let found = files::find_moved(&path, &meta.stamp).or_else(|| {
+            let root = crate::library::library_holding(&app, &path)?;
+            let all = crate::library::files_in(vec![root]);
+            files::find_moved_among(
+                all.into_iter().map(|h| PathBuf::from(h.path)),
+                &path,
+                &meta.stamp,
+            )
+        });
+        if let Some(moved) = found {
             if let Some(doc) = docs.remove(&path) {
                 docs.insert(moved.clone(), doc);
             }
             drop(docs);
-            choose(&app, &moved);
-            if let (Some(w), Some(name)) =
-                (app.get_webview_window(window.label()), moved.file_name())
-            {
-                let _ = w.set_title(&crate::windows::title_of(&name.to_string_lossy()));
-            }
-            crate::windows::showing(&app, window.label(), &moved);
-            crate::watcher::set_open_file(&app, window.label(), &moved);
-            applog::write(&app, "aaben fil omdoebt udefra, fulgt");
+            show_moved(&app, window.label(), &moved);
+            applog::write(&app, "aaben fil flyttet udefra, fulgt");
             return Err(SaveError {
                 kind: "moved",
                 message: moved.to_string_lossy().into_owned(),

@@ -746,7 +746,9 @@ async function autoName(): Promise<void> {
 
 async function fileMoved(from: string, to: string | null): Promise<void> {
   if (!session || session.path.toLowerCase() !== from.toLowerCase()) return;
-  if (to) return switchTo(() => invoke<DocumentDto>("open_document", { path: to }));
+  // Flyttet: Rust følger allerede den åbne tekst (follow_move), og der skrives videre i den nye fil.
+  // Før blev den åbnet igen, og den gamle session gemte først på den gamle plads, der var væk (27/10).
+  if (to) return session.renamed(to);
   await session.close(true);
   session = null;
   show(null);
@@ -987,6 +989,12 @@ await listen<string>("file-changed", (e) => {
 await listen("flush-requested", () => {
   if (!session) return;
   void session.flush().catch(() => undefined).finally(() => void invoke("flush_done"));
+});
+// En åben tekst er flyttet i biblioteket, måske fra et andet vindue (follow_move i Rust, 27/10).
+await here.listen<{ from: string; to: string }>("document-moved", (e) => {
+  if (!session || session.path.toLowerCase() !== e.payload.from.toLowerCase()) return;
+  session.renamed(e.payload.to);
+  window.dispatchEvent(new CustomEvent("gt-moved", { detail: e.payload }));
 });
 await listen<string>("file-gone", (e) => {
   if (session && session.path.toLowerCase() === e.payload.toLowerCase()) session.fileGone();
