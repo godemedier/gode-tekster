@@ -47,6 +47,7 @@ import { setCommaStyle, setHiddenStyle, setStrictStyle, setStyleCheck } from "./
 import { currentLang, isEnglish, tr } from "./i18n.ts";
 import { hasDefaultName, titleFromText } from "./ui/autoName.ts";
 import { setCommandHooks } from "./editor/setup.ts";
+import { setReferencePicker } from "./editor/docLinks.ts";
 import { loadCommands } from "./commands/store.ts";
 import { openCommandMenu } from "./commands/slashMenu.ts";
 import type { CommandHooks } from "./commands/types.ts";
@@ -104,6 +105,11 @@ const commandHooks: CommandHooks = {
   notify,
 };
 setCommandHooks(commandHooks);
+// Henvisninger til andre tekster ([[, docLinks.ts) søger i hurtigåbningens liste over bibliotekerne.
+setReferencePicker({
+  pick: (choose, cancel) => openQuick(choose, { label: tr("Henvis til en tekst", "Link to a text"), cancel }),
+  currentPath: () => session?.path ?? null,
+});
 // En fejl i mappen med egne kommandoer må ikke stoppe programmet: de indbyggede virker stadig.
 const reloadCommands = () => loadCommands().catch((e) => showBanner(errorText(e)));
 await reloadCommands();
@@ -690,7 +696,11 @@ window.addEventListener("gt-open-link", (e) => {
     // Et procenttegn uden kode: brug linket, som det står.
   }
   const here = session?.path;
-  const abs = /^[a-z]:[\\/]/i.test(rel) || !here ? rel : `${here.replace(/[\\/][^\\/]*$/, "")}\\${rel.replace(/\//g, "\\")}`;
+  const joined = /^[a-z]:[\\/]/i.test(rel) || !here ? rel : `${here.replace(/[\\/][^\\/]*$/, "")}\\${rel}`;
+  // `../Mappe/tekst.md` fra en henvisning (docLinks.ts): ..-trinnene løses op, så stien er den
+  // samme, som når teksten åbnes fra biblioteket (»ét vindue pr. tekst« sammenligner stierne).
+  const unc = /^[\\/]{2}/.test(joined) ? "\\\\" : "";
+  const abs = unc + joined.split(/[\\/]+/).filter(Boolean).reduce<string[]>((out, part) => (part === ".." ? out.slice(0, -1) : part === "." ? out : [...out, part]), []).join("\\");
   void openPath(abs).catch((err) => showBanner(errorText(err)));
 });
 

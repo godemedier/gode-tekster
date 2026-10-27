@@ -10,6 +10,7 @@ import { dismissFlag, flagAt } from "../editor/styleCheck.ts";
 import { settings, updateSettings } from "../settings.ts";
 import { tableFormatMenu, tableMenuAt } from "../editor/tables.ts";
 import { wordRangeAt } from "../editor/editing.ts";
+import { pickReference } from "../editor/docLinks.ts";
 import { selectionGroups } from "../editor/selectionToolbar.ts";
 import type { MenuItem } from "./menu.ts";
 import { cmd } from "../editor/shortcuts.ts";
@@ -191,6 +192,7 @@ export function installContextMenu(view: EditorView): void {
         add(tr("Fodnote", "Footnote"), () => cmd.footnote(view)),
         add(tr("Kommentar", "Comment"), () => cmd.note(view)),
         add(tr("Link", "Link"), () => cmd.link(view)),
+        add(tr("Henvisning til en tekst … ([[)", "Link to a text … ([[)"), () => void pickReference(view)),
         { sep: true },
         add(tr("Billede …", "Image …"), () => pickImage(view)),
         add(tr("Tabel", "Table"), () => void import("../commands/run.ts").then((m) => m.insertEmptyTable(view))),

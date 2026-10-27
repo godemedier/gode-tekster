@@ -10,6 +10,8 @@ versions. Releases up to 0.2.27 are described in one paragraph each, as on the
 
 ## [Unreleased]
 
+Skriv [[ for at henvise til en anden tekst. Et søgefelt viser teksterne i dine biblioteker, og den, du vælger, bliver et link med tekstens navn. Har du markeret noget, bliver det linkets tekst. Ctrl+klik åbner teksten. Linket er almindelig markdown, så det virker også i print og i andre programmer. Det samme findes under højreklik › Tilføj.
+
 I en tabel kan du nu markere flere celler på én gang. Træk med musen fra én celle til en anden, eller Shift+klik. Klik på håndtaget over en kolonne eller ud for en række, så er hele kolonnen eller rækken markeret. Ctrl+B, Ctrl+I og Ctrl+U virker så på alle cellerne, og Ctrl+Z fortryder det i ét trin. Delete tømmer cellerne, og Ctrl+C kopierer dem, så de kan sættes ind i et regneark. Ctrl+B uden markering gør hele ordet fedt, nu også i en tabelcelle og på ord som »e-mail«. Højreklikker du på et ord, kan du formatere det under Formatér uden at markere det først. Piletasterne i en tabel går nu altid lige op, ned og til siden, fra celle til celle. Pil ned i sidste række giver en ny række, og pil til højre i sidste kolonne en ny kolonne. Går du tilbage uden at skrive noget, forsvinder de igen. Flytter du en åben tekst til en anden mappe, i biblioteket eller i Stifinder, gemmer programmet videre i den nye fil. Før kom der en fejl ved hvert gem, og programmet ville ikke lukke. Et link til en delt tekst har nu koden efter et #, så den ikke sendes til serveren og ikke står i serverens log. Gamle links virker stadig.
 
 ## [0.2.29] - 2026-10-26

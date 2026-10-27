@@ -11,16 +11,18 @@ type Hit = { name: string; path: string; folder: string; modifiedMs: number; dim
 
 const MAX_SHOWN = 40;
 
-export function openQuick(open: (path: string) => void): void {
+/** `label`: søgefeltets titel (fx henvisninger, docLinks.ts). `cancel`: lukket uden valg. */
+export function openQuick(open: (path: string) => void, opts: { label?: string; cancel?: () => void } = {}): void {
+  const label = opts.label ?? tr("Åbn en tekst", "Open a text");
   const overlay = document.getElementById("overlay") as HTMLElement;
   const restore = rememberFocus();
   const box = document.createElement("div");
   box.className = "quick";
   box.setAttribute("role", "dialog");
-  box.setAttribute("aria-label", tr("Åbn en tekst", "Open a text"));
+  box.setAttribute("aria-label", label);
   const input = document.createElement("input");
   input.type = "text";
-  input.placeholder = tr("Åbn en tekst", "Open a text");
+  input.placeholder = label;
   input.setAttribute("aria-label", tr("Søg efter filnavn", "Search by file name"));
   const list = document.createElement("ul");
   list.setAttribute("role", "listbox");
@@ -37,6 +39,10 @@ export function openQuick(open: (path: string) => void): void {
     restore();
     overlay.hidden = true;
     overlay.replaceChildren();
+  };
+  const cancel = () => {
+    close();
+    opts.cancel?.();
   };
   const choose = (h: Hit | undefined) => {
     if (!h) return;
@@ -99,11 +105,11 @@ export function openQuick(open: (path: string) => void): void {
       choose(shown[selected]);
     } else if (e.key === "Escape") {
       e.preventDefault();
-      close();
+      cancel();
     }
   });
   overlay.addEventListener("mousedown", (e) => {
-    if (e.target === overlay) close();
+    if (e.target === overlay) cancel();
   }, { once: true });
 
   render();

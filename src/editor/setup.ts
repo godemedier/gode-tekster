@@ -19,6 +19,7 @@ import { markdownKeys } from "./markdownKeys.ts";
 import { hiddenBlocks } from "./hidden.ts";
 import { tagLineStyle, tagLineTheme } from "./textStatus.ts";
 import { selectionToolbar, selectionToolbarTheme } from "./selectionToolbar.ts";
+import { referenceTrigger } from "./docLinks.ts";
 import { parkedDrop } from "./parkedDrop.ts";
 import { authorshipView, authorshipTheme } from "./authorshipView.ts";
 import { modeExtensions } from "./modes.ts";
@@ -232,6 +233,8 @@ export function baseExtensions(onChange: OnChange): Extension[] {
     ...(touchSurface || guestSurface ? [] : [spelling, spellingTheme]),
     // Ctrl+Alt+V (indsæt som AI) er taget ud med »Markér som AI« (4/10).
     linkClicks(),
+    // [[ åbner søgefeltet til en henvisning (docLinks.ts). Telefonen og gæsten har intet bibliotek at søge i.
+    ...(touchSurface || guestSurface ? [] : [referenceTrigger]),
     trimLineBreakSelection,
     fancyListSupport,
     // Egne kommandoer og skabeloner med »/« (commands/slashMenu.ts).

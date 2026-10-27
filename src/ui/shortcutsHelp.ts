@@ -21,6 +21,7 @@ export const GROUPS: [string, [string, string][]][] = [
       [tr("Ctrl+Shift+X eller Alt+Shift+5", "Ctrl+Shift+X or Alt+Shift+5"), tr("Gennemstreget", "Strikethrough")],
       ["Ctrl+Shift+D", tr("Dæmp", "Dim")],
       ["Ctrl+K", "Link"],
+      ["[[", tr("Henvis til en anden tekst (søg og vælg)", "Link to another text (search and pick)")],
       [tr("Ctrl+1 til 3", "Ctrl+1 to 3"), tr("Overskrift", "Heading")],
       ["Ctrl+4", tr("Manchet", "Standfirst")],
       ["Ctrl+0", tr("Brødtekst", "Body text")],
