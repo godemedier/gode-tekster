@@ -85,8 +85,9 @@ fn secure(mut r: Response, cache: &'static str) -> Response {
     r
 }
 
-/// `/del/<link>`: siden er den samme for alle links. Den spørger selv serveren om linket.
-pub async fn page(State(site): State<Arc<Site>>, UrlPath(_token): UrlPath<String>) -> Response {
+/// `/del#<link>`: siden er den samme for alle links. Den læser linket efter # og spørger selv
+/// serveren. `/del/<link>` er links fra før 27/10, og siden flytter linket op efter # i adresselinjen.
+pub async fn page(State(site): State<Arc<Site>>) -> Response {
     match &site.page {
         Some(html) => secure(
             (
@@ -114,6 +115,7 @@ pub async fn asset(State(site): State<Arc<Site>>, UrlPath(name): UrlPath<String>
 pub fn router(site: Site) -> Router {
     Router::new()
         .route("/del/assets/{name}", get(asset))
+        .route("/del", get(page))
         .route("/del/{token}", get(page))
         .with_state(Arc::new(site))
 }

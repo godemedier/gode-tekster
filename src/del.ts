@@ -21,8 +21,16 @@ type GuestCopy = { title: string; name: string; text: string; rev: number; expir
 
 const SAVE_MS = 1500;
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
-const token = location.pathname.split("/").filter(Boolean).pop() ?? "";
-const api = `/v1/gaest/${encodeURIComponent(token)}`;
+/**
+ * Linket står efter # (`/del#<link>`, 27/10), så browseren aldrig sender det til serveren, og det
+ * ikke lander i proxyens log. Et link fra før står i stien (`/del/<link>`). Det flyttes op efter #,
+ * så historikken ikke gemmer det i stien. Til serveren går det i en header, ikke i adressen.
+ */
+const fromPath = location.pathname.replace(/^\/del\/?/, "");
+const token = location.hash.slice(1) || fromPath;
+if (fromPath && token) history.replaceState(null, "", `/del#${token}`);
+const api = "/v1/gaest";
+const guestHeaders = { "x-gaest": token };
 const draftKey = `gt-del-${token.slice(0, 16)}`;
 
 /**
@@ -285,7 +293,7 @@ async function save(): Promise<void> {
     try {
       const r = await fetch(api, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...guestHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({ base_rev: rev, text }),
         keepalive: true,
       });
@@ -380,7 +388,7 @@ async function start(): Promise<void> {
     "Shared from Gode Tekster, a free writing app for Windows by",
   );
   $("g-privatliv").textContent = tr("Privatliv", "Privacy");
-  const r = await fetch(api).catch(() => null);
+  const r = await fetch(api, { headers: guestHeaders }).catch(() => null);
   if (!r || !r.ok) {
     if (r && linkGone(r)) dropDraft();
     if (r?.status === 429) {

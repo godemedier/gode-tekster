@@ -18,9 +18,13 @@
 //!   GET    /v1/delinger/{id}            én deling med basen og hver persons udgave (ejeren)
 //!   POST   /v1/delinger/{id}/stop       linkene holder op med at virke (ejeren)
 //!   DELETE /v1/delinger/{id}            slet delingen helt (ejeren)
-//!   GET    /v1/gaest/{link}             gæstens udgave (linket er adgangen)
-//!   PUT    /v1/gaest/{link}             gæsten gemmer oven på en kendt revision (409 ellers)
-//!   GET    /del/{link}                  gæstens side (`side.rs`)
+//!   GET    /v1/gaest                    gæstens udgave. Linket i headeren `x-gaest` er adgangen
+//!   PUT    /v1/gaest                    gæsten gemmer oven på en kendt revision (409 ellers)
+//!   GET    /v1/gaest/{link}             det samme med linket i stien (sider fra før 27/10)
+//!   PUT    /v1/gaest/{link}
+//!   GET    /del#{link}                  gæstens side (`side.rs`). Linket står efter #, så det
+//!                                       aldrig sendes til serveren eller lander i en log
+//!   GET    /del/{link}                  den samme side for links fra før 27/10
 //!
 //! Én gang i døgnet (og ved start) fjernes indhold, som kun filer slettet for mere end 30 dage
 //! siden brugte (`Store::purge`).

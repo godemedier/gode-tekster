@@ -97,9 +97,15 @@ pub fn router(app: App) -> Router {
         .route("/v1/delinger/{id}", get(get_share).delete(delete_share))
         .route("/v1/delinger/{id}/stop", post(stop_share))
         .route(
-            "/v1/gaest/{token}",
+            "/v1/gaest",
             get(guest_get)
                 .put(guest_put)
+                .layer(DefaultBodyLimit::max(SHARE_BODY)),
+        )
+        .route(
+            "/v1/gaest/{token}",
+            get(guest_get_at)
+                .put(guest_put_at)
                 .layer(DefaultBodyLimit::max(SHARE_BODY)),
         )
         .route_layer(middleware::from_fn_with_state(shared.clone(), gate))
@@ -113,7 +119,7 @@ pub fn router(app: App) -> Router {
 async fn gate(State(app): State<Shared>, req: Request, next: Next) -> Response {
     let path = req.uri().path();
     let open = path == "/api/health" || (path == "/v1/enheder" && req.method() == Method::POST);
-    if path.starts_with("/v1/gaest/") {
+    if path == "/v1/gaest" || path.starts_with("/v1/gaest/") {
         if guest_blocked(&app, &client(req.headers()), false) {
             return too_many().into_response();
         }
@@ -580,11 +586,50 @@ fn too_many() -> Fejl {
     )
 }
 
-async fn guest_get(
+/// Headeren med gæstens link (27/10). I stien landede linket i proxyens log og browserens historik.
+const GUEST_HEADER: &str = "x-gaest";
+
+fn guest_token(headers: &HeaderMap) -> String {
+    headers
+        .get(GUEST_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_string()
+}
+
+async fn guest_get(State(app): State<Shared>, headers: HeaderMap) -> Result<Response, Fejl> {
+    let token = guest_token(&headers);
+    guest_read(app, headers, token).await
+}
+
+async fn guest_put(
+    State(app): State<Shared>,
+    headers: HeaderMap,
+    Json(save): Json<GuestSave>,
+) -> Result<Response, Fejl> {
+    let token = guest_token(&headers);
+    guest_write(app, headers, token, save).await
+}
+
+/// Linket i stien: en gæsteside hentet før 27/10, der stadig står åben.
+async fn guest_get_at(
     State(app): State<Shared>,
     headers: HeaderMap,
     Path(token): Path<String>,
 ) -> Result<Response, Fejl> {
+    guest_read(app, headers, token).await
+}
+
+async fn guest_put_at(
+    State(app): State<Shared>,
+    headers: HeaderMap,
+    Path(token): Path<String>,
+    Json(save): Json<GuestSave>,
+) -> Result<Response, Fejl> {
+    guest_write(app, headers, token, save).await
+}
+
+async fn guest_read(app: Shared, headers: HeaderMap, token: String) -> Result<Response, Fejl> {
     let who = client(&headers);
     if guest_blocked(&app, &who, false) {
         return Err(too_many());
@@ -599,11 +644,11 @@ async fn guest_get(
     }
 }
 
-async fn guest_put(
-    State(app): State<Shared>,
+async fn guest_write(
+    app: Shared,
     headers: HeaderMap,
-    Path(token): Path<String>,
-    Json(save): Json<GuestSave>,
+    token: String,
+    save: GuestSave,
 ) -> Result<Response, Fejl> {
     let who = client(&headers);
     if guest_blocked(&app, &who, false) {
@@ -1007,6 +1052,19 @@ mod tests {
         let token = share.links[0].token.clone().unwrap_or_default();
         let guest = format!("{}/v1/gaest/{token}", s.base);
 
+        // Siden fra 27/10 sender linket i en header, ikke i adressen. Uden header: intet.
+        let headed = format!("{}/v1/gaest", s.base);
+        let r = a
+            .get(&headed)
+            .header("x-gaest", &token)
+            .call()
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(r.status(), 200);
+        let copy: GuestCopy = json(r);
+        assert_eq!(copy.text.as_str(), "Et afsnit.");
+        let r = a.get(&headed).call().unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(r.status(), 404);
+
         // Gæsten henter uden nøgle, og svaret må ikke gemmes eller indekseres.
         let r = a.get(&guest).call().unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(r.status(), 200);
@@ -1023,7 +1081,8 @@ mod tests {
         );
 
         let put = |rev: u64, text: &str| {
-            a.put(&guest)
+            a.put(&headed)
+                .header("x-gaest", &token)
                 .send_json(json!({ "base_rev": rev, "text": text }))
                 .unwrap_or_else(|e| panic!("{e}"))
         };

@@ -168,8 +168,10 @@ pub async fn share_create(app: AppHandle, req: CreateRequest) -> Result<ShareVie
             .map(|l| LocalLink {
                 id: l.id.clone(),
                 name: l.name.clone(),
+                // Linket efter #: browseren sender det aldrig til serveren, så det ikke lander i
+                // en log (27/10). Links med /del/<link> fra før virker stadig.
                 url: format!(
-                    "{}/del/{}",
+                    "{}/del#{}",
                     http.base(),
                     l.token.as_deref().unwrap_or_default()
                 ),
