@@ -10,7 +10,7 @@
 // - Ingen dekoration skriver i dokumentet, undtagen afkrydsningsfeltet i en opgave, som brugeren klikker.
 
 import { syntaxTree } from "@codemirror/language";
-import { EditorState, type Range, EditorSelection, Facet, Prec, RangeSet, StateEffect, Transaction, findClusterBreak } from "@codemirror/state";
+import { type ChangeSet, EditorState, type Range, EditorSelection, Facet, Prec, RangeSet, StateEffect, Transaction, findClusterBreak } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 
@@ -708,14 +708,49 @@ export function visibleGroup(state: EditorState, atoms: DecorationSet, head: num
   return out.map((r) => swallowEmptied(state, atoms, r));
 }
 
+const FLANKED = new Set(["Emphasis", "StrongEmphasis", "Strikethrough"]);
+
+/**
+ * Fed, kursiv og gennemstreget må ikke ende med et mellemrum inden for tegnene: `**meget **` er ikke
+ * fed i markdown, og stjernerne kom frem (fejljagt 19/10, rettet 27/10). Sletter Ctrl+Backspace det
+ * sidste ord, flyttes mellemrummet foran ud efter tegnene: `**meget** `. Ctrl+Delete på det første
+ * ord omvendt. Giver mellemrummet og hvor det skal stå, eller null.
+ */
+export function keepFlanking(state: EditorState, ranges: { from: number; to: number }[], forward: boolean): { ranges: { from: number; to: number }[]; move: { at: number; text: string } } | null {
+  const lo = Math.min(...ranges.map((r) => r.from));
+  const hi = Math.max(...ranges.map((r) => r.to));
+  for (let n: SyntaxNode | null = syntaxTree(state).resolveInner(forward ? hi : lo, forward ? -1 : 1); n; n = n.parent) {
+    if (!FLANKED.has(n.name) || !n.firstChild || !n.lastChild) continue;
+    const open = n.firstChild.to;
+    const close = n.lastChild.from;
+    if (lo < open || hi > close) continue;
+    if (forward ? lo !== open : hi !== close) continue;
+    const rest = forward ? state.sliceDoc(hi, close) : state.sliceDoc(open, lo);
+    const ws = (forward ? /^\s+/ : /\s+$/).exec(rest)?.[0] ?? "";
+    if (!ws || ws === rest) return null;
+    const out = ranges.map((r) => (forward ? (r.to === hi ? { ...r, to: hi + ws.length } : r) : r.from === lo ? { ...r, from: lo - ws.length } : r));
+    return { ranges: out, move: { at: forward ? n.from : n.to, text: ws } };
+  }
+  return null;
+}
+
+/** Ctrl+Backspace eller Ctrl+Delete ved `head`: ændringerne og markørens plads bagefter. */
+export function groupDelete(state: EditorState, atoms: DecorationSet, head: number, forward: boolean): { changes: ChangeSet; anchor: number } | null {
+  const ranges = visibleGroup(state, atoms, head, forward);
+  if (ranges.length === 0) return null;
+  const fix = keepFlanking(state, ranges, forward);
+  const changes = state.changes(fix ? [...fix.ranges, { from: fix.move.at, insert: fix.move.text }] : ranges);
+  // Backspace: markøren efter det flyttede mellemrum, hvor den stod efter tegnene.
+  return { changes, anchor: fix && !forward ? changes.mapPos(fix.move.at, 1) : changes.mapPos(head, -1) };
+}
+
 function deleteVisibleGroup(forward: boolean) {
   return (view: EditorView): boolean => {
     const sel = view.state.selection.main;
     if (mode !== "skjul" || !sel.empty || view.state.selection.ranges.length > 1) return false;
-    const ranges = visibleGroup(view.state, hiddenAtoms(view), sel.head, forward);
-    if (ranges.length === 0) return true;
-    const changes = view.state.changes(ranges);
-    view.dispatch({ changes, selection: { anchor: changes.mapPos(sel.head, -1) }, userEvent: forward ? "delete.forward" : "delete.backward", scrollIntoView: true });
+    const plan = groupDelete(view.state, hiddenAtoms(view), sel.head, forward);
+    if (!plan) return true;
+    view.dispatch({ changes: plan.changes, selection: { anchor: plan.anchor }, userEvent: forward ? "delete.forward" : "delete.backward", scrollIntoView: true });
     return true;
   };
 }

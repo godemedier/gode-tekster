@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { build as buildPreview, setMarkMode, visibleGroup } from "./livePreview.ts";
+import { build as buildPreview, groupDelete, setMarkMode } from "./livePreview.ts";
 import { build as buildRevisions, hiddenAcrossLines, setShowRevisions, showRevisions } from "./revisionsView.ts";
 
 // Et tomt mærke får CodeMirror til at slå hele plugin'et fra resten af sessionen, så al formatering
@@ -29,10 +29,10 @@ const wordDelete = (text: string, forward: boolean) => {
   try {
     const v = view(doc);
     const atoms = buildPreview(v).update({ filter: (from, to, value) => value.point && to > from });
-    const changes = v.state.changes(visibleGroup(v.state, atoms, head, forward));
-    const at = changes.mapPos(head, -1);
-    const out = changes.apply(v.state.doc).toString();
-    return out.slice(0, at) + "|" + out.slice(at);
+    const plan = groupDelete(v.state, atoms, head, forward);
+    if (!plan) return text;
+    const out = plan.changes.apply(v.state.doc).toString();
+    return out.slice(0, plan.anchor) + "|" + out.slice(plan.anchor);
   } finally {
     setMarkMode(fakeView, "markoer");
   }
@@ -44,8 +44,15 @@ test("Ctrl+Backspace efter et link sletter linket, ikke kun adressen", () => {
 test("Ctrl+Backspace efter fed sletter ordet og stjernerne, når fed bliver tom", () => {
   assert.equal(wordDelete("Det er **fed**| her", false), "Det er | her");
 });
-test("Ctrl+Backspace i fed med flere ord tager kun det sidste ord", () => {
-  assert.equal(wordDelete("Det er **meget fed**| her", false), "Det er **meget **| her");
+test("Ctrl+Backspace i fed med flere ord tager kun det sidste ord, og mellemrummet står uden for stjernerne (27/10)", () => {
+  // `**meget **` er ikke fed i markdown, og stjernerne kom frem i »skjul«.
+  assert.equal(wordDelete("Det er **meget fed**| her", false), "Det er **meget** | her");
+  assert.equal(wordDelete("Det er *meget fed*| her", false), "Det er *meget* | her");
+  // Står der mere efter markøren inden for stjernerne, flyttes intet.
+  assert.equal(wordDelete("Det er **meget fe|d** her", false), "Det er **meget |d** her");
+});
+test("Ctrl+Delete på første ord i fed med flere ord (27/10)", () => {
+  assert.equal(wordDelete("Det er |**fed meget** her", true), "Det er | **meget** her");
 });
 test("Ctrl+Delete foran fed", () => {
   assert.equal(wordDelete("Det er |**fed** her", true), "Det er | her");
