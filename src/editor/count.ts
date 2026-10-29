@@ -1,9 +1,12 @@
 // Tællingen i hjørnet (design runde 2, ADR-0015): ord, anslag, normalsider og læsetid. Tæller
 // teksten, som læseren ser den: uden markdown-tegn, uden fraklip og uden dæmpet tekst, fordi den
-// er på vej ud. Fodnoterne tæller med (ADR-0017), men ikke deres etiketter. En normalside er 2.400 anslag inklusive mellemrum.
+// er på vej ud. Fodnoterne tæller med (ADR-0017), men ikke deres etiketter. Henvisninger som
+// `[@hansen2024, s. 42]` tæller ikke (besluttet 29/10): de er kildeangivelse, ikke tekst. En normalside er
+// 2.400 anslag inklusive mellemrum.
 
 import { withoutParked } from "./parked.ts";
 import { resolveDimmed } from "./inline.ts";
+import { findCitations } from "./references.ts";
 import { locale, tr } from "../i18n.ts";
 
 export type Count = { words: number; chars: number; pages: number; minutes: number };
@@ -11,8 +14,20 @@ export type Count = { words: number; chars: number; pages: number; minutes: numb
 /** Ord pr. minut for en voksen, der læser dansk sagprosa (Brysbaert 2019: ca. 238 for engelsk). */
 const WPM = 220;
 
+/** Teksten uden henvisninger. Mellemrummet foran går med, så »ord [@a].« ikke efterlader et løst punktum. */
+function withoutCitations(text: string): string {
+  const cites = findCitations(text);
+  let out = "";
+  let at = 0;
+  for (const c of cites) {
+    out += text.slice(at, c.from).replace(/[^\S\n]+$/, "");
+    at = c.to;
+  }
+  return out + text.slice(at);
+}
+
 export function readableText(markdown: string): string {
-  return resolveDimmed(withoutParked(markdown), false)
+  return withoutCitations(resolveDimmed(withoutParked(markdown), false))
     .replace(/^\[\^[^\]\s]+\]:\s?/gm, "")
     .replace(/^```[^\n]*\n[\s\S]*?^```\s*$/gm, "")
     .replace(/\[\^[^\]\s]+\]/g, "")

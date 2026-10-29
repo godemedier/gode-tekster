@@ -13,6 +13,14 @@ test("fraklip og dæmpet tekst tæller ikke, fodnoterne gør (ADR-0017)", () => 
   assert.equal(count(md).words, 5);
 });
 
+test("henvisninger tæller ikke, heller ikke kildelisten", () => {
+  const md = 'Som vist [@hansen2024, s. 42]. Andre mener det [jf. @a; @b] modsatte.\n\n<!-- gt:kilder\n[\n{"id":"a","type":"book","title":"Lang titel"}\n]\n-->\n';
+  assert.equal(readableText(md).trim(), "Som vist. Andre mener det modsatte.");
+  assert.equal(count(md).words, 6);
+  // En mailadresse i klammer er ikke en henvisning.
+  assert.equal(count("Skriv [til mig@eksempel.dk] nu").words, 4);
+});
+
 test("bindestreg, apostrof og tal er ét ord", () => {
   assert.equal(count("EU-landene købte 1.200 F-35-fly i 2023").words, 6);
 });
