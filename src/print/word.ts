@@ -156,7 +156,7 @@ export type WordOptions = {
   citations?: CitationStyle;
 };
 
-/** Designerens skriftvalg i Word. »Som på skærmen« er skriften fra Indstillinger. */
+/** Designerens skriftvalg i Word. `skaerm` er skriften fra Indstillinger. */
 function wordPageFont(font: PageFont, programFont: string): string {
   return font === "newsreader" ? "Georgia" : font === "grotesk" ? "Calibri" : wordFont(programFont);
 }

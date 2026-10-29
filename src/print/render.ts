@@ -46,6 +46,9 @@ const NBSP = " ";
  */
 export const UDFALD = 2;
 
+/** Rækker (med overskriftsrækken), før en tabel må deles over to sider: ca. 40 % af en side. */
+const LONG_TABLE = 16;
+
 /**
  * Sidens egne margener: skabelonens (eller side-designerens), minus udfaldet i siderne (`@page`,
  * Ctrl+R og PDF-kaldet i Rust).
@@ -144,7 +147,13 @@ export function markdownIt(imageUrl?: ImageUrl, withImages = true): MarkdownIt {
     return `<span class="pv-fig"><img src="${md.utils.escapeHtml(url)}" alt="${alt}">${alt ? `<em class="pv-cap">${alt}</em>` : ""}</span>`;
   };
   // Tabeller og billeder må gå ud i margenen (9/10), så kolonnerne får plads.
-  md.renderer.rules.table_open = () => '<div class="pv-wide"><table>\n';
+  // En kort tabel holdes samlet på én side. En lang må deles mellem rækkerne (29/10: med `break-inside:
+  // avoid` på alle tabeller sprang en lang tabel til næste side og efterlod en halvtom side).
+  md.renderer.rules.table_open = (tokens, idx) => {
+    let rows = 0;
+    for (let i = idx + 1; i < tokens.length && tokens[i].type !== "table_close"; i++) if (tokens[i].type === "tr_open") rows++;
+    return `<div class="pv-wide${rows > LONG_TABLE ? " pv-long" : ""}"><table>\n`;
+  };
   md.renderer.rules.table_close = () => "</table></div>\n";
   // Tilbagelinket ↩︎ giver ingen mening på papir.
   md.renderer.rules.footnote_anchor = () => "";

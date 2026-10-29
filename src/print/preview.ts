@@ -14,8 +14,8 @@ import { errorText, notify, showBanner } from "../ui/banner.ts";
 import { fontName } from "../ui/settingspanel.ts";
 import type { Meta, PrintOptions, Template } from "./render.ts";
 import { tr, currentLang } from "../i18n.ts";
-import { showMenu, type MenuItem } from "../ui/menu.ts";
-import { cloneLayout, defaultLayout, layoutFrom, nativeFont, templatesFrom, withTemplate, type PageLayout, type SavedTemplate } from "./layout.ts";
+import { showMenu } from "../ui/menu.ts";
+import { cloneLayout, defaultLayout, layoutFrom, nativeFont, pageRows, templatesFrom, withTemplate, type Margins, type PageLayout, type Part, type Row, type SavedTemplate } from "./layout.ts";
 import type { Designer } from "./designer.ts";
 
 // Print-laget (markdown-it) hentes først, når der skal printes, så opstarten ikke betaler for det.
@@ -72,6 +72,9 @@ export class PrintPreview {
   private design = storedDesign(this.opts.template);
   private designing = false;
   private designer: Designer | null = null;
+  /** Tegner arkene om, når teksten skifter højde (skrifter og billeder, der kommer sent). */
+  private pager: ResizeObserver | null = null;
+  private pageCount: HTMLElement | null = null;
 
   constructor(view: EditorView, path: () => string | null) {
     this.view = view;
@@ -84,7 +87,6 @@ export class PrintPreview {
     this.paper.className = "pv-paper";
     this.side = document.createElement("aside");
     this.side.className = "pv-side";
-    this.side.setAttribute("aria-label", tr("Design", "Design"));
     const stage = document.createElement("div");
     stage.className = "pv-stage";
     stage.append(this.paper, this.side);
@@ -100,6 +102,9 @@ export class PrintPreview {
     }
     this.root.addEventListener("keydown", (e) => {
       if (e.key === "Escape") this.close();
+    });
+    window.addEventListener("resize", () => {
+      if (this.isOpen) this.fit();
     });
     window.addEventListener("afterprint", () => {
       if (!this.isOpen) this.paper.replaceChildren();
@@ -117,8 +122,9 @@ export class PrintPreview {
 
   async open(): Promise<void> {
     if (!this.path()) return;
-    await this.render();
     document.body.classList.add("print-preview");
+    this.fit();
+    await this.render();
     this.root.tabIndex = -1;
     this.root.focus();
   }
@@ -126,6 +132,7 @@ export class PrintPreview {
   close(): void {
     if (this.designing) this.toggleDesign(false);
     document.body.classList.remove("print-preview");
+    this.pager?.disconnect();
     this.paper.replaceChildren();
     this.view.focus();
   }
@@ -175,7 +182,9 @@ export class PrintPreview {
     this.designing = !this.designing;
     this.root.classList.toggle("pv-designing", this.designing);
     if (!this.designing) this.designer?.unmount(this.paper, this.side);
-    if (redraw) void this.render();
+    // Fokus følger med ind i designeren og tilbage til knappen, der åbnede den.
+    const target = this.designing ? "back" : "design";
+    if (redraw) void this.render().then(() => this.side.querySelector<HTMLElement>(`[data-pv="${target}"]`)?.focus());
   }
 
   private async ensureDesigner(): Promise<Designer> {
@@ -225,7 +234,6 @@ export class PrintPreview {
     const layout = this.design.layout;
     const m = pageMargins(t, layout);
     this.pageStyle.textContent = pageCss(t, meta, this.opts, layout);
-    this.paper.style.padding = `${m.top}cm ${m.right}cm ${m.bottom}cm ${m.left}cm`;
     const article = document.createElement("article");
     // Orddeling i print og PDF følger sproget.
     article.lang = currentLang();
@@ -235,66 +243,120 @@ export class PrintPreview {
     article.style.setProperty("--punkt", `"${bulletChar(settings())}  "`);
     // articleHtml escaper alt fra teksten undtagen <u> (render.ts), så det er sikkert her.
     article.innerHTML = articleHtml(this.source(), { ...this.opts, title: layout.title }, meta, imageUrl);
-    this.paper.replaceChildren(article);
-    this.renderBar();
-    if (this.designing) (await this.ensureDesigner()).mount(this.paper, this.side, meta);
+    this.renderTop();
+    this.pager?.disconnect();
+    if (this.designing) {
+      this.paper.classList.remove("pv-paged");
+      this.paper.style.padding = `${m.top}cm ${m.right}cm ${m.bottom}cm ${m.left}cm`;
+      this.paper.replaceChildren(article);
+      (await this.ensureDesigner()).mount(this.paper, this.side, meta);
+      this.side.prepend(this.designHeader());
+      this.side.setAttribute("aria-label", tr("Sidehoved, sidefod og margener", "Header, footer and margins"));
+    } else {
+      this.renderPanel();
+      this.paginate(article, m, pageRows(layout, meta, this.opts));
+    }
   }
 
-  private renderBar(): void {
-    const seg = document.createElement("div");
-    seg.className = "pv-seg";
-    seg.setAttribute("role", "radiogroup");
-    seg.setAttribute("aria-label", tr("Skabelon", "Template"));
-    const choices: [Template, string][] = [
-      ["manuskript", tr("Som på skærmen", "As on screen")],
-      ["laeseudgave", tr("Som i et blad", "As in a magazine")],
+  /**
+   * Siderne, som de kommer ud af printeren (29/10: før var forhåndsvisningen ét langt ark, og ingen
+   * kunne se, hvor siderne skiftede). Teksten sættes i spalter på en sides højde, der brydes til
+   * nye rækker (`column-wrap`). Chromium deler spalter med samme regler som sider: tabeller,
+   * overskrifter, enlige linjer og `+++`. Arkene bag spalterne er tomme kasser med sidehoved og sidefod.
+   * Kun på skærmen: print og PDF ser artiklen uden spalter (print.css).
+   */
+  private paginate(article: HTMLElement, m: Margins, rows: ReturnType<typeof pageRows>): void {
+    const flow = document.createElement("div");
+    flow.className = "pv-flow";
+    flow.append(article);
+    const sheets = document.createElement("div");
+    sheets.className = "pv-sheets";
+    sheets.setAttribute("aria-hidden", "true");
+    this.paper.style.padding = "";
+    for (const [k, v] of Object.entries({ top: m.top, right: m.right, bottom: m.bottom, left: m.left })) this.paper.style.setProperty(`--pv-${k}`, `${v}cm`);
+    this.paper.classList.add("pv-paged");
+    this.paper.replaceChildren(sheets, flow);
+    const cm = 96 / 2.54;
+    const draw = () => {
+      // Skaleret papir (fit): målene på skærmen er gange `zoom`.
+      const zoom = this.paper.getBoundingClientRect().width / (21 * cm) || 1;
+      const gap = (parseFloat(getComputedStyle(flow).rowGap) || 0) * zoom;
+      const column = (PAGE_HEIGHT - m.top - m.bottom) * cm * zoom;
+      repeatHeads(flow, column + gap);
+      const n = Math.max(1, Math.round((flow.getBoundingClientRect().height + gap) / (column + gap)));
+      if (this.pageCount) this.pageCount.textContent = n === 1 ? tr("1 side", "1 page") : tr(`${n} sider`, `${n} pages`);
+      if (sheets.childElementCount === n) return;
+      const out: HTMLElement[] = [];
+      for (let i = 0; i < n; i++) {
+        const page = i === 0 ? rows.first : rows.pages;
+        const sheet = document.createElement("div");
+        sheet.className = "pv-sheet";
+        sheet.style.setProperty("--i", String(i));
+        sheet.append(edge("pv-sheet-head", page.header, i + 1), edge("pv-sheet-foot", page.footer, i + 1));
+        out.push(sheet);
+      }
+      sheets.replaceChildren(...out);
+    };
+    this.pager = new ResizeObserver(draw);
+    this.pager.observe(flow);
+  }
+
+  /** Øverst kun sideantallet og Luk (bud 2, 29/10). Alt andet står i panelet til højre. */
+  private renderTop(): void {
+    this.pageCount = document.createElement("span");
+    this.pageCount.className = "pv-pages-count";
+    this.pageCount.setAttribute("aria-live", "polite");
+    const close = Object.assign(button(tr("Luk", "Close"), () => this.close()), { className: "pv-quiet pv-close" });
+    close.title = "Esc";
+    this.bar.replaceChildren(this.pageCount, close);
+  }
+
+  /**
+   * Panelet til højre (bud 2, 29/10): skabelonen, hvad der er med på siden, sidehoved og sidefod, og
+   * hvad du gør med teksten. Før stod det hele på én linje, og valgene lå i en menu, der skulle
+   * åbnes igen for hvert flueben. Under »Sidehoved, sidefod og margener« viser panelet side-designeren.
+   */
+  private renderPanel(): void {
+    const focused = (document.activeElement as HTMLElement | null)?.dataset?.pv;
+    this.side.setAttribute("aria-label", tr("Udskrift", "Print"));
+    const parts: HTMLElement[] = [];
+
+    const templates = section(tr("Skabelon", "Template"));
+    const choices: [Template, string, string][] = [
+      ["manuskript", tr("Manuskript", "Manuscript"), tr("Din skrift fra skærmen, god luft mellem linjerne og brede margener", "Your screen font, generous line spacing and wide margins")],
+      ["laeseudgave", tr("Læseudgave", "Reading edition"), tr("Newsreader, tættere linjer og indrykkede afsnit", "Newsreader, tighter lines and indented paragraphs")],
     ];
-    for (const [value, label] of choices) {
-      const b = button(label, () => this.chooseTemplate(value));
-      b.setAttribute("role", "radio");
-      b.setAttribute("aria-checked", String(!this.design.selected && this.opts.template === value));
-      seg.append(b);
+    for (const [value, label, hint] of choices) {
+      templates.append(choice("radio", `tpl:${value}`, label, hint, !this.design.selected && this.opts.template === value, () => this.chooseTemplate(value)));
     }
-    // Egne skabeloner fra side-designeren står ved siden af de to faste.
+    // Egne skabeloner fra side-designeren står under de to faste.
     for (const saved of this.design.templates) {
-      const b = button(saved.name, () => this.chooseSaved(saved.name));
-      b.setAttribute("role", "radio");
-      b.setAttribute("aria-checked", String(this.design.selected === saved.name));
-      seg.append(b);
+      templates.append(choice("radio", `tpl:egen:${saved.name}`, saved.name, null, this.design.selected === saved.name, () => this.chooseSaved(saved.name)));
     }
-    // Hvad der kommer med (9/10): ét valg med flueben i stedet for en række afkrydsningsfelter. Menuen
-    // åbner igen efter hvert valg, så flere kan slås til og fra i én omgang.
+    parts.push(templates);
+
     const doc = this.source();
     const hasMarkup = findNotes(doc).length > 0 || findRevisions(doc).length > 0;
     const hasCitations = citationsIn(doc).length > 0;
-    const content = button(tr("Indhold", "Content"), () => openContent());
-    content.className = "pv-menu pv-content";
-    content.setAttribute("aria-haspopup", "menu");
-    const openContent = () => {
-      const r = (this.bar.querySelector<HTMLElement>(".pv-content") ?? content).getBoundingClientRect();
-      const item = (label: string, checked: boolean, patch: Partial<PrintOptions>): MenuItem => ({
-        label,
-        checked,
-        run: () => {
-          this.setOptions(patch);
-          // Linjen tegnes forfra, så knappen er ny: menuen åbner ved den nye (9/10: den hoppede væk).
-          window.setTimeout(openContent, 0);
-        },
-      });
-      const o = this.opts;
-      showMenu(r.left, r.bottom + 4, [
-        item(tr("Forfatter og dato", "Author and date"), o.byline === true, { byline: !o.byline }),
-        item(tr("Antal tegn og ord", "Characters and words"), o.counts === true, { counts: !o.counts }),
-        item(tr("Sidetal", "Page numbers"), o.pageNumbers !== false, { pageNumbers: o.pageNumbers === false }),
-        { separator: true },
-        item(tr("Billeder", "Images"), o.images !== false, { images: o.images === false }),
-        item(tr("Dæmpet tekst", "Dimmed text"), o.includeDimmed, { includeDimmed: !o.includeDimmed }),
-        // Kun når teksten henviser til kilder (21/10): (Hansen, 2024) i teksten, eller hele kilden i en fodnote.
-        ...(hasCitations ? [item(tr("Henvisninger som fodnoter", "Citations as footnotes"), o.citations === "fodnoter", { citations: o.citations === "fodnoter" ? "forfatter-aar" : "fodnoter" })] : []),
-        // Noter og forslag med ud i Word som kommentarer og sporede ændringer (7/10). Kun når teksten har nogen.
-        ...(hasMarkup ? [item(tr("Kommentarer og rettelser i Word", "Comments and changes in Word"), o.wordMarkup !== false, { wordMarkup: o.wordMarkup === false })] : []),
-      ]);
-    };
+    const o = this.opts;
+    const content = section(tr("Med på siden", "On the page"));
+    const box = (key: string, label: string, on: boolean, patch: Partial<PrintOptions>) => content.append(choice("checkbox", key, label, null, on, () => this.setOptions(patch)));
+    box("byline", tr("Forfatter og dato", "Author and date"), o.byline === true, { byline: !o.byline });
+    box("counts", tr("Antal tegn og ord", "Characters and words"), o.counts === true, { counts: !o.counts });
+    box("pages", tr("Sidetal", "Page numbers"), o.pageNumbers !== false, { pageNumbers: o.pageNumbers === false });
+    box("images", tr("Billeder", "Images"), o.images !== false, { images: o.images === false });
+    box("dimmed", tr("Dæmpet tekst", "Dimmed text"), o.includeDimmed, { includeDimmed: !o.includeDimmed });
+    // Kun når teksten henviser til kilder (21/10): (Hansen, 2024) i teksten, eller hele kilden i en fodnote.
+    if (hasCitations) box("cites", tr("Henvisninger som fodnoter", "Citations as footnotes"), o.citations === "fodnoter", { citations: o.citations === "fodnoter" ? "forfatter-aar" : "fodnoter" });
+    // Noter og forslag med ud i Word som kommentarer og sporede ændringer (7/10). Kun når teksten har nogen.
+    if (hasMarkup) box("markup", tr("Kommentarer og rettelser i Word", "Comments and changes in Word"), o.wordMarkup !== false, { wordMarkup: o.wordMarkup === false });
+    parts.push(content);
+
+    const design = button(tr("Sidehoved, sidefod og margener …", "Header, footer and margins …"), () => this.toggleDesign());
+    design.className = "pv-design-open";
+    design.dataset.pv = "design";
+    parts.push(design);
+
     // Kopiér med eller uden markdown (15/10): uden er til mails og CMS'er, med til en anden editor.
     const copy = button(tr("Kopiér tekst", "Copy text"), () => {
       const r = copy.getBoundingClientRect();
@@ -306,22 +368,42 @@ export class PrintPreview {
     });
     copy.className = "pv-menu";
     copy.setAttribute("aria-haspopup", "menu");
-    const design = button(tr("Design", "Design"), () => this.toggleDesign());
-    design.setAttribute("aria-pressed", String(this.designing));
-    design.className = "pv-toggle";
-    const gap = document.createElement("span");
-    gap.className = "pv-gap";
-    this.bar.replaceChildren(
-      seg,
-      content,
-      design,
-      gap,
-      button(tr("Udskriv", "Print"), () => void this.print()),
+    const actions = document.createElement("div");
+    actions.className = "pv-actions";
+    actions.append(
       Object.assign(button(tr("Gem som PDF", "Save as PDF"), () => void this.pdf()), { className: "pv-primary" }),
       button(tr("Gem som Word", "Save as Word"), () => void this.word()),
+      button(tr("Udskriv", "Print"), () => void this.print()),
       copy,
-      Object.assign(button(tr("Luk", "Close"), () => this.close()), { className: "pv-quiet" }),
     );
+    parts.push(actions);
+    this.side.replaceChildren(...parts);
+    if (focused) this.side.querySelector<HTMLElement>(`[data-pv="${CSS.escape(focused)}"]`)?.focus();
+  }
+
+  /** Over side-designeren i panelet: vejen tilbage til valgene. */
+  private designHeader(): HTMLElement {
+    const head = document.createElement("div");
+    head.className = "pv-design-head";
+    const back = button(tr("‹ Tilbage", "‹ Back"), () => this.toggleDesign());
+    back.className = "pv-quiet";
+    back.dataset.pv = "back";
+    const title = document.createElement("h2");
+    title.textContent = tr("Sidehoved, sidefod og margener", "Header, footer and margins");
+    head.append(back, title);
+    return head;
+  }
+
+  /**
+   * Smalle vinduer: papiret skaleres ned, så panelet altid kan ses ved siden af (CSS `zoom`, kun på
+   * skærmen). Arkene måles med samme faktor (paginate).
+   */
+  private fit(): void {
+    const stage = this.root.querySelector<HTMLElement>(".pv-stage");
+    if (!stage) return;
+    const room = stage.clientWidth - this.side.offsetWidth - 72;
+    const zoom = Math.max(0.4, Math.min(1, room / ((21 * 96) / 2.54)));
+    stage.style.setProperty("--pv-zoom", zoom.toFixed(3));
   }
 
   /** »Udskriv« og Ctrl+P i forhåndsvisningen: WebView2's egen udskriftsdialog. */
@@ -395,6 +477,80 @@ export class PrintPreview {
       showBanner(errorText(e));
     }
   }
+}
+
+/** En overskrift og det, der står under den, i panelet. */
+function section(title: string): HTMLElement {
+  const el = document.createElement("section");
+  el.className = "pv-section";
+  const h = document.createElement("h2");
+  h.textContent = title;
+  el.append(h);
+  return el;
+}
+
+/** Et valg i panelet: en radioknap eller et flueben, med en lille forklaring under, når der er en. */
+function choice(type: "radio" | "checkbox", key: string, label: string, hint: string | null, checked: boolean, run: () => void): HTMLElement {
+  const row = document.createElement("label");
+  row.className = "pv-choice";
+  const input = document.createElement("input");
+  input.type = type;
+  if (type === "radio") input.name = "pv-skabelon";
+  input.checked = checked;
+  input.dataset.pv = key;
+  input.addEventListener("change", run);
+  const text = document.createElement("span");
+  const name = document.createElement("span");
+  name.textContent = label;
+  text.append(name);
+  if (hint) {
+    const small = document.createElement("small");
+    small.textContent = hint;
+    text.append(small);
+  }
+  row.append(input, text);
+  return row;
+}
+
+/** A4 i cm. Bredden står i print.css. */
+const PAGE_HEIGHT = 29.7;
+
+/**
+ * Print gentager en lang tabels overskriftsrække øverst på hver side, spalter gør ikke. Uden den
+ * stod forhåndsvisningen en række forskudt fra PDF'en efter første delte tabel (29/10). Kopierne
+ * lægges ind forfra hver gang, så resultatet, og dermed højden, er det samme ved næste kald.
+ */
+function repeatHeads(flow: HTMLElement, pitch: number): void {
+  flow.querySelectorAll(".pv-repeat").forEach((r) => r.remove());
+  const top = () => flow.getBoundingClientRect().top;
+  const pageOf = (el: Element) => Math.floor((el.getBoundingClientRect().top - top() + 1) / pitch);
+  for (const table of flow.querySelectorAll<HTMLTableElement>(".pv-long table")) {
+    const head = table.tHead?.rows[0];
+    if (!head) continue;
+    let page = pageOf(head);
+    for (const row of [...table.tBodies].flatMap((b) => [...b.rows])) {
+      if (pageOf(row) > page) {
+        const copy = head.cloneNode(true) as HTMLTableRowElement;
+        copy.className = "pv-repeat";
+        copy.setAttribute("aria-hidden", "true");
+        row.before(copy);
+      }
+      page = pageOf(row);
+    }
+  }
+}
+
+/** Sidehoved eller sidefod på et ark: venstre, midte og højre, med sidetallet sat ind. */
+function edge(className: string, row: Row, page: number): HTMLElement {
+  const el = document.createElement("div");
+  el.className = className;
+  const text = (parts: Part[]) => parts.map((p) => (typeof p === "string" ? p : String(page))).join("");
+  for (const side of ["left", "center", "right"] as const) {
+    const cell = document.createElement("span");
+    cell.textContent = text(row[side]);
+    el.append(cell);
+  }
+  return el;
 }
 
 function button(label: string, run: () => void): HTMLButtonElement {

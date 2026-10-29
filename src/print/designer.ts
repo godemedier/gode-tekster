@@ -27,6 +27,8 @@ import {
   type Target,
 } from "./layout.ts";
 import { tr } from "../i18n.ts";
+import { settings } from "../settings.ts";
+import { fontName } from "../ui/settingspanel.ts";
 
 export type DesignerHost = {
   layout: () => PageLayout;
@@ -522,7 +524,8 @@ export class Designer {
       segmented(
         tr("Skrift", "Typeface"),
         [
-          ["skaerm", tr("Som på skærmen", "As on screen")],
+          // Skriften fra Indstillinger ved navn (29/10: »Som på skærmen« var svær at forstå).
+          ["skaerm", fontName(settings().font)],
           ["newsreader", "Newsreader"],
           ["grotesk", "Grotesk"],
         ],

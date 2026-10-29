@@ -12,33 +12,62 @@
    backdrop-filter mister ClearType (målt 8/10). */
 body.print-preview #print-root { display: block; position: fixed; inset: 0; z-index: 40; overflow-y: auto; background: var(--streg); scrollbar-width: thin; }
 body.dark.print-preview #print-root { background: color-mix(in srgb, var(--flade) 70%, #000000); }
-.pv-bar { position: sticky; top: 0; z-index: 2; display: flex; justify-content: center; align-items: center; gap: 10px; padding: 12px 16px;
+/* Bud 2 (29/10): øverst kun sideantallet og Luk. Valgene står i panelet til højre (.pv-side). */
+.pv-bar { position: sticky; top: 0; z-index: 2; display: flex; justify-content: center; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; box-sizing: border-box;
   background: var(--panel); border-bottom: 1px solid var(--streg); font-family: var(--ui); font-size: 13px; color: var(--blæk); }
+.pv-bar .pv-close { position: absolute; right: 12px; }
 .pv-bar button { font: inherit; color: inherit; background: var(--kort); border: 1px solid var(--kant); border-radius: 8px; height: 32px; padding: 0 14px; cursor: pointer; }
 .pv-bar button:hover { border-color: var(--kant-hover); }
-/* Skabelonen er ét valg (segmenteret), hovedhandlingen er den mørke knap (5/10). */
+/* Et segmenteret valg (side-designerens skrift og første side). */
 .pv-seg { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--kant); border-radius: 9px; background: var(--kort); }
 .pv-seg button { border: none; height: 28px; border-radius: 7px; background: transparent; }
 .pv-seg button[aria-checked="true"] { background: var(--hover); color: var(--blæk); font-weight: 600; }
-/* »Indhold«: hvad der kommer med, som en menu med flueben (9/10). */
-.pv-bar .pv-menu::after { content: ""; display: inline-block; width: 5px; height: 5px; margin: 0 0 3px 8px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
-.pv-bar .pv-primary { background: var(--blæk); border-color: var(--blæk); color: var(--flade); }
 .pv-bar .pv-quiet { border-color: transparent; background: transparent; }
-.pv-bar label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-.pv-bar label input { accent-color: var(--blæk); margin: 0; }
-.pv-gap { width: 14px; }
-.pv-paper { box-sizing: border-box; width: 21cm; min-height: 29.7cm; margin: 8px auto 48px; background: #ffffff; color: #111111; box-shadow: 0 2px 18px rgba(0,0,0,0.12); }
+.pv-stage { display: flex; justify-content: center; align-items: flex-start; gap: 24px; padding: 0 16px; }
+.pv-paper { box-sizing: border-box; flex: none; width: 21cm; min-height: 29.7cm; margin: 16px 0 48px; background: #ffffff; color: #111111; box-shadow: 0 2px 18px rgba(0,0,0,0.12); }
+/* Smalle vinduer: papiret skaleres, så panelet altid kan ses (preview.ts fit). Kun på skærmen. */
+@media screen { .pv-paper { zoom: var(--pv-zoom, 1); } }
+#print-root:focus-visible { outline: none; }
+.pv-pages-count { color: var(--svag); font-variant-numeric: tabular-nums; }
+
+/* Siderne (preview.ts paginate, 29/10): teksten står i spalter på en sides højde, der brydes til
+   rækker, og hvide ark ligger bag hver række. Mellemrummet mellem to rækker er bundmargen, luften
+   mellem arkene og topmargen. Kun på skærmen: på papir er artiklen én lang strøm igen. */
+@media screen {
+  .pv-paper.pv-paged { --pv-luft: 20px; display: flow-root; position: relative; min-height: 0; padding: 0 0 var(--pv-bottom); background: none; box-shadow: none; }
+  .pv-sheets { position: absolute; inset: 0; pointer-events: none; }
+  .pv-sheet { position: absolute; left: 0; top: calc(var(--i) * (29.7cm + var(--pv-luft))); width: 21cm; height: 29.7cm; display: flex; flex-direction: column; justify-content: space-between;
+    background: #ffffff; box-shadow: 0 2px 18px rgba(0,0,0,0.12); }
+  .pv-sheet-head, .pv-sheet-foot { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: center;
+    padding: 0 calc(var(--pv-right) + var(--udfald, 2cm)) 0 calc(var(--pv-left) + var(--udfald, 2cm)); font: 7.5pt "Schibsted Grotesk", sans-serif; color: #8a8f94; font-variant-numeric: tabular-nums; }
+  .pv-sheet-head { height: var(--pv-top); }
+  .pv-sheet-foot { height: var(--pv-bottom); }
+  .pv-sheet-head span:nth-child(3), .pv-sheet-foot span:nth-child(3) { text-align: right; }
+  .pv-flow { position: relative; margin: var(--pv-top) var(--pv-right) 0 var(--pv-left); columns: 1; column-gap: 0; column-fill: auto;
+    column-height: calc(29.7cm - var(--pv-top) - var(--pv-bottom)); column-wrap: wrap; row-gap: calc(var(--pv-bottom) + var(--pv-luft) + var(--pv-top)); }
+  .pv-paged .pv-article .pv-pagebreak { margin: 0; border: none; break-after: column; }
+  /* Overskriftsrækken øverst på en ny side, som print gentager den (preview.ts repeatHeads). */
+  .pv-article tr.pv-repeat th { border-top: 0.9pt solid #1d2125; }
+}
 
 /* --- side-designeren (9/10): »Design« i værktøjslinjen ------------------------------------
    Papiret viser én side med pladserne i margenen, panelet står til højre. Pladsen under brikken
    lyser op i stiplet vermilion (ADR-0037: slippemarkering). Papiret er altid hvidt, så farverne
    på det er faste, også i mørk og aften. */
-.pv-bar .pv-toggle[aria-pressed="true"] { background: var(--hover); border-color: var(--kant-hover); font-weight: 600; }
-.pv-side { display: none; }
-.pv-designing .pv-stage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 24px; padding: 0 16px; }
-.pv-designing .pv-paper { position: relative; flex: none; height: 29.7cm; overflow: hidden; margin: 8px 0 48px; }
-.pv-designing .pv-side { display: flex; flex-direction: column; gap: 18px; box-sizing: border-box; width: 320px; position: sticky; top: 68px; margin: 8px 0 48px; padding: 18px;
-  background: var(--panel); border: 1px solid var(--kant); border-radius: 12px; font: 13px/1.45 var(--ui); color: var(--blæk); }
+.pv-designing .pv-paper { position: relative; height: 29.7cm; overflow: hidden; }
+.pv-side { display: flex; flex-direction: column; gap: 18px; box-sizing: border-box; flex: none; width: 300px; position: sticky; top: 60px; max-height: calc(100vh - 76px); overflow-y: auto; scrollbar-width: thin;
+  margin: 16px 0 48px; padding: 18px; background: var(--panel); border: 1px solid var(--kant); border-radius: 12px; font: 13px/1.45 var(--ui); color: var(--blæk); }
+.pv-section { display: flex; flex-direction: column; gap: 6px; }
+.pv-section h2 { margin: 0 0 2px; }
+.pv-choice { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; padding: 2px 0; }
+.pv-choice input { accent-color: var(--blæk); margin: 3px 0 0; flex: none; }
+.pv-choice > span { display: flex; flex-direction: column; min-width: 0; }
+.pv-choice small { color: var(--svag); font-size: 12px; line-height: 1.4; }
+.pv-side .pv-design-open { align-self: stretch; text-align: left; }
+.pv-side .pv-actions button { width: 100%; }
+.pv-side .pv-menu::after { content: ""; display: inline-block; width: 5px; height: 5px; margin: 0 0 3px 8px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+.pv-design-head { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--streg); }
+.pv-design-head h2 { margin: 0; }
 .pv-side h2 { margin: 0 0 8px; font: 600 13px var(--ui); color: var(--blæk); }
 .pv-side .pv-hint { margin: 0 0 10px; color: var(--svag); }
 .pv-side .pv-live { margin: 0; color: var(--svag); }
@@ -119,6 +148,10 @@ body.pv-dragging, body.pv-dragging * { cursor: grabbing !important; }
 /* Tabeller som i en avis: vandrette linjer, ingen gitter, grotesk. Ord brydes aldrig midt
    over (før: »Sandsy/nlighe/d«). */
 .pv-article .pv-wide { margin: 14pt calc(-1 * var(--udfald)); break-inside: avoid; }
+/* En lang tabel deles mellem rækkerne, og overskriftsrækken gentages øverst på næste side (render.ts). */
+.pv-article .pv-wide.pv-long { break-inside: auto; }
+.pv-article tr { break-inside: avoid; }
+.pv-article thead { display: table-header-group; }
 .pv-article table { border-collapse: collapse; width: auto; min-width: calc(100% - 2 * var(--udfald)); margin: 0 auto; font: 8.5pt/1.45 var(--grotesk);
   border-top: 0.9pt solid #1d2125; border-bottom: 0.9pt solid #1d2125; hyphens: auto; overflow-wrap: normal; word-break: normal; }
 .pv-article th { font-weight: 600; text-align: left; vertical-align: bottom; padding: 5pt 12pt 4pt 0; border-bottom: 0.5pt solid #1d2125; }
@@ -175,13 +208,15 @@ body.pv-dragging, body.pv-dragging * { cursor: grabbing !important; }
 
 /* --- papir: kun artiklen kommer med --------------------------------------------------- */
 @media print {
+  /* Fokusrammen om forhåndsvisningen kom med på papiret, øverst og nederst på hver side (29/10). */
+  *, *:focus-visible { outline: none !important; }
   html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; }
   body > *:not(#print-root) { display: none !important; }
   #print-root { display: block !important; position: static !important; overflow: visible !important; background: #ffffff !important; }
   .pv-bar { display: none !important; }
-  .pv-paper { width: auto; min-height: 0; margin: 0; padding: 0 !important; box-shadow: none; }
+  .pv-paper { width: auto; min-height: 0; margin: 0; padding: 0 !important; box-shadow: none; zoom: 1 !important; }
   /* Side-designeren kommer ikke med på papiret. */
-  .pv-side, .pv-design-only { display: none !important; }
+  .pv-side, .pv-design-only, .pv-sheets, .pv-repeat { display: none !important; }
   .pv-stage { display: block !important; padding: 0 !important; }
   .pv-designing .pv-paper { position: static; height: auto !important; overflow: visible !important; }
   .pv-designing .pv-slot-title { border: none !important; margin: 0 0 20pt !important; padding: 0 !important; }

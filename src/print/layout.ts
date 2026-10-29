@@ -24,7 +24,7 @@ export const PIECE_KINDS: readonly PieceKind[] = ["author", "date", "title", "pa
 export type Piece = { kind: PieceKind; text?: string };
 export type SlotMap = Partial<Record<Slot, Piece[]>>;
 
-/** Skriften: »Som på skærmen« er editorens skrift. */
+/** Skriften: `skaerm` er editorens skrift fra Indstillinger. */
 export type PageFont = "skaerm" | "newsreader" | "grotesk";
 export const PAGE_FONTS: readonly PageFont[] = ["skaerm", "newsreader", "grotesk"];
 

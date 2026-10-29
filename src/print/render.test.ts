@@ -170,3 +170,11 @@ test("henvisninger sættes, og litteraturlisten får hængende indrykning (ADR-0
   const html = articleHtml(doc, { includeDimmed: false } as PrintOptions, metaFor(doc, "a.md", ""));
   assert.match(html, /<h2[^>]*>Litteratur<\/h2>\s*<p class="pv-ref">Aabye, I\. \(2020\)\. <em>Bog<\/em>\. Forlag\.<\/p>/);
 });
+
+test("en kort tabel holdes samlet, en lang må deles over sider (29/10)", () => {
+  const opts: PrintOptions = { template: "manuskript", includeDimmed: false };
+  const table = (rows: number) => "| a | b |\n|---|---|\n" + Array.from({ length: rows }, (_, i) => `| ${i} | x |`).join("\n") + "\n";
+  const html = (md: string) => articleHtml(md, opts, metaFor(md, "x.md", "Kim"));
+  assert.match(html(table(15)), /<div class="pv-wide"><table>/);
+  assert.match(html(table(16)), /<div class="pv-wide pv-long"><table>/);
+});
