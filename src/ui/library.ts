@@ -22,7 +22,8 @@ type Entry = Meta & { name: string; path: string; isDir: boolean; modifiedMs: nu
 /** En tekst fra indekset over alle biblioteker (library.rs `library_index`). */
 type Indexed = Meta & { name: string; path: string; folder: string; modifiedMs: number; dimmed: boolean; preview: string };
 type Filter = { kind: "igang" } | { kind: "favoritter" } | { kind: "status"; id: string } | { kind: "tag"; tag: string } | null;
-type Folder = { path: string; name: string; parent: string | null; entries: Entry[] };
+/** `outside`: mappen med en åben tekst, der ikke ligger i et bibliotek (list_folder i Rust). */
+type Folder = { path: string; name: string; parent: string | null; outside: boolean; entries: Entry[] };
 type Library = { path: string; name: string; exists: boolean };
 
 export type LibraryHooks = {
@@ -163,7 +164,10 @@ export class LibraryPanel {
     this.libraries = await invoke<Library[]>("list_libraries");
   }
 
-  /** Vis mappen med filen, hvis den ligger i et bibliotek. Ellers bibliotekets rod. */
+  /**
+   * Vis mappen med filen, og rul hen til den (29/10: det var svært at finde filen og dens
+   * naboer). Også når filen ligger uden for bibliotekerne: Rust viser mappen, så længe teksten er åben.
+   */
   async reveal(filePath: string | null): Promise<void> {
     const inLibrary = (p: string) => this.libraries.find((l) => norm(p).startsWith(norm(l.path) + "\\"));
     let lib = filePath ? inLibrary(filePath) : undefined;
@@ -173,8 +177,12 @@ export class LibraryPanel {
       await this.init();
       lib = inLibrary(filePath);
     }
-    if (filePath && lib) {
-      await this.show(filePath.slice(0, filePath.lastIndexOf("\\")));
+    const dir = filePath?.slice(0, filePath.lastIndexOf("\\"));
+    if (dir && lib) {
+      await this.show(dir);
+      this.scrollToActive();
+    } else if (dir && (await this.showOutside(dir))) {
+      this.scrollToActive();
     } else if (!this.folder) {
       const first = this.libraries.find((l) => l.exists);
       if (first) await this.show(first.path);
@@ -207,6 +215,23 @@ export class LibraryPanel {
     } catch (e) {
       this.renderEmpty(errorText(e));
     }
+  }
+
+  /** Mappen med en tekst uden for bibliotekerne. Falsk, når Rust ikke vil vise den (et drev, brugermappen). */
+  private async showOutside(path: string): Promise<boolean> {
+    try {
+      this.folder = await invoke<Folder>("list_folder", { path });
+      await invoke("watch_folder", { path: this.folder.path });
+    } catch {
+      return false;
+    }
+    this.render();
+    return true;
+  }
+
+  /** Den åbne tekst i listen: rul den frem, hvis den er uden for synet. */
+  private scrollToActive(): void {
+    this.list.querySelector<HTMLElement>(".lib-row.active")?.scrollIntoView({ block: "nearest" });
   }
 
   async refresh(): Promise<void> {
@@ -330,12 +355,22 @@ export class LibraryPanel {
     this.sortButton.append(label, chevron);
 
     const active = this.hooks.activePath();
-    const rows = this.sorted(f.entries).map((e) => (e.isDir ? this.folderRow(e) : this.fileRow(e, active)));
+    const rows: HTMLElement[] = this.sorted(f.entries).map((e) => (e.isDir ? this.folderRow(e) : this.fileRow(e, active)));
     if (rows.length === 0) {
       const p = document.createElement("p");
       p.className = "lib-empty";
       p.textContent = tr("Mappen er tom.", "The folder is empty.");
       rows.push(p);
+    }
+    // Uden for bibliotekerne kan teksterne åbnes, men ikke omdøbes, flyttes eller slettes (guard i Rust).
+    if (f.outside) {
+      const note = document.createElement("p");
+      note.className = "lib-outside";
+      note.textContent = tr(
+        "Mappen er ikke et af dine biblioteker. Teksterne kan åbnes herfra, men ikke omdøbes, flyttes eller slettes.",
+        "This folder isn't one of your libraries. You can open the texts here, but not rename, move or delete them.",
+      );
+      rows.unshift(note);
     }
     this.list.replaceChildren(...rows);
   }

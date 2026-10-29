@@ -344,6 +344,8 @@ body.left-open:not(.left-pinned) .panel-left, body.right-open:not(.right-pinned)
 .lib-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--svag); font-size: 12px; line-height: 1.4; margin-top: 3px; padding-left: 22px; }
 .lib-rename { font: inherit; width: 100%; color: var(--blæk); background: var(--kort); border: 1px solid var(--link); border-radius: 4px; padding: 2px 4px; outline: none; }
 .lib-empty { padding: 20px 16px; color: var(--svag); }
+/* Mappen med en åben tekst uden for bibliotekerne (library.ts, 29/10). */
+.lib-outside { margin: 4px 12px 8px; padding: 8px 10px; border-radius: 6px; background: var(--hover); color: var(--svag); font-size: 12px; line-height: 1.45; }
 /* Søgning, chips og status (ADR-0038). Roligt: ingen kasser om rækkerne, prikken bærer statussen. */
 .lib-search { margin: 4px 12px 6px; box-sizing: border-box; width: calc(100% - 24px); font: inherit; font-size: 13px; color: var(--blæk); background: var(--kort); border: 1px solid var(--kant); border-radius: 8px; padding: 6px 10px; outline: none; }
 .lib-search::placeholder { color: var(--dæmpet); }

@@ -193,6 +193,8 @@ pub struct Folder {
     pub name: String,
     /// Mappen over, hvis den stadig er inde i biblioteket.
     pub parent: Option<String>,
+    /// Mappen er ikke et bibliotek, men mappen med en åben tekst (`open_folder_root`).
+    pub outside: bool,
     pub entries: Vec<Entry>,
 }
 
@@ -326,9 +328,37 @@ pub fn in_library(app: &AppHandle, path: &Path) -> bool {
     guard(app, path).is_ok()
 }
 
-/// Til andre moduler: stien skal ligge i et af brugerens biblioteker.
-pub(crate) fn guard_path(app: &AppHandle, path: &Path) -> Result<PathBuf, String> {
-    guard(app, path)
+/// Mappen med en åben tekst uden for bibliotekerne og mapperne under den (29/10): biblioteket viser
+/// filens mappe, også når teksten er åbnet fra Stifinder, og nabofilerne kan åbnes derfra. Kun så
+/// længe teksten er åben, og aldrig et helt drev eller hele brugermappen, som billederne
+/// (`allow_images`). Omdøbning, sletning og nye filer kræver stadig et bibliotek (`guard`).
+fn open_folder_root(app: &AppHandle, path: &Path) -> Option<PathBuf> {
+    let canon = canonical(path)?;
+    let profile = std::env::var_os("USERPROFILE").and_then(|p| canonical(Path::new(&p)));
+    let dirs: Vec<PathBuf> = crate::document::open_paths(app)
+        .iter()
+        .filter_map(|doc| canonical(doc.parent()?))
+        .collect();
+    folder_beside(&canon, &dirs, profile.as_deref())
+}
+
+/// Den af de åbne teksters mapper, som `canon` ligger i. Et drev og brugermappen tæller aldrig.
+fn folder_beside(canon: &Path, dirs: &[PathBuf], profile: Option<&Path>) -> Option<PathBuf> {
+    dirs.iter()
+        .filter(|dir| dir.parent().is_some() && profile != Some(dir.as_path()))
+        .find(|dir| canon.starts_with(dir))
+        .cloned()
+}
+
+/// Må fladen vise mappen? Et bibliotek, eller mappen med en åben tekst (`open_folder_root`).
+pub(crate) fn listable(app: &AppHandle, path: &Path) -> Result<PathBuf, String> {
+    guard(app, path).or_else(|e| open_folder_root(app, path).ok_or(e))
+}
+
+/// Ligger filen i mappen med en åben tekst (eller under den)? Så må den åbnes (`document::may_open`).
+pub(crate) fn beside_open(app: &AppHandle, path: &Path) -> bool {
+    path.parent()
+        .is_some_and(|dir| open_folder_root(app, dir).is_some())
 }
 
 fn guard(app: &AppHandle, path: &Path) -> Result<PathBuf, String> {
@@ -474,6 +504,7 @@ fn list(path: &Path, root: &Path) -> Result<Folder, String> {
             .unwrap_or_default(),
         path: path.to_string_lossy().into_owned(),
         parent,
+        outside: false,
         entries,
     })
 }
@@ -505,12 +536,13 @@ pub fn list_libraries(app: AppHandle) -> Vec<Library> {
 #[tauri::command]
 pub async fn list_folder(app: AppHandle, path: String) -> Result<Folder, String> {
     let p = PathBuf::from(&path);
-    let root = guard(&app, &p)?;
+    let root = listable(&app, &p)?;
+    let outside = guard(&app, &p).is_err();
     let canon = canonical(&p).ok_or(t!("Mappen findes ikke.", "The folder does not exist."))?;
     let file = index_file(&app);
     tauri::async_runtime::spawn_blocking(move || {
         load_index(file.as_deref());
-        let folder = list(&canon, &root);
+        let folder = list(&canon, &root).map(|f| Folder { outside, ..f });
         save_index(file.as_deref());
         folder
     })
@@ -1327,6 +1359,46 @@ pub async fn create_import(app: AppHandle, source: String, text: String) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mappen_med_en_aaben_tekst_men_aldrig_drevet_eller_brugermappen() {
+        let p = |s: &str| PathBuf::from(s);
+        let profile = p(r"C:\Users\Kim");
+        let dirs = [
+            p(r"C:\Users\Kim\Projekt\docs"),
+            p(r"C:\"),
+            p(r"C:\Users\Kim"),
+        ];
+        // Mappen selv og mapperne under den.
+        assert_eq!(
+            folder_beside(&p(r"C:\Users\Kim\Projekt\docs"), &dirs, Some(&profile)),
+            Some(p(r"C:\Users\Kim\Projekt\docs"))
+        );
+        assert!(folder_beside(
+            &p(r"C:\Users\Kim\Projekt\docs\billeder"),
+            &dirs,
+            Some(&profile)
+        )
+        .is_some());
+        // Mappen over og en nabomappe er ikke med.
+        assert_eq!(
+            folder_beside(&p(r"C:\Users\Kim\Projekt"), &dirs, Some(&profile)),
+            None
+        );
+        assert_eq!(
+            folder_beside(&p(r"C:\Users\Kim\Projekt\docs2"), &dirs, Some(&profile)),
+            None
+        );
+        // En tekst i roden af drevet eller i brugermappen åbner ikke hele pc'en.
+        assert_eq!(
+            folder_beside(&p(r"C:\Windows"), &dirs, Some(&profile)),
+            None
+        );
+        assert_eq!(
+            folder_beside(&p(r"C:\Users\Kim\AppData"), &dirs, Some(&profile)),
+            None
+        );
+    }
 
     #[test]
     fn kapitler_kun_tekstfiler_i_hovedfilens_mappe() {

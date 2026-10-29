@@ -371,7 +371,12 @@ pub(crate) fn may_open(app: &AppHandle, state: &AppState, path: &Path) -> Result
             .to_string_lossy()
             .to_lowercase()
             .contains("\\tests\\private\\");
-    if chosen || open || test_copy || crate::library::in_library(app, path) {
+    if chosen
+        || open
+        || test_copy
+        || crate::library::in_library(app, path)
+        || crate::library::beside_open(app, path)
+    {
         Ok(())
     } else {
         Err(denied(t!(

@@ -190,8 +190,8 @@ pub fn forget_window(app: &AppHandle, window: &str) {
 
 #[tauri::command]
 pub fn watch_folder(app: AppHandle, window: tauri::Window, path: String) -> Result<(), String> {
-    // Kun mapper i bibliotekerne, som alle andre stier fra fladen (kodegennemgang 20/10).
-    crate::library::guard_path(&app, std::path::Path::new(&path))?;
+    // Kun mapper i bibliotekerne og mappen med en åben tekst, som list_folder (kodegennemgang 20/10).
+    crate::library::listable(&app, std::path::Path::new(&path))?;
     let state = app.state::<WatchState>();
     if let Ok(mut g) = state.folders.lock() {
         g.insert(window.label().to_owned(), PathBuf::from(path));
