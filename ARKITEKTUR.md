@@ -1426,3 +1426,57 @@ ingen form i programmet.
   og højreklik › Tilføj › Sideskift sætter det på sin egen linje (`planOwnLines` i commands/run.ts).
 **Alternativer der tabte:** `\newpage` (pandoc, LaTeX: fremmed for skribenter) og
 `<div style="page-break-after: always">` (HTML i teksten, som print escaper).
+
+### ADR-0068 — Ikonet ved uret bliver til noterne, og det står altid fremme (29/10-2026)
+**Baggrund:** ønske 29/10: et notesymbol ved uret, når der er noter fremme, og et tryk giver en
+oversigt. Tre bud (eget ikon med menu, eget ikon med oversigt, Gode Teksters ikon skifter). Valgt
+blev ét ikon, der skifter, med oversigten, og ikonet må ikke ligge under pilen ^.
+**Beslutning:**
+- Der er stadig ét ikon (`tray.rs`). Med noter fremme (også skjult med »Skjul alle noter«) bliver
+  det til et notesymbol, ellers er det programmets ikon. Symbolet er 32 × 32 RGBA i
+  `icons/note-lys.rgba` og `note-moerk.rgba` (ingen PNG-afkoder), hvidt på en mørk proceslinje og
+  mørkt på en lys (`SystemUsesLightTheme`). Hjælpeteksten siger, hvor mange der er fremme. Ikonet
+  skiftes kun, når en note kommer frem eller lukkes (`notes::adopt`, `destroyed`, `changed`).
+- Venstreklik viser oversigten (`noteoversigt.html`, `src/noteOverview.ts`): et rammeløst vindue
+  over ikonet med noterne fremme som kort i deres farve, ellers de seks nyeste, og søgning i alle
+  noter. Det skjules ved klik et andet sted og lukkes efter to minutter skjult (ca. 30 MB). Første
+  gang vises det først, når fladen har tegnet (`overview_ready`). Højreklik giver menuen.
+- Fremme altid: `IsPromoted = 1` under `HKCU\Control Panel\NotifyIconSettings` for programmets egen
+  exe-sti, før og efter ikonet registreres (Windows læser værdien ved registreringen, og første
+  gang findes nøglen først bagefter). Samme opskrift som husets andre bakkeprogrammer. Testkørsler
+  rører ikke registreringsdatabasen.
+**Ikke valgt:** et ikon mere (to ikoner fra samme program, og det nye lægges under pilen), Windows'
+egen menu som oversigt (kun tekst), et tal på ikonet (et billede pr. tal) og et forvarmet
+oversigtsvindue (30 MB hele tiden).
+**Revurdér hvis:** Defender reagerer på skrivningen i `NotifyIconSettings` (som schtasks 15/10,
+ADR-0056), eller Windows ændrer, hvor det gemmer valget.
+
+### ADR-0069 — Forhåndsvisningen viser sider, og valgene står i et panel (29/10-2026)
+**Baggrund:** forhåndsvisningen var ét langt ark, så ingen kunne se, hvor siderne skiftede. En lang
+tabel med `break-inside: avoid` sprang til næste side og efterlod en halvtom side. Linjen øverst
+havde ni knapper, og skabelonnavnene »Som på skærmen« og »Som i et blad« var svære at forstå.
+**Beslutning:**
+- Sider: på skærmen står artiklen i spalter på en sides højde, der brydes til rækker
+  (`column-wrap: wrap`, Chromium 145+, WebView2 er 156). Chromium deler spalter med samme regler
+  som sider, så siderne skifter samme sted som i PDF'en (målt 6/6 sider). Hvide ark med sidehoved,
+  sidefod og sidetal ligger bag. Spalter gentager ikke en tabels `thead`, så forhåndsvisningen
+  lægger en kopi ind (`repeatHeads`). Print og PDF ser ingen af delene (`@media screen`).
+- Tabeller over 15 rækker (`pv-long`) må deles mellem rækkerne, kortere holdes samlet.
+- Panelet (bud 2 af to): skabelon, »Med på siden« som flueben, »Sidehoved, sidefod og margener …«
+  (side-designeren i samme panel) og knapperne til PDF, Word, Udskriv og Kopiér. Øverst kun
+  sideantallet og Luk. Et smalt vindue skalerer papiret (`zoom`), så panelet altid ses.
+- Skabelonerne hedder Manuskript og Læseudgave, med en linje om, hvad de er. Designerens skrift
+  hedder det, skriften fra Indstillinger hedder (fx Recursive Halvmono).
+**Ikke valgt:** Paged.js (en stor afhængighed for det, Chromium kan selv) og at vise den rigtige
+PDF (kræver en PDF-fremviser i fladen).
+
+### ADR-0070 — Biblioteket viser mappen med den åbne tekst, også uden for bibliotekerne (29/10-2026)
+**Baggrund:** ønske 29/10: biblioteket skal stå i mappen med den fil, der åbnes. Det gjorde det kun,
+når filen lå i et bibliotek. Åbnet fra Stifinder blev biblioteket stående, og i en stor mappe skulle
+man selv rulle hen til filen.
+**Beslutning:** `list_folder`, `watch_folder` og åbning af en tekst tillader også mappen med en åben
+tekst og mapperne under den (`library::listable`, `beside_open`), så længe teksten er åben. Aldrig
+et helt drev eller hele brugermappen, som billederne (`allow_images`). Omdøbning, flytning, sletning
+og nye filer kræver stadig et bibliotek, og biblioteket siger det over listen. Listen ruller hen
+til den åbne tekst.
+**Ikke valgt:** at gøre mappen til et bibliotek af sig selv (biblioteker vælges kun i mappevælgeren).

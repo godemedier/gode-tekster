@@ -43,7 +43,7 @@ Begrundelserne står som ADR'er i `ARKITEKTUR.md`.
 | Område | Status nu | TODO |
 |---|---|---|
 | Fladen kan kun det, Rust-kommandoerne tilbyder: `capabilities/default.json` har `core:default` plus træk, minimér, maksimér og luk vinduet (ADR-0065), ingen `fs`- eller `opener`-rettigheder | ✅ | Hold det sådan. Links åbnes fra Rust (`open_url`, kun http og https) |
-| Filadgang kun inden for brugerens biblioteker, stier kanoniseres i Rust | ✅ | Åbn kun tekstfiler fra bibliotek eller eget valg; biblioteker kun via mappevælgeren i Rust; eksport kun stien fra Gem-dialogen; billeder kun til `medier/` og kapitler kun ved siden af en åben tekst (ADR-0022, -0023, -0061) |
+| Filadgang kun inden for brugerens biblioteker, stier kanoniseres i Rust | ✅ | Åbn kun tekstfiler fra bibliotek, eget valg eller mappen med en åben tekst (ADR-0070); biblioteker kun via mappevælgeren i Rust; eksport kun stien fra Gem-dialogen; billeder kun til `medier/` og kapitler kun ved siden af en åben tekst (ADR-0022, -0023, -0061) |
 | Streng CSP: `script-src 'self'`, ingen fjernressourcer. `style-src` tillader inline, fordi CodeMirror lægger sine styles i `<style>`-elementer (set i release-byg 2/10: uden det er editoren ustylet). Uden scripts kan CSS intet sende ud. `img-src` er programmet selv plus asset-protokollen (billeder fra bibliotekerne og den åbne teksts mappe), `connect-src` kun IPC | ✅ | Script-delen må aldrig løsnes |
 | `claude.exe` og `codex.exe` kaldes med argument-liste, aldrig gennem en shell eller `.cmd` | ✅ | `claude.rs`, `codex.rs`. Ingen API-nøgle i miljøet (ADR-0026) |
 | Modelsvar valideres mod skema i Rust, før fladen ser dem. Citater tjekkes på kildens side | ✅ | Uddrag skal stå ordret i teksten. Citattjek kun på offentlige https-adresser (ADR-0022) |

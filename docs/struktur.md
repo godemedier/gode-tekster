@@ -15,6 +15,7 @@ gode-tekster/
 ├── assets/logo/                    logoet som SVG og PNG
 ├── index.html                      skrivefladens indgang
 ├── note.html · noteliste.html      noterne på skrivebordet og listen over dem (ADR-0039, -0050)
+├── noteoversigt.html               oversigten over noterne ved uret (ADR-0068, tray.rs)
 ├── del.html                        gæstens side til en delt tekst (ADR-0060)
 ├── mobile.html                     telefonens flade (ADR-0055), ikke udgivet
 ├── src/                            fladen: TypeScript, CodeMirror 6, ingen UI-ramme
