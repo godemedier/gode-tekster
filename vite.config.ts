@@ -6,10 +6,10 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(() => ({
 
-  // To sider: programmet og noterne på skrivebordet (ADR-0039).
+  // Siderne: programmet, noterne på skrivebordet, notelisten, oversigten ved uret og telefonen (ADR-0039, -0050, -0068).
   build: {
     rollupOptions: {
-      input: { main: "index.html", note: "note.html", noteliste: "noteliste.html", mobile: "mobile.html" },
+      input: { main: "index.html", note: "note.html", noteliste: "noteliste.html", noteoversigt: "noteoversigt.html", mobile: "mobile.html" },
     },
   },
 

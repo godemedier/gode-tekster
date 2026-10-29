@@ -50,6 +50,8 @@ mod spelling;
 mod structure;
 mod synk;
 mod textmeta;
+#[cfg(desktop)]
+mod tray;
 mod updater;
 mod watcher;
 mod welcome;
@@ -57,10 +59,6 @@ mod windows;
 
 use std::time::{Duration, Instant};
 
-#[cfg(desktop)]
-use tauri::menu::{Menu, MenuItem};
-#[cfg(desktop)]
-use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 
 /// Viser hovedvinduet og giver det fokus. Med `GT_TEST=1` vises det uden at tage fokus, så en test
@@ -91,62 +89,6 @@ pub(crate) fn show_main(app: &AppHandle) {
         let _ = w.set_focus();
     }
 }
-
-/// Menuen på ikonet ved uret, i programmets sprog.
-#[cfg(desktop)]
-fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
-    let vis = MenuItem::with_id(
-        app,
-        "vis",
-        t!("Vis Gode Tekster", "Show Gode Tekster"),
-        true,
-        None::<&str>,
-    )?;
-    let afslut = MenuItem::with_id(app, "afslut", t!("Afslut", "Quit"), true, None::<&str>)?;
-    // Noterne (ADR-0039).
-    let ny = MenuItem::with_id(
-        app,
-        "ny-note",
-        // Windows-tasten kan ikke stå som genvej i menuen (muda kender ikke META), så den står i teksten.
-        t!("Ny note (Win+Alt+N)", "New note (Win+Alt+N)"),
-        true,
-        None::<&str>,
-    )?;
-    let alle = MenuItem::with_id(
-        app,
-        "vis-noter",
-        t!("Vis alle noter", "Show all notes"),
-        true,
-        None::<&str>,
-    )?;
-    let liste = MenuItem::with_id(
-        app,
-        "noteliste",
-        t!("Noteliste", "Note list"),
-        true,
-        None::<&str>,
-    )?;
-    let skjul = MenuItem::with_id(
-        app,
-        "skjul-noter",
-        t!("Skjul alle noter", "Hide all notes"),
-        true,
-        None::<&str>,
-    )?;
-    let streg = tauri::menu::PredefinedMenuItem::separator(app)?;
-    Menu::with_items(app, &[&ny, &liste, &alle, &skjul, &streg, &vis, &afslut])
-}
-
-/// Skiftes sproget i indstillingerne, følger menuen på ikonet med.
-#[cfg(desktop)]
-pub(crate) fn refresh_tray(app: &AppHandle) {
-    if let (Some(tray), Ok(menu)) = (app.tray_by_id(TRAY_ID), tray_menu(app)) {
-        let _ = tray.set_menu(Some(menu));
-    }
-}
-
-#[cfg(desktop)]
-const TRAY_ID: &str = "gode-tekster";
 
 /// Nødlukning af et ekstra vindue (12/10): en flade, der hænger, kunne ellers aldrig lukkes, og
 /// lyden blev aldrig sluppet (audio::release_owner kører først, når vinduet er væk). Efter 10 s
@@ -197,41 +139,12 @@ pub fn mobile_main() {
 /// Det, kun pc'en har: ikonet ved uret, højreklikmenuen, noterne på skrivebordet og Win+Alt+N.
 #[cfg(desktop)]
 fn desktop_setup(app: &mut tauri::App, handle: &AppHandle) -> tauri::Result<()> {
-    let menu = tray_menu(handle)?;
-    let mut tray = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("Gode Tekster")
-        .menu(&menu)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "vis" => show_main(app),
-            "ny-note" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let _ = notes::new_note(&app);
-                });
-            }
-            "vis-noter" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move { notes::show_all(&app) });
-            }
-            "skjul-noter" => notes::hide_all(app),
-            "noteliste" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let _ = notes::show_list(&app);
-                });
-            }
-            // Alle vinduer gemmer først og kalder så `quit_app`. Fejl afbryder afslutningen.
-            "afslut" => windows::request_quit(app.clone(), None),
-            _ => {}
-        });
+    app.manage(tray::TrayState::default());
+    tray::build(app, handle)?;
     #[cfg(windows)]
     if let Some(w) = app.get_webview_window("main") {
         contextmenu::install(&w);
     }
-    if let Some(icon) = app.default_window_icon() {
-        tray = tray.icon(icon.clone());
-    }
-    tray.build(app)?;
 
     // Noterne (ADR-0039): Win+Alt+N, og arkene fra sidst kommer igen.
     notes::hotkey(handle.clone());
@@ -377,6 +290,10 @@ pub fn run() -> tauri::Result<()> {
             notes::note_restore,
             notes::note_list_open,
             notes::note_list_close,
+            #[cfg(desktop)]
+            tray::overview_ready,
+            #[cfg(desktop)]
+            tray::overview_hide,
             notes::note_spare,
             references::lookup_doi,
             library::library_index,
@@ -533,6 +450,18 @@ pub fn run() -> tauri::Result<()> {
                 }
                 // Notelisten har intet at gemme og lukker bare.
                 WindowEvent::CloseRequested { .. } if window.label() == notes::LIST => {}
+                #[cfg(desktop)]
+                WindowEvent::CloseRequested { .. } if window.label() == tray::OVERVIEW => {}
+                // Oversigten ved uret går væk, når man klikker et andet sted (ADR-0068).
+                #[cfg(desktop)]
+                WindowEvent::Focused(false) if window.label() == tray::OVERVIEW => {
+                    tray::overview_blurred(window.app_handle());
+                }
+                // Proceslinjen kan have skiftet mellem lys og mørk: notesymbolet følger med.
+                #[cfg(desktop)]
+                WindowEvent::ThemeChanged(_) if window.label() == "main" => {
+                    tray::update(window.app_handle());
+                }
                 WindowEvent::CloseRequested { api, .. } => {
                     api.prevent_close();
                     let label = window.label().to_owned();

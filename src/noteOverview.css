@@ -1,0 +1,34 @@
+/* Oversigten ved uret (ADR-0068): som Windows' egne paneler ved uret. Kortene har notens papirtone,
+   de samme som arkene (note.css). */
+
+body.note-overview { display: flex; flex-direction: column; gap: 10px; height: 100vh; box-sizing: border-box; margin: 0; padding: 14px 14px 10px; overflow: hidden;
+  background: var(--panel); color: var(--blæk); font: 13px/1.4 var(--ui); }
+.no-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+#no-title { margin: 0; font: 600 14px var(--ui); }
+#no-count { color: var(--svag); font-size: 12px; }
+#no-search { font: inherit; color: inherit; background: var(--kort); border: 1px solid var(--kant); border-radius: 6px; padding: 6px 9px; outline: none; }
+#no-search:focus { border-color: var(--accent); }
+#no-heading { margin: 2px 0 -4px; color: var(--svag); font-size: 12px; }
+#no-cards { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 92px; gap: 8px; align-content: start; scrollbar-width: thin; }
+.no-card { --ark: #fbf3cf; --ark-blæk: #3a3220; display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 9px 10px; border-radius: 7px; background: var(--ark); color: var(--ark-blæk);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); cursor: pointer; outline: none; overflow: hidden; }
+.no-card b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.no-card span { font: 12px/1.4 var(--skrift, var(--ui)); opacity: 0.8; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.no-card:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16); }
+.no-card:focus-visible, .no-card[aria-selected="true"]:focus { box-shadow: 0 0 0 2px var(--accent); }
+.no-card[data-farve="groen"] { --ark: #e3f0dc; --ark-blæk: #22351c; }
+.no-card[data-farve="blaa"] { --ark: #dfe9f3; --ark-blæk: #1c2c3c; }
+.no-card[data-farve="rosa"] { --ark: #f6e1e4; --ark-blæk: #4a2129; }
+.no-card[data-farve="papir"] { --ark: #ffffff; --ark-blæk: #1d2125; }
+.no-card[data-farve="graa"] { --ark: #e9eaec; --ark-blæk: #2a2d31; }
+body.dark .no-card { --ark: #3a3220; --ark-blæk: #ecd9a0; }
+body.dark .no-card[data-farve="groen"] { --ark: #26301f; --ark-blæk: #cfe3c2; }
+body.dark .no-card[data-farve="blaa"] { --ark: #212a33; --ark-blæk: #cddbea; }
+body.dark .no-card[data-farve="rosa"] { --ark: #36242a; --ark-blæk: #efc9d1; }
+body.dark .no-card[data-farve="papir"] { --ark: #24282c; --ark-blæk: #d5d9dd; }
+body.dark .no-card[data-farve="graa"] { --ark: #2a2d31; --ark-blæk: #d0d3d7; }
+.no-empty { grid-column: 1 / -1; margin: 12px 2px; color: var(--svag); line-height: 1.5; }
+.no-foot { display: flex; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid var(--streg, var(--kant)); }
+.no-foot button { font: inherit; color: inherit; background: transparent; border: none; border-radius: 6px; padding: 5px 8px; cursor: pointer; }
+.no-foot button:hover { background: var(--hover); }
+#no-new::before { content: "+"; margin-right: 6px; }

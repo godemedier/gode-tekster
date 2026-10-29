@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Noter</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/noteOverview.css" />
+    <script type="module" src="/src/noteOverview.ts"></script>
+  </head>
+  <body class="note-overview">
+    <div id="banner" role="status" aria-live="polite" hidden></div>
+    <header class="no-top">
+      <h1 id="no-title"></h1>
+      <span id="no-count"></span>
+    </header>
+    <input id="no-search" type="search" autocomplete="off" spellcheck="false" />
+    <p id="no-heading" hidden></p>
+    <main id="no-cards" role="listbox"></main>
+    <footer class="no-foot">
+      <button type="button" id="no-new"></button>
+      <button type="button" id="no-list"></button>
+    </footer>
+  </body>
+</html>

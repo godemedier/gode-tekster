@@ -153,7 +153,9 @@ fn places_then<T>(
         return Some(out);
     }
     if let (Some(file), Ok(json)) = (store(app), serde_json::to_vec_pretty(&*places)) {
-        let _ = crate::files::write_atomic(&file, &json);
+        if let Err(e) = crate::files::write_atomic(&file, &json) {
+            crate::applog::write(app, &format!("noter.json blev ikke gemt: {e:?}"));
+        }
     }
     Some(out)
 }
@@ -350,6 +352,8 @@ fn adopt(app: &AppHandle, label: &str, path: &Path, focus: bool) {
     if let Ok(mut l) = state.labels.lock() {
         l.insert(label.to_owned(), path.to_path_buf());
     }
+    #[cfg(desktop)]
+    crate::tray::update(app);
     if focus {
         if let Ok(mut f) = state.focus_on_ready.lock() {
             f.insert(label.to_owned());
@@ -630,7 +634,7 @@ fn on_screen(w: &tauri::WebviewWindow, x: i32, y: i32) -> bool {
 
 /// Ikke i Alt+Tab: et værktøjsvindue (WS_EX_TOOLWINDOW). `skip_taskbar` fjerner kun knappen i proceslinjen.
 #[cfg(windows)]
-fn hide_from_alt_tab(w: &tauri::WebviewWindow) {
+pub(crate) fn hide_from_alt_tab(w: &tauri::WebviewWindow) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
     };
@@ -656,7 +660,7 @@ fn hide_from_alt_tab(w: &tauri::WebviewWindow) {
 }
 
 #[cfg(not(windows))]
-fn hide_from_alt_tab(_w: &tauri::WebviewWindow) {}
+pub(crate) fn hide_from_alt_tab(_w: &tauri::WebviewWindow) {}
 
 /// Er vinduet en note?
 pub fn is_note(label: &str) -> bool {
@@ -950,9 +954,17 @@ fn forget(app: &AppHandle, label: &str) {
 /// Vindue lukket udefra (Destroyed): glem det, men lad »fremme« stå, så det kommer igen ved start.
 pub fn destroyed(app: &AppHandle, label: &str) {
     let state = app.state::<NotesState>();
-    if let Ok(mut l) = state.labels.lock() {
-        l.remove(label);
+    let removed = state
+        .labels
+        .lock()
+        .map(|mut l| l.remove(label).is_some())
+        .unwrap_or(false);
+    #[cfg(desktop)]
+    if removed {
+        crate::tray::update(app);
     }
+    #[cfg(not(desktop))]
+    let _ = removed;
     if let Ok(mut h) = state.hwnds.lock() {
         h.remove(label);
     };
@@ -1369,6 +1381,20 @@ pub async fn note_restore(app: AppHandle, id: String) -> Result<(), String> {
 /// Listen tegnes om, når en note kommer til, lukkes eller slettes.
 pub fn changed(app: &AppHandle) {
     let _ = app.emit_to(LIST, "notes-changed", ());
+    #[cfg(desktop)]
+    {
+        let _ = app.emit_to(crate::tray::OVERVIEW, "notes-changed", ());
+        crate::tray::update(app);
+    }
+}
+
+/// Antallet af noter fremme, også dem, der er skjult med »Skjul alle noter« (ikonet ved uret).
+pub fn open_count(app: &AppHandle) -> usize {
+    app.state::<NotesState>()
+        .labels
+        .lock()
+        .map(|l| l.len())
+        .unwrap_or(0)
 }
 
 /// Vis notelisten: hent den frem, eller lav vinduet.

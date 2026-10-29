@@ -341,7 +341,7 @@ pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     // Sproget først: write sender settings-changed, og vinduerne spørger så om sproget (main.ts).
     crate::i18n::apply(&settings.language);
     #[cfg(desktop)]
-    crate::refresh_tray(&app);
+    crate::tray::refresh_menu(&app);
     write(&app, &settings)?;
     // Kun når valget er ændret: ellers tog hvert gem i en testkopi nøglen fra den installerede (8/10).
     if settings.start_with_windows != stored_autostart {
