@@ -683,6 +683,10 @@ fn replace_existing(target: &Path, tmp: &Path, guard: &dyn Fn() -> Result<()>) -
     };
 
     let wide = |p: &Path| -> Vec<u16> {
+        // Efter `\\?\` retter Windows hverken `/` eller `..`, så stien gøres fuld først. Ellers fejlede
+        // et gem til `C:/…\noter.json` med »stien blev ikke fundet« (noterne i en testmappe 13/10).
+        let full = std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
+        let p = full.as_path();
         let mut s = p.as_os_str().to_string_lossy().into_owned();
         if p.is_absolute() && !s.starts_with(r"\\?\") {
             if s.starts_with(r"\\") {
@@ -784,6 +788,22 @@ pub(crate) fn to_trash(path: &Path) -> std::result::Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(windows)]
+    fn stier_med_skraastreg_og_prikker_kan_erstattes() {
+        // Noternes placeringer blev aldrig gemt i en testmappe angivet som `C:/…` (13/10).
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join("under")).unwrap();
+        let slash =
+            PathBuf::from(dir.path().to_string_lossy().replace('\\', "/")).join("noter.json");
+        fs::write(&slash, b"gammel").unwrap();
+        write_atomic(&slash, b"ny").unwrap();
+        assert_eq!(fs::read(&slash).unwrap(), b"ny");
+        let dots = dir.path().join("under").join("..").join("noter.json");
+        write_atomic(&dots, b"igen").unwrap();
+        assert_eq!(fs::read(&slash).unwrap(), b"igen");
+    }
 
     #[test]
     fn aendret_indhold_med_samme_tid_og_stoerrelse_afvises() {
