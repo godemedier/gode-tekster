@@ -85,9 +85,6 @@ const CONTRACT_NAMES: &[&str] = &[
     "VENDOR",
 ];
 
-/// Mapper med husets egen dokumentation.
-const CONTRACT_DIRS: &[&str] = &["docs", "audit", "lektioner"];
-
 /// Filtyper, biblioteket viser. `.docx` importeres (del G).
 const TEXT_EXT: &[&str] = &["md", "markdown", "txt", "docx"];
 
@@ -110,12 +107,6 @@ pub fn visibility_of(rel: &str) -> Visibility {
     };
     if dirs.iter().any(|d| is_hidden_dir(d)) {
         return Visibility::Hidden;
-    }
-    if dirs
-        .iter()
-        .any(|d| CONTRACT_DIRS.contains(&d.to_lowercase().as_str()))
-    {
-        return Visibility::Dimmed;
     }
     if is_contract_file(name) {
         Visibility::Dimmed
@@ -412,32 +403,16 @@ fn list(path: &Path, root: &Path) -> Result<Folder, String> {
             .unwrap_or(&p)
             .to_string_lossy()
             .replace('\\', "/");
+        // Mappevisningen viser alle mapper, også i en kodemappe (29/10: »den må læse alle mapper«).
+        // Før skjultes docs, audit, lektioner, byggemapper, punktum-mapper og worktrees, og en
+        // kundes tekster i docs\ kunne ikke findes. Søgningen springer dem stadig over (files_in).
         if meta.is_dir() {
-            if (if house {
-                is_hidden_dir(&name)
-            } else {
-                always_hidden(&name)
-            }) || is_worktree(&p)
-            {
-                continue;
-            }
-            let vis = visibility(&format!("{rel}/x.md"), house);
-            if vis == Visibility::Hidden {
-                continue;
-            }
             entries.push(Entry {
                 name,
                 path: p.to_string_lossy().into_owned(),
                 is_dir: true,
                 modified_ms: modified_ms(&meta),
-                visibility: if house
-                    && CONTRACT_DIRS
-                        .contains(&item.file_name().to_string_lossy().to_lowercase().as_str())
-                {
-                    Visibility::Dimmed
-                } else {
-                    vis
-                },
+                visibility: Visibility::Normal,
                 preview: String::new(),
                 status: None,
                 tags: Vec::new(),
@@ -451,10 +426,12 @@ fn list(path: &Path, root: &Path) -> Result<Folder, String> {
             if !TEXT_EXT.contains(&ext.as_str()) || name.starts_with('~') || name.starts_with('.') {
                 continue;
             }
-            let vis = visibility(&rel, house);
-            if vis == Visibility::Hidden {
-                continue;
-            }
+            // Kun projektfilerne (README, TODO, AGENTS …) dæmpes. En tekst inde i en mappe, søgningen
+            // springer over, vises som alle andre her.
+            let vis = match visibility(&rel, house) {
+                Visibility::Hidden => Visibility::Normal,
+                v => v,
+            };
             pending.push((entries.len(), p.clone(), meta.clone()));
             let m = Meta::default();
             entries.push(Entry {
@@ -1460,6 +1437,8 @@ mod tests {
             "strategi.md",
             "politik.md",
             "kunde.md",
+            "Kunde A/docs/styring/politik.md",
+            "noter\\lektioner\\git.md",
         ] {
             assert_eq!(visibility_of(f), Visibility::Normal, "{f}");
         }
@@ -1479,11 +1458,57 @@ mod tests {
             "LÆSMIG.md",
             "LICENSE.md",
             "projekt/todo.md",
-            "Kunde A/docs/styring/politik.md",
-            "noter\\lektioner\\git.md",
         ] {
             assert_eq!(visibility_of(f), Visibility::Dimmed, "{f}");
         }
+    }
+
+    #[test]
+    fn mappevisningen_viser_alle_mapper_ogsaa_i_en_kodemappe() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::write(root.join("AGENTS.md"), "# Regler").unwrap();
+        for d in ["docs", "audit", "node_modules", ".claude", "target"] {
+            fs::create_dir(root.join(d)).unwrap();
+        }
+        fs::create_dir(root.join("worktree")).unwrap();
+        fs::write(root.join("worktree").join(".git"), "gitdir: x").unwrap();
+        fs::write(root.join("docs").join("Handleplan.md"), "# Plan").unwrap();
+        fs::write(root.join("docs").join("README.md"), "# Om mappen").unwrap();
+        let folder = list(root, root).unwrap();
+        let mut dirs: Vec<&str> = folder
+            .entries
+            .iter()
+            .filter(|e| e.is_dir)
+            .map(|e| e.name.as_str())
+            .collect();
+        dirs.sort_unstable();
+        assert_eq!(
+            dirs,
+            [
+                ".claude",
+                "audit",
+                "docs",
+                "node_modules",
+                "target",
+                "worktree"
+            ]
+        );
+        assert!(folder
+            .entries
+            .iter()
+            .filter(|e| e.is_dir)
+            .all(|e| e.visibility == Visibility::Normal));
+        let docs = list(&root.join("docs"), root).unwrap();
+        let vis = |n: &str| {
+            docs.entries
+                .iter()
+                .find(|e| e.name == n)
+                .map(|e| e.visibility)
+        };
+        assert_eq!(vis("Handleplan.md"), Some(Visibility::Normal));
+        // Projektfilerne dæmpes stadig, så de kan slås fra.
+        assert_eq!(vis("README.md"), Some(Visibility::Dimmed));
     }
 
     #[test]
@@ -1532,7 +1557,7 @@ mod tests {
     }
 
     #[test]
-    fn mappeliste_springer_skjult_over() {
+    fn mappeliste_viser_alle_mapper_men_kun_tekstfiler() {
         let root = tempfile::tempdir().unwrap();
         let r = root.path();
         fs::create_dir(r.join("artikler")).unwrap();
@@ -1554,7 +1579,9 @@ mod tests {
             vec![
                 ("AGENTS.md", Visibility::Dimmed),
                 ("ARTIKEL.md", Visibility::Normal),
-                ("artikler", Visibility::Normal)
+                ("artikler", Visibility::Normal),
+                ("node_modules", Visibility::Normal),
+                ("wt", Visibility::Normal)
             ]
         );
     }

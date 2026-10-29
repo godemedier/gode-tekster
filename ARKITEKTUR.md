@@ -1480,3 +1480,8 @@ et helt drev eller hele brugermappen, som billederne (`allow_images`). Omdøbnin
 og nye filer kræver stadig et bibliotek, og biblioteket siger det over listen. Listen ruller hen
 til den åbne tekst.
 **Ikke valgt:** at gøre mappen til et bibliotek af sig selv (biblioteker vælges kun i mappevælgeren).
+**Samme dag:** mappevisningen viser alle mapper, også i en kodemappe (ønske 29/10: »den må læse alle
+mapper«). Før skjultes `docs`, `audit`, `lektioner`, byggemapper, punktum-mapper og worktrees, og en
+kundes tekster i `docs\` kunne ikke findes. Kun projektfilerne (README, TODO, AGENTS …) dæmpes
+stadig. Søgningen og hurtigåbningen (`files_in`) springer byggemapper, punktum-mapper og worktrees
+over som før: de læser hver fil, og en worktree viser de samme tekster to gange.

@@ -661,7 +661,7 @@ export class LibraryPanel {
       ...(s.showHouseFiles || this.folder?.entries.some((e) => e.visibility === "dimmed")
         ? ([
             { separator: true },
-            { label: tr("Vis projektfiler (README, TODO, docs …)", "Show project files (README, TODO, docs …)"), checked: s.showHouseFiles, run: () => set({ showHouseFiles: !s.showHouseFiles }) },
+            { label: tr("Vis projektfiler (README, TODO …)", "Show project files (README, TODO …)"), checked: s.showHouseFiles, run: () => set({ showHouseFiles: !s.showHouseFiles }) },
           ] as MenuItem[])
         : []),
     ];
