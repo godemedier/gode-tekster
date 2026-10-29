@@ -1479,7 +1479,7 @@ dependencies = [
 
 [[package]]
 name = "gode-tekster"
-version = "0.2.30"
+version = "0.2.31"
 dependencies = [
  "base64 0.22.1",
  "blake3",
