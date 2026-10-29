@@ -4,7 +4,7 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 import { history, undo } from "@codemirror/commands";
 
 import { hiddenBlocks } from "../editor/hidden.ts";
-import { EMPTY_TABLE, planCommand, readableSlice, stopField, tabStops, visibleSegments, type Plan } from "./run.ts";
+import { EMPTY_TABLE, planCommand, readableSlice, smallChanges, stopField, tabStops, visibleSegments, type Plan } from "./run.ts";
 import type { Command, Kind } from "./types.ts";
 
 const file = { name: "Kim", filename: "ARTIKEL", title: "Broen" };
@@ -300,4 +300,16 @@ test("/tabel med markering laver linjerne om til en tabel", () => {
   const s = state(doc, 0, doc.length);
   const after = run(s, planCommand(s, cmd("transform", "table"), file)).doc.toString();
   assert.equal(after, "| navn | titel |\n|---|---|\n| Mette | kontorchef |");
+});
+
+test("saml linjer ændrer kun linjeskiftene, så forfatterskabet bliver (29/10)", () => {
+  const before = "En linje, der er\nbrudt.\n\n> Citat\n> videre";
+  const after = "En linje, der er brudt.\n\n> Citat videre";
+  const changes = smallChanges(10, before, after);
+  assert.deepEqual(changes, [
+    { from: 26, to: 27, insert: " " },
+    { from: 42, to: 45, insert: " " },
+  ]);
+  // Andet end mellemrum: ét stykke uden det ens forrest og bagerst.
+  assert.deepEqual(smallChanges(0, "a ... b", "a … b"), [{ from: 2, to: 5, insert: "…" }]);
 });

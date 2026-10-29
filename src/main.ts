@@ -33,7 +33,9 @@ import { installContextMenu } from "./ui/contextMenu.ts";
 import { statusChange } from "./editor/textStatus.ts";
 import { CountCorner } from "./ui/countcorner.ts";
 import { setModes, setQuoteStyle } from "./editor/modes.ts";
-import { setTransformQuotes } from "./commands/blocks.ts";
+import { brokenLines, setTransformQuotes } from "./commands/blocks.ts";
+import { builtinCommands } from "./commands/builtin.ts";
+import { runCommand } from "./commands/run.ts";
 import { setWordClasses, setHiddenWordClasses } from "./editor/wordclasses.ts";
 import { PrintPreview } from "./print/preview.ts";
 import { ClaudePanel } from "./ui/claudepanel.ts";
@@ -520,6 +522,50 @@ function show(dto: DocumentDto | null): void {
   counter.update();
   void library.reveal(dto.path);
   view.focus();
+  offerJoinLines(dto.path);
+}
+
+/** Tekster, hvor »Saml linjer« er afslået. Spørges der ikke igen om (29/10). */
+const JOIN_NO = "gt-saml-linjer-nej";
+
+/**
+ * En tekst med mange linjeskift midt i afsnittene (en kodeagent bryder ved 100 tegn, en PDF ved
+ * spalten): tilbyd at samle dem. Editoren viser filen, som den står, så linjerne knækker midt i
+ * sætningerne, selv om print og PDF er pæne. Fem brudte linjer, før der spørges.
+ */
+function offerJoinLines(path: string): void {
+  let refused: string[] = [];
+  try {
+    refused = JSON.parse(localStorage.getItem(JOIN_NO) ?? "[]") as string[];
+  } catch {
+    refused = [];
+  }
+  const key = path.toLowerCase();
+  if (refused.includes(key)) return;
+  window.setTimeout(() => {
+    if (session?.path.toLowerCase() !== key) return;
+    const n = brokenLines(view.state.doc.toString());
+    if (n < 5) return;
+    const command = builtinCommands(currentLang()).find((c) => c.kind === "transform" && c.scope === "document" && c.body.trim() === "join-lines");
+    if (!command) return;
+    showBanner(
+      tr(`Teksten har ${n} linjeskift midt i afsnittene. Skal de samles, så hvert afsnit er én linje?`, `The text has ${n} line breaks in the middle of paragraphs. Join them so each paragraph is one line?`),
+      [
+        { label: tr("Saml linjerne", "Join the lines"), run: () => void runCommand(view, command, commandHooks) },
+        {
+          label: tr("Nej tak", "No thanks"),
+          run: () => {
+            try {
+              localStorage.setItem(JOIN_NO, JSON.stringify([key, ...refused].slice(0, 200)));
+            } catch {
+              // Så spørges der igen næste gang.
+            }
+          },
+        },
+      ],
+      { closable: true, perText: true },
+    );
+  }, 400);
 }
 
 /**

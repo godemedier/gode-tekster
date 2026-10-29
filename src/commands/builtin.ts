@@ -1,5 +1,5 @@
-// Startbiblioteket (6/10: »strammet op og gjort mere universelle«, ADR-0028). 12 kommandoer:
-// 4 skabeloner, 4 omformninger, 1 tjek og 3 AI. Journalistskabelonerne (interview, pitch, rettelse,
+// Startbiblioteket (6/10: »strammet op og gjort mere universelle«, ADR-0028). 16 kommandoer:
+// 4 skabeloner, 6 omformninger, 1 tjek og 5 AI. Journalistskabelonerne (interview, pitch, rettelse,
 // faktaboks og flere) udgik, fordi programmet skal kunne bruges af alle, og de tre tjek
 // blev til ét /tjek. De ligger i programmet på begge sprog og skrives ikke til disken, så en
 // opdatering kan forbedre dem uden at røre brugerens egne filer.
@@ -104,6 +104,12 @@ Kind regards
   [
     file("name: ryd\nkind: transform\ndescription: Ryd op i indsat tekst: linjeskift, mellemrum og citationstegn", "join-lines\ntidy\nellipsis\nquotes"),
     file("name: tidy\nkind: transform\ndescription: Tidy up pasted text: line breaks, spaces and quotation marks", "join-lines\ntidy\nellipsis\nquotes"),
+  ],
+  [
+    // Hele teksten (29/10): afsnit, en kodeagent eller en PDF har brudt midt i sætningerne.
+    // Programmet foreslår den selv, når en tekst åbnes med mange af dem (main.ts).
+    file("name: saml-linjer\nkind: transform\ndescription: Saml linjer, der er brudt midt i afsnittene\nscope: document", "join-lines"),
+    file("name: join-lines\nkind: transform\ndescription: Join lines broken in the middle of paragraphs\nscope: document", "join-lines"),
   ],
   [
     file("name: liste\nkind: transform\ndescription: Lav linjerne til punkter", "list bullets"),

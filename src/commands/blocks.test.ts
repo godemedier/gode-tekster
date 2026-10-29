@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyChain, BLOCKS, formatStep, parseChain, protectedSpans } from "./blocks.ts";
+import { applyChain, BLOCKS, brokenLines, formatStep, parseChain, protectedSpans } from "./blocks.ts";
 import type { Lang } from "../i18n.ts";
 
 /** Kør en kæde skrevet som i filen. Fejler testen, hvis kæden ikke kan læses. */
@@ -136,6 +136,74 @@ test("tidy: dobbelte mellemrum, mellemrum før tegn og sidst på linjen", () => 
 
 test("ellipsis: præcis tre punktummer", () => {
   assert.equal(run("ellipsis", "Tja... måske.... nej."), "Tja… måske.... nej.");
+});
+
+test("join-lines: en tekst brudt ved 100 tegn, med markdown, der skal blive stående (29/10)", () => {
+  const md = [
+    "---",
+    "titel: Vilkår",
+    "dato: 29/10",
+    "---",
+    "# Vilkår",
+    "Første linje i et afsnit, der er",
+    "brudt midt i sætningen.",
+    "",
+    "<u>Automatisk kortbetaling</u>: Har du valgt",
+    "kort, trækkes det ved udløb.",
+    "",
+    "- Et punkt, der",
+    "  fortsætter på næste linje",
+    "- Næste punkt",
+    "",
+    "> Et citat over",
+    "> to linjer.",
+    "",
+    "Hårdt linjeskift  ",
+    "bliver stående.",
+    "",
+    "| A | B |",
+    "|---|---|",
+    "| 1 | 2 |",
+    "Tekst lige efter",
+    "+++",
+    "Ny side",
+    "---",
+    "Efter skillelinjen",
+    "[^1]: En fodnote",
+    "<!-- gt:farve vaerdi=gul -->",
+  ].join("\n");
+  const out = run("join-lines", md).split("\n");
+  assert.deepEqual(out, [
+    "---",
+    "titel: Vilkår",
+    "dato: 29/10",
+    "---",
+    "# Vilkår",
+    "Første linje i et afsnit, der er brudt midt i sætningen.",
+    "",
+    "<u>Automatisk kortbetaling</u>: Har du valgt kort, trækkes det ved udløb.",
+    "",
+    "- Et punkt, der fortsætter på næste linje",
+    "- Næste punkt",
+    "",
+    "> Et citat over to linjer.",
+    "",
+    "Hårdt linjeskift  ",
+    "bliver stående.",
+    "",
+    "| A | B |",
+    "|---|---|",
+    "| 1 | 2 |",
+    "Tekst lige efter",
+    "+++",
+    "Ny side",
+    "---",
+    "Efter skillelinjen",
+    "[^1]: En fodnote",
+    "<!-- gt:farve vaerdi=gul -->",
+  ]);
+  assert.equal(brokenLines(md), 4);
+  assert.equal(brokenLines("Et afsnit.\n\nEt andet."), 0);
 });
 
 test("join-lines: linjeskift i et afsnit bliver til mellemrum, afsnit og lister bliver", () => {

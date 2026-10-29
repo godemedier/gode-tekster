@@ -255,8 +255,6 @@ function shielded(text: string, extra: SpanKind[], fn: (masked: string) => strin
 // --- klodserne ---------------------------------------------------------------------------------
 
 const LIST_PREFIX = /^(\s*)(?:- \[[ xX]\] |[-*+] |\d+[.)] )/;
-/** Linjer, der ikke er løbende tekst: overskrift, punkt, citat, tabel og kodehegn. */
-const STRUCTURAL = /^\s*(?:#{1,6} |[-*+] |\d+[.)] |> ?|\||```)/;
 const QUOTE_CHARS = `"“”„‟»«`;
 const isWord = (ch: string | undefined) => ch !== undefined && /[\p{L}\p{N}]/u.test(ch);
 
@@ -365,17 +363,57 @@ function tidy(text: string): string {
     .join("\n");
 }
 
+/**
+ * Linjer, der begynder en blok og aldrig lægges op til linjen over: overskrift, punkt, citat, tabel,
+ * kodehegn, skillelinje, sideskift (`+++`) og HTML-blokke. Inline-mærker som `<u>` er tekst.
+ */
+const BLOCK_START = /^\s*(?:#{1,6}(?:\s|$)|[-*+]\s|\d+[.)]\s|>|\||```|~~~|(?:[-*_=+]\s*){3,}$|<\/?(?:div|p|table|details|summary|section|figure|pre|h[1-6]|ul|ol|li|blockquote|hr)\b)/i;
+const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
+/** Et hårdt linjeskift: to mellemrum, en omvendt skråstreg eller `<br>` sidst på linjen. */
+const HARD_BREAK = /(?: {2,}|\\|<br\s*\/?>)$/i;
+
+/**
+ * Linjeskift inde i et afsnit bliver til mellemrum (PDF-tekst, og tekst, en kodeagent har brudt ved
+ * 100 tegn, 29/10). Et punkt kan fortsætte på linjen under, og et citat på en ny `>`-linje. Et hårdt
+ * linjeskift, en linje, der begynder en blok, og forsiden (`---` først i teksten) røres ikke. Noter,
+ * fodnoter og kode er skiftet ud med pladsholdere (`shielded`), og en linje, der begynder med en, røres
+ * heller ikke.
+ */
 function joinLines(text: string): string {
   const out: string[] = [];
-  let canJoin = false;
-  for (const line of text.split("\n")) {
+  const lines = text.split("\n");
+  let open: "para" | "item" | "quote" | null = null;
+  let front = lines[0]?.trim() === "---";
+  for (const [i, line] of lines.entries()) {
+    if (front) {
+      out.push(line);
+      if (i > 0 && line.trim() === "---") front = false;
+      continue;
+    }
     const blank = line.trim() === "";
-    const structural = STRUCTURAL.test(line);
-    if (canJoin && !blank && !structural) out[out.length - 1] = `${out[out.length - 1].trimEnd()} ${line.trimStart()}`;
-    else out.push(line);
-    canJoin = !blank && !structural;
+    const shielded = line.trimStart().startsWith(OPEN);
+    const prev = out[out.length - 1] ?? "";
+    if (!blank && open && !HARD_BREAK.test(prev)) {
+      const quoted = line.replace(/^\s*>\s?/, "");
+      if (open === "quote" && /^\s*>/.test(line) && quoted.trim() && !BLOCK_START.test(quoted)) {
+        out[out.length - 1] = `${prev.trimEnd()} ${quoted.trimStart()}`;
+        continue;
+      }
+      if (open !== "quote" && !BLOCK_START.test(line) && !shielded) {
+        out[out.length - 1] = `${prev.trimEnd()} ${line.trimStart()}`;
+        continue;
+      }
+    }
+    out.push(line);
+    open = blank || shielded ? null : /^\s*>/.test(line) ? "quote" : LIST_ITEM.test(line) ? "item" : BLOCK_START.test(line) ? null : "para";
   }
   return out.join("\n");
+}
+
+/** Hvor mange linjeskift `join-lines` ville samle i teksten. Programmet foreslår det fra et par stykker. */
+export function brokenLines(text: string): number {
+  const after = applyChain([{ block: "join-lines", args: [], line: 1 }], text, "da").text;
+  return text.split("\n").length - after.split("\n").length;
 }
 
 /** Forkortelser, der ikke slutter en sætning, selv om næste ord har stort begyndelsesbogstav. */

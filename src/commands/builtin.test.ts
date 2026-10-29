@@ -31,19 +31,19 @@ test("alle indbyggede kan læses og er gyldige på begge sprog", () => {
   }
 });
 
-test("startbiblioteket er 12 kommandoer: 3 skabeloner, 5 omformninger, 1 tjek og 3 AI", () => {
+test("startbiblioteket er 16 kommandoer: 4 skabeloner, 6 omformninger, 1 tjek og 5 AI", () => {
   for (const lang of LANGS) {
     const all = builtinCommands(lang);
     const count = (kind: string) => all.filter((c) => c.kind === kind).length;
-    assert.deepEqual([all.length, count("template"), count("transform"), count("check"), count("ai")], [15, 4, 5, 1, 5], lang);
+    assert.deepEqual([all.length, count("template"), count("transform"), count("check"), count("ai")], [16, 4, 6, 1, 5], lang);
   }
   assert.deepEqual(
     builtinCommands("da").map((c) => c.name),
-    ["dato", "tabel", "sideskift", "møde", "brev", "ryd", "liste", "sorter", "citat", "tjek", "nylæser", "redaktør", "argument", "modargument", "halver"],
+    ["dato", "tabel", "sideskift", "møde", "brev", "ryd", "saml-linjer", "liste", "sorter", "citat", "tjek", "nylæser", "redaktør", "argument", "modargument", "halver"],
   );
   assert.deepEqual(
     builtinCommands("en").map((c) => c.name),
-    ["date", "table", "pagebreak", "meeting", "letter", "tidy", "list", "sort", "quote", "check", "newreader", "editor", "argument", "counter", "half"],
+    ["date", "table", "pagebreak", "meeting", "letter", "tidy", "join-lines", "list", "sort", "quote", "check", "newreader", "editor", "argument", "counter", "half"],
   );
 });
 

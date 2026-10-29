@@ -382,7 +382,7 @@ function planTransform(state: EditorState, command: Command, replace: Span | und
   if (then === "clip") return planClip(state, pieces, extra);
   if (then === "footnote") return planFootnote(state, pieces, extra);
 
-  const changes: Change[] = [...pieces.filter((p) => p.after !== p.before).map((p) => ({ from: p.from, to: p.to, insert: p.after })), ...extra];
+  const changes: Change[] = [...pieces.filter((p) => p.after !== p.before).flatMap((p) => smallChanges(p.from, p.before, p.after)), ...extra];
   if (!changes.length) return { ran: true, notice: tr("Der var intet at ændre.", "There was nothing to change.") };
   const set = state.changes(changes);
   const last = pieces[pieces.length - 1];
@@ -400,6 +400,44 @@ function planTransform(state: EditorState, command: Command, replace: Span | und
 }
 
 type Change = { from: number; to?: number; insert: string };
+
+/**
+ * Ændringen som små stykker, når kun mellemrum, linjeskift og `>` er ændret (saml linjer, 29/10).
+ * Erstattes hele stykket, mister teksten sit forfatterskab og sine mærker, og på en hel tekst er det
+ * det hele. Ellers ét stykke uden det, der er ens forrest og bagerst.
+ */
+export function smallChanges(from: number, before: string, after: string): Change[] {
+  const out: Change[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < before.length || j < after.length) {
+    if (before[i] === after[j] && i < before.length) {
+      i++;
+      j++;
+      continue;
+    }
+    const [si, sj] = [i, j];
+    while (i < before.length && /[ \t\n>]/.test(before[i])) i++;
+    while (j < after.length && /[ \t\n]/.test(after[j])) j++;
+    if (i === si && j === sj) {
+      out.length = 0;
+      break;
+    }
+    out.push({ from: from + si, to: from + i, insert: after.slice(sj, j) });
+  }
+  let rebuilt = "";
+  let at = 0;
+  for (const c of out) {
+    rebuilt += before.slice(at, c.from - from) + c.insert;
+    at = (c.to ?? c.from) - from;
+  }
+  if (out.length && rebuilt + before.slice(at) === after) return out;
+  let start = 0;
+  while (start < before.length && start < after.length && before[start] === after[start]) start++;
+  let end = 0;
+  while (end < before.length - start && end < after.length - start && before[before.length - 1 - end] === after[after.length - 1 - end]) end++;
+  return [{ from: from + start, to: from + before.length - end, insert: after.slice(start, after.length - end) }];
+}
 /** Et stykke af området før og efter kæden. `content`: der var tekst at omforme. */
 type Piece = Span & { before: string; after: string; content: boolean };
 
