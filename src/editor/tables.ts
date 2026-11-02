@@ -534,8 +534,28 @@ export function tableFormatMenu(view: EditorView, target: Element, x: number, y:
 }
 
 /** Seks prikker: håndtaget, man trækker en række eller kolonne i. */
-const GRIP =
-  '<svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><g fill="currentColor"><circle cx="3" cy="3" r="1.3"/><circle cx="7" cy="3" r="1.3"/><circle cx="3" cy="8" r="1.3"/><circle cx="7" cy="8" r="1.3"/><circle cx="3" cy="13" r="1.3"/><circle cx="7" cy="13" r="1.3"/></g></svg>';
+/**
+ * Håndtagets seks prikker. Bygget med createElementNS, ikke innerHTML (2/11): filen bruges også i
+ * flader, hvor innerHTML er forbudt, og et fast ikon skal ikke være en undtagelse fra den regel.
+ */
+function grip(): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  for (const [k, v] of [["viewBox", "0 0 10 16"], ["width", "10"], ["height", "16"], ["aria-hidden", "true"]]) svg.setAttribute(k, v);
+  const g = document.createElementNS(ns, "g");
+  g.setAttribute("fill", "currentColor");
+  for (const cy of [3, 8, 13]) {
+    for (const cx of [3, 7]) {
+      const c = document.createElementNS(ns, "circle");
+      c.setAttribute("cx", String(cx));
+      c.setAttribute("cy", String(cy));
+      c.setAttribute("r", "1.3");
+      g.append(c);
+    }
+  }
+  svg.append(g);
+  return svg;
+}
 
 /**
  * Træk i en række eller kolonne (26/10). Ét håndtag for rækken og ét for kolonnen, musen står over.
@@ -549,7 +569,7 @@ function wireDrag(wrap: HTMLElement, view: EditorView): void {
     b.tabIndex = -1;
     b.title = label;
     b.setAttribute("aria-label", label);
-    b.innerHTML = GRIP;
+    b.append(grip());
     wrap.append(b);
     return b;
   };
