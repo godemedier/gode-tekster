@@ -1,5 +1,8 @@
 # tekster.godemedier.dk (server/server.mjs). Bygges af Coolify fra repoets rod.
 FROM node:22-alpine
+# Base-imaget halter ofte efter Alpines sikkerhedsrettelser (zlib CVE-2026-4738, natscan 8/11 2026).
+# Ugeombygningen om søndagen henter dem kun, fordi drift-trinnet selv opgraderer.
+RUN apk upgrade --no-cache
 WORKDIR /app
 COPY server/server.mjs ./
 COPY server/sider ./sider

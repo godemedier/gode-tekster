@@ -19,6 +19,9 @@ COPY synk/ synk/
 RUN cargo build --release --locked --manifest-path synk/Cargo.toml -p synk-server
 
 FROM alpine:3
+# Base-imaget halter ofte efter Alpines sikkerhedsrettelser (zlib CVE-2026-4738, natscan 8/11 2026).
+# Ugeombygningen om søndagen henter dem kun, fordi drift-trinnet selv opgraderer.
+RUN apk upgrade --no-cache
 RUN adduser -D -H -u 10001 synk && mkdir /data && chown synk /data
 COPY --from=bygger /src/synk/target/release/synk-server /usr/local/bin/synk-server
 COPY --from=side /src/dist-del /srv/del
