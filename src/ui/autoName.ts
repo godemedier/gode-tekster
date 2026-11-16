@@ -2,8 +2,10 @@
 // fik ved oprettelsen (»Uden titel«, »Untitled«, evt. med tal), omdøbes den, når første linje er
 // færdig, altså når der er trykket Enter efter den. Derefter står navnet fast, og man kan selv
 // omdøbe som før.
+// Det samme gælder navnet, Stifinder giver en tekst fra højreklik › Ny (16/11, ADR-0071):
+// »Ny Tekst i Gode Tekster.md«, »… (2).md« og på engelsk »New Gode Tekster document.md«.
 
-const DEFAULT = /^(Uden titel|Untitled)( \d+)?\.md$/i;
+const DEFAULT = /^((Uden titel|Untitled)( \d+)?|(Ny Tekst i Gode Tekster|New Gode Tekster document)( \(\d+\))?)\.md$/i;
 const MAX = 60;
 
 /** Har filen stadig det navn, programmet gav den? */

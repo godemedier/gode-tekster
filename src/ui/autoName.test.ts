@@ -11,6 +11,12 @@ test("kun programmets egne navne omdøbes", () => {
   // Telefonens stier har skråstreg (17/10: nye tekster dér fik aldrig navn efter første linje).
   assert.ok(hasDefaultName("/storage/emulated/0/Documents/Uden titel 2.md"));
   assert.ok(!hasDefaultName("/storage/emulated/0/Documents/Noter.md"));
+  // Højreklik › Ny i Stifinder (16/11): Stifinders navn, også med tal i parentes.
+  assert.ok(hasDefaultName("C:\\T\\Ny Tekst i Gode Tekster.md"));
+  assert.ok(hasDefaultName("C:\\T\\Ny tekst i Gode Tekster (2).md"));
+  assert.ok(hasDefaultName("C:\\T\\New Gode Tekster document (3).md"));
+  assert.ok(!hasDefaultName("C:\\T\\Ny Tekst i Gode Tekster om noget.md"));
+  assert.ok(!hasDefaultName("C:\\T\\Uden titel (2).md"));
 });
 
 test("navnet kommer fra første færdige linje, uden markdown (5/10)", () => {

@@ -507,7 +507,8 @@ Rettelser og valg efter den første test af det byggede.
 - Desuden: Tab rykker ind, F11 fuld skærm, biblioteksoversigt over rødderne, billedkode skjult uden
   markør, gule noter, fanerne Input og Fodnoter, dispositionen følger rulningen.
 - **Installation:** NSIS-installer kun for brugeren (ingen administrator), dansk guide
-  (`src-tauri/nsis/Danish.nsh`, Tauri 2.12 havde ingen dansk), og .md/.markdown tilknyttes.
+  (`src-tauri/nsis/Danish.nsh`, Tauri 2.12 havde ingen dansk), og .md/.markdown tilknyttes
+  (.md også i Højreklik › Ny, ADR-0071).
   .txt bevidst ikke, så Notesblok beholder sine filer. Usigneret: SmartScreen spørger første gang.
 **Revurdér først hvis:** Skær dæmper for meget til, at Ctrl+Z føles som nok, eller `/` kolliderer
 med noget, brugeren søger efter i én tekst.
@@ -1485,3 +1486,21 @@ mapper«). Før skjultes `docs`, `audit`, `lektioner`, byggemapper, punktum-mapp
 kundes tekster i `docs\` kunne ikke findes. Kun projektfilerne (README, TODO, AGENTS …) dæmpes
 stadig. Søgningen og hurtigåbningen (`files_in`) springer byggemapper, punktum-mapper og worktrees
 over som før: de læser hver fil, og en worktree viser de samme tekster to gange.
+
+### ADR-0071 — Højreklik › Ny i Stifinder giver en tekst i Gode Tekster (16/11-2026)
+**Baggrund:** ønske 16/11: Stifinders menu Højreklik › Ny skal have et punkt til en ny tekst i Gode
+Tekster, ved siden af Word-dokument og Tekstdokument.
+**Beslutning:** installeren skriver `.md\ShellNew` med `NullFile` (`nsis/hooks.nsh`,
+`NSIS_HOOK_POSTINSTALL`). Stifinder laver så en tom .md i mappen og lader brugeren navngive den, og
+et dobbeltklik åbner den i Gode Tekster gennem den tilknytning, der allerede findes. Navnet i menuen
+er filtypens navn, så filtypen `Markdown` hedder nu »Tekst i Gode Tekster« (»Gode Tekster document«
+på en engelsk Windows) i stedet for »Tekst i markdown«. Det står også i Stifinders kolonne Type.
+`tauri.conf.json` har kun ét sprog til beskrivelsen, så navnet skrives igen i hooket efter
+installerens sprog. Stifinder kalder filen »Ny Tekst i Gode Tekster.md« (`Ny %s` i shell32), og
+`autoName.ts` regner det som et standardnavn, så filen får navn efter første linje som »Uden titel«
+(kun i et bibliotek, ADR-0070). Afinstallationen fjerner punktet, hvis .md stadig peger på
+`Markdown`. Kun .md, ikke .markdown, ellers står punktet to gange.
+**Ikke valgt:** `ShellNew\Command`, der kunne starte programmet direkte (dårligt dokumenteret, og
+Stifinder giver ikke mappen med), og en skabelonfil med indhold (en tom tekst er det, man forventer).
+**Revurdér hvis:** et andet program tager .md, så punktet forsvinder, eller Windows 11 gemmer Ny-menuen
+et andet sted.
